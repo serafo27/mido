@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mido</title>
+    <script>
+      // Paint with the last theme before the app boots, to avoid a colour flash.
+      try {
+        var cache = JSON.parse(localStorage.getItem("mido.themeCache") || "null");
+        var settings = JSON.parse(localStorage.getItem("mido.settings") || "{}");
+        var root = document.documentElement;
+        root.dataset.style = settings.style || "mido";
+        if (cache) {
+          root.dataset.theme = cache.kind;
+          for (var k in cache.vars) root.style.setProperty(k, cache.vars[k]);
+        } else {
+          root.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

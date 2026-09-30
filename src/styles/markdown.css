@@ -1,0 +1,653 @@
+/* ============================================================
+   Rendered Markdown
+   ============================================================ */
+.markdown {
+  max-width: var(--md-width, 780px);
+  margin: 0 auto;
+  padding: 52px 48px 30vh;
+  font-family: var(--md-font-body, var(--font-sans));
+  font-size: var(--md-font-size, 16px);
+  line-height: var(--md-line-height, 1.72);
+  color: var(--text);
+  font-feature-settings: "cv11", "ss01", "ss03";
+  text-rendering: optimizeLegibility;
+}
+
+.markdown > :first-child {
+  margin-top: 0 !important;
+}
+
+/* ---------- headings ---------- */
+.markdown :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--md-heading);
+  line-height: 1.25;
+  scroll-margin-top: 24px;
+  text-wrap: balance;
+}
+.markdown :is(h1, h2, h3) {
+  font-family: var(--md-font-heading, var(--font-serif));
+}
+.markdown h1,
+.markdown h2 {
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+.markdown h1 {
+  font-size: 2.3em;
+  margin: 1.4em 0 0.55em;
+}
+.markdown h2 {
+  font-size: 1.62em;
+  margin: 1.9em 0 0.6em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border);
+}
+.markdown h3 {
+  font-size: 1.24em;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 1.8em 0 0.5em;
+}
+.markdown h4 {
+  font-size: 1.04em;
+  font-weight: 650;
+  margin: 1.6em 0 0.4em;
+}
+.markdown :is(h5, h6) {
+  font-size: 0.8em;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 1.6em 0 0.4em;
+}
+
+/* ---------- text ---------- */
+.markdown p {
+  margin: 0 0 1.1em;
+}
+.markdown strong {
+  font-weight: 650;
+  color: var(--md-heading);
+}
+.markdown a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: text-decoration-color 0.15s;
+}
+.markdown a:hover {
+  text-decoration-color: var(--accent);
+}
+.markdown mark {
+  background: color-mix(in srgb, var(--warm) 28%, transparent);
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+.markdown kbd {
+  font-size: 0.8em;
+}
+.markdown abbr[title] {
+  text-decoration: underline dotted;
+}
+.markdown sup,
+.markdown sub {
+  line-height: 0;
+}
+
+.markdown ::selection {
+  background: var(--selection);
+}
+
+/* ---------- lists ---------- */
+.markdown :is(ul, ol) {
+  margin: 0 0 1.1em;
+  padding-left: 1.6em;
+}
+.markdown li {
+  margin: 0.3em 0;
+}
+.markdown li > :is(ul, ol) {
+  margin: 0.3em 0 0;
+}
+.markdown li > p {
+  margin: 0 0 0.5em;
+}
+.markdown li::marker {
+  color: var(--text-faint);
+}
+.markdown ol > li::marker {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+.markdown .contains-task-list {
+  list-style: none;
+  padding-left: 0.3em;
+}
+.markdown .contains-task-list .contains-task-list {
+  padding-left: 1.6em;
+}
+.markdown .task-list-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  margin: 0 0.55em 0 0;
+  vertical-align: -2px;
+  accent-color: var(--accent);
+}
+
+/* ---------- blockquote ---------- */
+.markdown blockquote {
+  margin: 1.5em 0;
+  padding: 0.7em 1.25em;
+  border-left: 3px solid var(--warm);
+  border-radius: 0 10px 10px 0;
+  background: var(--quote-bg);
+  color: var(--text-muted);
+  font-family: var(--md-font-heading, var(--font-serif));
+  font-size: 1.07em;
+  font-style: italic;
+}
+.markdown blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+/* GitHub-style alerts */
+.markdown blockquote.alert {
+  --alert: var(--alert-note);
+  border-left-color: var(--alert);
+  background: color-mix(in srgb, var(--alert) 7%, transparent);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 0.97em;
+  font-style: normal;
+}
+.markdown blockquote.alert-tip {
+  --alert: var(--alert-tip);
+}
+.markdown blockquote.alert-important {
+  --alert: var(--alert-important);
+}
+.markdown blockquote.alert-warning {
+  --alert: var(--alert-warning);
+}
+.markdown blockquote.alert-caution {
+  --alert: var(--alert-caution);
+}
+.markdown .alert-title {
+  margin: 0 0 0.35em;
+  font-size: 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--alert);
+}
+
+/* ---------- code ---------- */
+.markdown code {
+  font-family: var(--md-font-code, var(--font-mono));
+  font-size: 0.86em;
+  font-variant-ligatures: none;
+}
+.markdown :not(pre) > code {
+  padding: 0.14em 0.42em;
+  border-radius: 5px;
+  background: var(--code-bg);
+  border: 1px solid var(--border-soft);
+  color: var(--code-fg);
+}
+.markdown a > code {
+  color: inherit;
+}
+
+.markdown .code-block {
+  position: relative;
+  margin: 1.4em 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+}
+.markdown .code-block pre {
+  margin: 0;
+  padding: 16px 20px;
+  overflow-x: auto;
+  font-size: 0.875em;
+  line-height: 1.62;
+  tab-size: 4;
+}
+.markdown .code-block pre code {
+  font-size: 0.95em;
+  color: var(--text);
+  background: none;
+}
+.code-meta {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+}
+.code-lang {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  transition: opacity 0.15s;
+}
+.code-copy {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.code-block:hover .code-copy {
+  opacity: 1;
+}
+.code-block:hover .code-lang {
+  opacity: 0;
+}
+.code-copy:hover {
+  color: var(--accent);
+}
+
+/* ---------- tables ---------- */
+.markdown .table-wrap {
+  margin: 1.4em 0;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.markdown table {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: 0.92em;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.markdown th {
+  background: color-mix(in srgb, var(--bg-sidebar) 70%, transparent);
+  font-weight: 600;
+  text-align: left;
+  color: var(--md-heading);
+}
+.markdown :is(th, td) {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: top;
+}
+.markdown :is(th, td):not(:last-child) {
+  border-right: 1px solid var(--border-soft);
+}
+.markdown tr:last-child td {
+  border-bottom: 0;
+}
+.markdown tbody tr:nth-child(even) {
+  background: var(--table-stripe);
+}
+
+/* ---------- media & misc ---------- */
+.markdown img {
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+  border-radius: 6px;
+}
+.markdown p > img:only-child {
+  display: block;
+  margin: 1.6em auto;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.45);
+}
+.markdown hr {
+  height: 1px;
+  margin: 2.6em 0;
+  border: 0;
+  background: linear-gradient(to right, transparent, var(--border) 20%, var(--border) 80%, transparent);
+}
+.markdown details {
+  margin: 1.2em 0;
+  padding: 0.6em 1em;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.markdown summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+.markdown details[open] summary {
+  margin-bottom: 0.6em;
+}
+.markdown .katex-display {
+  margin: 1.4em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
+}
+.markdown .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Footnotes */
+.markdown section[data-footnotes] {
+  margin-top: 3em;
+  padding-top: 1.2em;
+  border-top: 1px solid var(--border);
+  font-size: 0.88em;
+  color: var(--text-muted);
+}
+.markdown [data-footnote-ref] {
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0 1px;
+}
+
+/* Frontmatter card */
+.frontmatter {
+  display: grid;
+  gap: 0;
+  margin: 0 0 2.2em;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-sidebar);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.frontmatter div {
+  display: grid;
+  grid-template-columns: minmax(80px, max-content) 1fr;
+  gap: 18px;
+  padding: 4px 0;
+}
+.frontmatter div + div {
+  border-top: 1px dashed var(--border);
+}
+.frontmatter dt {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  color: var(--text-faint);
+}
+.frontmatter dd {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.markdown.justify :is(p, li, dd) {
+  text-align: justify;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+/* ============================================================
+   Style presets (data-style on <html>)
+   ============================================================ */
+
+/* GitHub: crisp, documentation-like. */
+[data-style="github"] .markdown :is(h1, h2) {
+  font-weight: 600;
+  letter-spacing: 0;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border);
+}
+[data-style="github"] .markdown h1 {
+  font-size: 2em;
+  margin-top: 1em;
+}
+[data-style="github"] .markdown h2 {
+  font-size: 1.5em;
+  margin-top: 1.6em;
+}
+[data-style="github"] .markdown h3 {
+  font-weight: 600;
+  letter-spacing: 0;
+}
+[data-style="github"] .markdown blockquote:not(.alert) {
+  padding: 0 1em;
+  border-left: 4px solid var(--border);
+  border-radius: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 1em;
+  font-style: normal;
+}
+[data-style="github"] .markdown a {
+  text-decoration: none;
+}
+[data-style="github"] .markdown a:hover {
+  text-decoration: underline;
+}
+[data-style="github"] .markdown :is(.code-block, .table-wrap) {
+  border-radius: 6px;
+}
+[data-style="github"] .markdown .code-block {
+  border-color: transparent;
+}
+[data-style="github"] .markdown hr {
+  height: 3px;
+  background: var(--border);
+}
+
+/* Academic: book-like serif typography. */
+[data-style="academic"] .markdown h1 {
+  text-align: center;
+  font-size: 2.2em;
+  font-weight: 600;
+  margin-bottom: 1em;
+}
+[data-style="academic"] .markdown h2 {
+  border-bottom: 0;
+  padding-bottom: 0;
+  font-size: 1.45em;
+  font-weight: 600;
+}
+[data-style="academic"] .markdown h3 {
+  font-style: italic;
+  font-weight: 500;
+}
+[data-style="academic"] .markdown blockquote:not(.alert) {
+  margin: 1.6em 2em;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 1em;
+}
+[data-style="academic"] .markdown hr {
+  height: auto;
+  background: none;
+  text-align: center;
+  color: var(--text-faint);
+}
+[data-style="academic"] .markdown hr::after {
+  content: "⁂";
+  font-size: 1.2em;
+}
+[data-style="academic"] .markdown .table-wrap {
+  border: 0;
+  border-radius: 0;
+}
+[data-style="academic"] .markdown table {
+  border-top: 2px solid var(--text);
+  border-bottom: 2px solid var(--text);
+}
+[data-style="academic"] .markdown th {
+  background: none;
+  border-bottom: 1px solid var(--text);
+}
+[data-style="academic"] .markdown :is(th, td) {
+  border-right: 0 !important;
+}
+[data-style="academic"] .markdown tbody tr:nth-child(even) {
+  background: none;
+}
+
+/* Minimal: quiet, airy, few borders. */
+[data-style="minimal"] .markdown :is(h1, h2, h3) {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+[data-style="minimal"] .markdown h2 {
+  border-bottom: 0;
+  padding-bottom: 0;
+  margin-top: 2.4em;
+}
+[data-style="minimal"] .markdown p {
+  margin-bottom: 1.35em;
+}
+[data-style="minimal"] .markdown blockquote:not(.alert) {
+  padding: 0 1.2em;
+  border-left: 2px solid var(--border);
+  border-radius: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 1em;
+  font-style: normal;
+}
+[data-style="minimal"] .markdown .code-block {
+  border-color: transparent;
+}
+[data-style="minimal"] .markdown .table-wrap {
+  border: 0;
+  border-radius: 0;
+}
+[data-style="minimal"] .markdown th {
+  background: none;
+}
+[data-style="minimal"] .markdown :is(th, td) {
+  border-right: 0 !important;
+}
+[data-style="minimal"] .markdown tbody tr:nth-child(even) {
+  background: none;
+}
+[data-style="minimal"] .markdown hr {
+  width: 80px;
+  margin-left: auto;
+  margin-right: auto;
+  background: var(--border);
+}
+
+/* ============================================================
+   Wrap vs. no-wrap
+   ============================================================ */
+
+/* Wrap: everything fits the window width. */
+.markdown.wrap {
+  overflow-wrap: break-word;
+}
+.markdown.wrap .code-block pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.markdown.wrap :is(td, th) {
+  overflow-wrap: break-word;
+}
+.markdown.wrap .table-wrap table {
+  width: 100%;
+}
+
+/* No wrap: long lines keep their shape and the whole page scrolls sideways. */
+.markdown.nowrap .code-block,
+.markdown.nowrap .table-wrap {
+  width: max-content;
+  min-width: 100%;
+}
+.markdown.nowrap .code-block pre,
+.markdown.nowrap .table-wrap {
+  overflow: visible;
+}
+.markdown.nowrap .code-block pre {
+  white-space: pre;
+}
+.markdown.nowrap :is(td, th) {
+  white-space: nowrap;
+}
+.markdown.nowrap .katex-display {
+  overflow: visible;
+}
+/* Keep a margin after the widest block when scrolled to the far right. */
+.markdown.nowrap::after {
+  content: "";
+  display: block;
+  width: 48px;
+  height: 1px;
+}
+
+/* ============================================================
+   Syntax highlighting (highlight.js classes)
+   ============================================================ */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-doctag,
+.hljs-tag .hljs-name {
+  color: var(--hl-keyword);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-template-tag,
+.hljs-template-variable {
+  color: var(--hl-string);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-variable.constant_ {
+  color: var(--hl-number);
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section {
+  color: var(--hl-title);
+}
+.hljs-type,
+.hljs-title.class_,
+.hljs-class .hljs-title {
+  color: var(--hl-type);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-variable {
+  color: var(--hl-attr);
+}
+.hljs-meta,
+.hljs-meta .hljs-keyword,
+.hljs-punctuation {
+  color: var(--hl-meta);
+}
+.hljs-deletion {
+  color: var(--alert-caution);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 700;
+}
