@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>A quiet place to read and write Markdown.</strong><br />
-  A desktop Markdown viewer and editor for macOS, Windows and Linux, built with Tauri, Rust and React.
+  A Markdown viewer and editor for macOS, built with Tauri, Rust and React.
 </p>
 
 <p align="center">
@@ -26,10 +26,10 @@ Get the latest installer from the [releases page](https://github.com/serafo27/mi
 | Platform | Package |
 | --- | --- |
 | macOS | `.dmg` for Apple Silicon and Intel |
-| Windows | `.exe` installer or `.msi` package |
-| Linux | `.AppImage`, `.deb` or `.rpm` |
 
-Mido isn't code-signed yet. On macOS, right-click the app and choose **Open** the first time (or run `xattr -cr /Applications/Mido.app`). On Windows, choose **More info → Run anyway** if SmartScreen appears.
+Windows and Linux builds are planned but not published yet.
+
+Mido isn't code-signed yet: the first time, right-click the app and choose **Open** (or run `xattr -cr /Applications/Mido.app`).
 
 ## Features
 
@@ -47,8 +47,6 @@ Mido isn't code-signed yet. On macOS, right-click the app and choose **Open** th
 - **File path bar** — shows `folder › … › file` above the tabs; turn it off in settings to move the tabs into the title bar.
 
 ## Keyboard shortcuts
-
-On Windows and Linux use `Ctrl` instead of `⌘` and `Alt` instead of `⌥`.
 
 | Shortcut | Action |
 | --- | --- |
@@ -96,14 +94,14 @@ Requirements:
 ```sh
 pnpm install
 pnpm tauri dev      # run the app with hot reload
-pnpm tauri build    # production bundles (.app / .dmg / .msi / .exe / .deb …)
+pnpm tauri build    # production bundle (.app / .dmg)
 ```
 
 Open the `examples/` folder in Mido to try every rendering feature.
 
 ### Continuous integration
 
-- **Build** (`.github/workflows/build.yml`) builds the app for macOS (Apple Silicon and Intel), Windows and Linux on every push to `main` and on pull requests; the installers are attached to each run as artifacts. Pushing a `v*` tag (for example `git tag v0.2.0 && git push --tags`) also creates a draft GitHub release with the installers.
+- **Build** (`.github/workflows/build.yml`) builds the app for macOS (Apple Silicon and Intel) on every push to `main` and on pull requests; the installers are attached to each run as artifacts. Windows and Linux jobs are ready to be re-enabled in the build matrix once tested. Pushing a `v*` tag (for example `git tag v0.2.0 && git push --tags`) also creates a draft GitHub release with the installers.
 - **Website** (`.github/workflows/pages.yml`) publishes the `site/` folder to GitHub Pages whenever it changes.
 
 ### Project structure

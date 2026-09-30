@@ -6,12 +6,12 @@
     <title>Mido — A quiet place to read and write Markdown</title>
     <meta
       name="description"
-      content="Mido is a free desktop Markdown viewer and editor for macOS, Windows and Linux: beautiful reading, split editing, tabs, an outline and themes."
+      content="Mido is a free Markdown viewer and editor for macOS: beautiful reading, split editing, tabs, an outline and themes."
     />
     <meta property="og:title" content="Mido — A quiet place to read and write Markdown" />
     <meta
       property="og:description"
-      content="A free desktop Markdown viewer and editor with beautiful reading, split editing, tabs, an outline and themes."
+      content="A free Markdown viewer and editor for macOS with beautiful reading, split editing, tabs, an outline and themes."
     />
     <meta property="og:type" content="website" />
     <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
@@ -49,7 +49,7 @@
     <main id="top">
       <!-- Hero -->
       <section class="hero container">
-        <p class="eyebrow">Markdown viewer &amp; editor for macOS, Windows and Linux</p>
+        <p class="eyebrow">Markdown viewer &amp; editor for macOS</p>
         <h1>A quiet place to read and write Markdown.</h1>
         <p class="lede">
           Open any folder and Mido turns your notes, docs and READMEs into beautifully typeset pages — then lets you
@@ -58,7 +58,7 @@
         <div class="cta">
           <a class="button primary" id="hero-download" href="#download">
             <span class="button-icon" aria-hidden="true">↓</span>
-            <span id="hero-download-label">Download Mido</span>
+            <span id="hero-download-label">Download for macOS</span>
           </a>
           <a class="button secondary" href="https://github.com/serafo27/mido">View on GitHub</a>
         </div>
@@ -231,38 +231,24 @@
       <section id="download" class="download container">
         <p class="eyebrow">Download</p>
         <h2>Get Mido</h2>
-        <p class="section-lede" id="release-info">Free for macOS, Windows and Linux.</p>
+        <p class="section-lede" id="release-info">Free for macOS.</p>
 
-        <div class="platforms">
+        <div class="platforms single">
           <article class="platform" data-platform="mac">
             <h3>macOS</h3>
             <p class="platform-sub">Apple Silicon and Intel</p>
             <a class="button primary block" data-asset="mac-arm" href="https://github.com/serafo27/mido/releases/latest">Apple Silicon (.dmg)</a>
             <a class="button secondary block" data-asset="mac-intel" href="https://github.com/serafo27/mido/releases/latest">Intel (.dmg)</a>
           </article>
-          <article class="platform" data-platform="windows">
-            <h3>Windows</h3>
-            <p class="platform-sub">Windows 10 or later</p>
-            <a class="button primary block" data-asset="win-exe" href="https://github.com/serafo27/mido/releases/latest">Installer (.exe)</a>
-            <a class="button secondary block" data-asset="win-msi" href="https://github.com/serafo27/mido/releases/latest">MSI package (.msi)</a>
-          </article>
-          <article class="platform" data-platform="linux">
-            <h3>Linux</h3>
-            <p class="platform-sub">64-bit (x86_64)</p>
-            <a class="button primary block" data-asset="linux-appimage" href="https://github.com/serafo27/mido/releases/latest">AppImage</a>
-            <div class="button-pair">
-              <a class="button secondary block" data-asset="linux-deb" href="https://github.com/serafo27/mido/releases/latest">.deb</a>
-              <a class="button secondary block" data-asset="linux-rpm" href="https://github.com/serafo27/mido/releases/latest">.rpm</a>
-            </div>
-          </article>
         </div>
 
+        <p class="other-platforms">Windows and Linux versions are on the way.</p>
+
         <details class="unsigned-note">
-          <summary>First launch on macOS or Windows</summary>
+          <summary>First launch on macOS</summary>
           <p>
-            Mido isn't code-signed yet. On <strong>macOS</strong>, right-click the app and choose <em>Open</em> the first
-            time (or run <code>xattr -cr /Applications/Mido.app</code>). On <strong>Windows</strong>, choose
-            <em>More info → Run anyway</em> if SmartScreen appears.
+            Mido isn't code-signed yet. The first time, right-click the app and choose <em>Open</em>, or run
+            <code>xattr -cr /Applications/Mido.app</code> in Terminal.
           </p>
         </details>
       </section>

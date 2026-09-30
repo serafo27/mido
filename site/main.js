@@ -26,36 +26,15 @@
   const REPO = "serafo27/mido";
   const RELEASES = `https://github.com/${REPO}/releases`;
 
+  // Only macOS builds are published for now.
   const PATTERNS = {
     "mac-arm": /aarch64\.dmg$/i,
     "mac-intel": /x64\.dmg$/i,
-    "win-exe": /setup\.exe$/i,
-    "win-msi": /\.msi$/i,
-    "linux-appimage": /\.AppImage$/i,
-    "linux-deb": /\.deb$/i,
-    "linux-rpm": /\.rpm$/i,
-  };
-  const PRIMARY = { mac: "mac-arm", windows: "win-exe", linux: "linux-appimage" };
-  const LABELS = { mac: "Download for macOS", windows: "Download for Windows", linux: "Download for Linux" };
-
-  const detectPlatform = () => {
-    const platform = (navigator.userAgentData?.platform || navigator.platform || navigator.userAgent).toLowerCase();
-    if (platform.includes("mac")) return "mac";
-    if (platform.includes("win")) return "windows";
-    if (platform.includes("linux") && !/android/i.test(navigator.userAgent)) return "linux";
-    return null;
   };
 
-  const os = detectPlatform();
   const heroButton = document.getElementById("hero-download");
-  const heroLabel = document.getElementById("hero-download-label");
   const heroNote = document.getElementById("hero-note");
   const info = document.getElementById("release-info");
-
-  if (os) {
-    heroLabel.textContent = LABELS[os];
-    document.querySelector(`.platform[data-platform="${os}"]`)?.classList.add("current");
-  }
 
   let release;
   try {
@@ -88,5 +67,7 @@
     else link.href = release.html_url;
   });
 
-  if (os && urls[PRIMARY[os]]) heroButton.href = urls[PRIMARY[os]];
+  // The hero button downloads directly on Macs; elsewhere it shows the download section.
+  const isMac = /mac/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent);
+  if (isMac && urls["mac-arm"]) heroButton.href = urls["mac-arm"];
 })();

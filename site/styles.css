@@ -533,6 +533,17 @@ code {
   text-align: left;
 }
 
+.platforms.single {
+  grid-template-columns: minmax(0, 380px);
+  justify-content: center;
+}
+
+.other-platforms {
+  margin-top: 22px;
+  font-size: 14.5px;
+  color: var(--faint);
+}
+
 .platform {
   display: flex;
   flex-direction: column;
