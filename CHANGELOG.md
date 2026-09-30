@@ -9,6 +9,8 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-30
+
 ### Added
 
 - Update checks: Mido looks for a new version at launch and every 12 hours, and shows what's new with a download button for your Mac's installer. Notifications can be turned off from the dialog or in Settings → Updates.
@@ -42,5 +44,6 @@ The first release of Mido, for macOS (Apple Silicon and Intel).
 - Custom themes with a colour editor and JSON import and export.
 - Auto, light and dark modes, with an optional accent colour.
 
-[Unreleased]: https://github.com/serafo27/mido/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/serafo27/mido/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/serafo27/mido/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/serafo27/mido/releases/tag/v0.1.0
