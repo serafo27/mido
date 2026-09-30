@@ -256,7 +256,7 @@ function CodeBlock({ language, children, ...rest }: { language?: string; childre
   };
 
   return (
-    <div className="code-block">
+    <div className={`code-block ${language ? "has-lang" : ""}`}>
       <div className="code-meta">
         {language && <span className="code-lang">{language}</span>}
         <button className="code-copy" onClick={copy} title="Copy code">

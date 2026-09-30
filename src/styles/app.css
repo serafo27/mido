@@ -619,6 +619,8 @@ body.resizing .resizer {
 }
 .tab.preview .tab-name {
   font-style: italic;
+  /* Room for the slanted last glyph, which overflow: hidden would clip. */
+  padding-right: 2px;
 }
 .tab-icon {
   flex: none;

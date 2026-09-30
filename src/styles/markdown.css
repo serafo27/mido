@@ -218,6 +218,10 @@
   line-height: 1.62;
   tab-size: 4;
 }
+/* Keep code clear of the language label in the top-right corner. */
+.markdown .code-block.has-lang pre {
+  padding-right: 64px;
+}
 .markdown .code-block pre code {
   font-size: 0.95em;
   color: var(--text);
