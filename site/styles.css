@@ -599,6 +599,148 @@ code {
 }
 
 /* ============================================================
+   Changelog
+   ============================================================ */
+.nav-links a[aria-current="page"] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.changelog {
+  max-width: 760px;
+  padding: 80px 0 96px;
+}
+
+.changelog h1 {
+  font-size: clamp(38px, 5vw, 54px);
+}
+
+.changelog .section-lede {
+  margin-left: 0;
+}
+
+.releases {
+  margin-top: 48px;
+}
+
+.releases-status {
+  padding: 28px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.release {
+  position: relative;
+  padding: 0 0 44px 32px;
+  border-left: 2px solid var(--border);
+}
+
+.release:last-child {
+  padding-bottom: 8px;
+}
+
+/* Timeline dot. */
+.release::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  left: -7px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--accent);
+}
+
+.release:first-child::before {
+  background: var(--accent);
+}
+
+.release-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.release-header h2 {
+  font-size: 30px;
+}
+
+.release-header h2 a {
+  text-decoration: none;
+}
+
+.release-header time {
+  font-size: 14.5px;
+  color: var(--faint);
+}
+
+.badge {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.release-notes {
+  margin-top: 14px;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.release-notes > p:first-child {
+  font-size: 17px;
+  color: var(--muted);
+}
+
+.release-notes h3 {
+  margin: 26px 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.release-notes p {
+  margin: 0 0 12px;
+}
+
+.release-notes ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.release-notes li {
+  margin: 6px 0;
+}
+
+.release-notes li::marker {
+  color: var(--faint);
+}
+
+.release-notes a {
+  color: var(--accent);
+}
+
+.release-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.button.small {
+  height: 38px;
+  padding: 0 16px;
+  font-size: 14px;
+  border-radius: 9px;
+}
+
+/* ============================================================
    Footer
    ============================================================ */
 .footer {

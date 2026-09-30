@@ -20,7 +20,7 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     permissions:
-      # Needed only to create the draft release on version tags.
+      # Needed only to upload installers to the release on version tags.
       contents: write
     strategy:
       fail-fast: false
@@ -60,8 +60,38 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      # On a version tag, the tag must match the app version and CHANGELOG.md
+      # must have a section for it: that section becomes the release notes.
+      - name: Release notes from CHANGELOG.md
+        id: notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          app_version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "$version" != "$app_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match the app version $app_version in tauri.conf.json"
+            exit 1
+          fi
+          notes=$(awk -v v="$version" '
+            index($0, "## [" v "]") == 1 { found = 1; next }
+            found && /^## / { exit }
+            found && /^\[[^]]+\]: / { next }
+            found { print }
+          ' CHANGELOG.md | sed -e '/./,$!d')
+          if [ -z "$notes" ]; then
+            echo "::error::CHANGELOG.md has no section for version $version"
+            exit 1
+          fi
+          {
+            echo "body<<__MIDO_NOTES__"
+            echo "$notes"
+            echo "__MIDO_NOTES__"
+          } >> "$GITHUB_OUTPUT"
+
       # Runs `pnpm build` (type-check + Vite) and bundles the app. On a `v*` tag
-      # it also creates a draft GitHub release with the installers attached.
+      # it also uploads the installers to a draft release, which the `publish`
+      # job makes public once every build has succeeded.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,7 +99,7 @@ jobs:
           args: --target ${{ matrix.target }}
           tagName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
           releaseName: Mido ${{ github.ref_name }}
-          releaseBody: See the assets below to download Mido for your platform.
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
 
@@ -79,3 +109,18 @@ jobs:
           name: mido-${{ matrix.target }}
           if-no-files-found: error
           path: src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+
+  # Publishes the draft release only after all platform builds have uploaded
+  # their installers, so a release never goes out half-built.
+  publish:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest

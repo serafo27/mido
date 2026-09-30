@@ -24,6 +24,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
+      # Pages caches files for 10 minutes: versioned URLs make every deploy
+      # load its own CSS and JS instead of a stale copy.
+      - name: Version asset URLs
+        run: |
+          version="${GITHUB_SHA::7}"
+          sed -i -E "s/(href|src)=\"([a-z-]+\.(css|js))\"/\1=\"\2?v=${version}\"/g" site/*.html
+          grep -ho '[a-z-]*\.\(css\|js\)?v=[0-9a-f]*' site/*.html | sort -u
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

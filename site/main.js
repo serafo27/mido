@@ -43,6 +43,7 @@
     });
     if (!response.ok) throw new Error(String(response.status));
     release = await response.json();
+    if (!release?.tag_name) throw new Error("Unexpected response");
   } catch {
     // No published release yet (or the API is unreachable): point at the releases page.
     info.innerHTML = `Installers will appear on the <a href="${RELEASES}">releases page</a> with the first release.`;
@@ -52,7 +53,7 @@
 
   const version = release.tag_name.replace(/^v/, "");
   const date = new Date(release.published_at).toLocaleDateString("en", { year: "numeric", month: "long", day: "numeric" });
-  info.innerHTML = `Version ${version} · released ${date} · <a href="${release.html_url}">release notes</a>`;
+  info.innerHTML = `Version ${version} · released ${date} · <a href="changelog.html#v${version}">what's new</a>`;
   heroNote.textContent = `Version ${version} · Free · Your files stay plain Markdown on your disk`;
 
   const urls = {};

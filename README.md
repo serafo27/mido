@@ -12,6 +12,7 @@
 <p align="center">
   <a href="https://serafo27.github.io/mido/">Website</a> ·
   <a href="https://github.com/serafo27/mido/releases/latest">Download</a> ·
+  <a href="https://serafo27.github.io/mido/changelog.html">Changelog</a> ·
   <a href="#features">Features</a> ·
   <a href="#development">Development</a> ·
   <a href="#license">License</a>
@@ -101,7 +102,7 @@ Open the `examples/` folder in Mido to try every rendering feature.
 
 ### Continuous integration
 
-- **Build** (`.github/workflows/build.yml`) builds the app for macOS (Apple Silicon and Intel) on every push to `main` and on pull requests; the installers are attached to each run as artifacts. Windows and Linux jobs are ready to be re-enabled in the build matrix once tested. Pushing a `v*` tag (for example `git tag v0.2.0 && git push --tags`) also creates a draft GitHub release with the installers.
+- **Build** (`.github/workflows/build.yml`) builds the app for macOS (Apple Silicon and Intel) on every push to `main` and on pull requests; the installers are attached to each run as artifacts. Windows and Linux jobs are ready to be re-enabled in the build matrix once tested. To release a version: add its section to [CHANGELOG.md](CHANGELOG.md), set the same version in `src-tauri/tauri.conf.json` and `package.json`, then push a matching tag (for example `git tag v0.2.0 && git push --tags`). The workflow checks that the tag matches the app version, builds the installers, uses the changelog section as the release notes and publishes the release once every build has succeeded. The website's changelog page lists every published release.
 - **Website** (`.github/workflows/pages.yml`) publishes the `site/` folder to GitHub Pages whenever it changes.
 
 ### Project structure
