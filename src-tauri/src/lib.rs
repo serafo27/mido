@@ -185,6 +185,13 @@ fn watch_folder(app: AppHandle, state: State<WatcherState>, root: String) -> Res
     Ok(())
 }
 
+/// CPU architecture of this build ("aarch64" or "x86_64"), used to pick the
+/// matching installer when an update is available.
+#[tauri::command]
+fn app_arch() -> &'static str {
+    std::env::consts::ARCH
+}
+
 /// macOS app menu. It replaces Tauri's default one, whose "Close Window"
 /// item would grab ⌘W before the webview can use it to close a tab. Undo/redo
 /// are left out on purpose so ⌘Z reaches CodeMirror's own history.
@@ -195,8 +202,10 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     let settings = MenuItemBuilder::with_id("settings", "Settings…")
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
+    let check_updates = MenuItemBuilder::with_id("check-updates", "Check for Updates…").build(app)?;
     let app_menu = SubmenuBuilder::new(app, "Mido")
         .item(&PredefinedMenuItem::about(app, Some("About Mido"), None)?)
+        .item(&check_updates)
         .separator()
         .item(&settings)
         .separator()
@@ -238,9 +247,12 @@ pub fn run() {
             Ok(())
         })
         .on_menu_event(|app, event| {
-            if event.id() == "settings" {
-                let _ = app.emit("menu-settings", ());
-            }
+            let name = match event.id().as_ref() {
+                "settings" => "menu-settings",
+                "check-updates" => "menu-check-updates",
+                _ => return,
+            };
+            let _ = app.emit(name, ());
         })
         .invoke_handler(tauri::generate_handler![
             read_tree,
@@ -250,7 +262,8 @@ pub fn run() {
             create_dir,
             rename_path,
             trash_path,
-            watch_folder
+            watch_folder,
+            app_arch
         ])
         .run(tauri::generate_context!())
         .expect("error while running Mido");

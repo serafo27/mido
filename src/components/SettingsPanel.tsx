@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { Check, Monitor, Moon, RotateCcw, Sun, X } from "lucide-react";
 import {
   ACCENTS,
@@ -17,6 +18,7 @@ interface SettingsPanelProps {
   /** Whether the OS is in dark mode (decides the theme shown in "Auto"). */
   systemDark: boolean;
   onChange: (patch: Partial<Settings>) => void;
+  onCheckForUpdates: () => void;
   onClose: () => void;
 }
 
@@ -31,8 +33,13 @@ const FONT_KEY: Record<FontRole, "bodyFont" | "headingFont" | "codeFont"> = {
   code: "codeFont",
 };
 
-export default function SettingsPanel({ settings, systemDark, onChange, onClose }: SettingsPanelProps) {
+export default function SettingsPanel(props: SettingsPanelProps) {
+  const { settings, systemDark, onChange, onClose } = props;
   const panelRef = useRef<HTMLDivElement>(null);
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    getVersion().then(setVersion, () => {});
+  }, []);
   const theme = activeTheme(settings, systemDark);
 
   useEffect(() => {
@@ -185,6 +192,20 @@ export default function SettingsPanel({ settings, systemDark, onChange, onClose 
 
         <Section title="Themes">
           <ThemeSection settings={settings} systemDark={systemDark} onChange={onChange} />
+        </Section>
+
+        <Section title="Updates">
+          <Toggle
+            label="Check for updates automatically"
+            checked={settings.checkForUpdates}
+            onChange={(checkForUpdates) => onChange({ checkForUpdates })}
+          />
+          <div className="settings-row">
+            <span className="settings-label muted">{version ? `Mido ${version}` : "Mido"}</span>
+            <button className="ghost-button" onClick={props.onCheckForUpdates}>
+              Check Now
+            </button>
+          </div>
         </Section>
 
         {/* Custom themes are user content, not a setting: keep them. */}

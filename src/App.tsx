@@ -32,6 +32,8 @@ import TabBar from "./components/TabBar";
 import { extractHeadings, headingAt, type Heading } from "./lib/outline";
 import StatusBar from "./components/StatusBar";
 import SettingsPanel from "./components/SettingsPanel";
+import UpdateDialog, { type UpdateState } from "./components/UpdateDialog";
+import { CHECK_INTERVAL, checkForUpdates } from "./lib/updates";
 import { NoFile, Welcome } from "./components/Welcome";
 
 interface Tab {
@@ -458,6 +460,57 @@ export default function App() {
     };
   }, []);
 
+  /* ---------- updates ---------- */
+
+  const [update, setUpdate] = useState<UpdateState | null>(null);
+  // Bumped whenever the dialog closes, so a check still in flight can't reopen it.
+  const checkRun = useRef(0);
+  // Automatic checks offer each version once per session; manual checks always show it.
+  const offeredVersion = useRef<string | null>(null);
+
+  const runUpdateCheck = useCallback(async (manual: boolean) => {
+    const run = ++checkRun.current;
+    if (manual) setUpdate({ kind: "checking" });
+    try {
+      const result = await checkForUpdates();
+      if (run !== checkRun.current) return;
+      if (result.status === "available") {
+        if (!manual && offeredVersion.current === result.version) return;
+        offeredVersion.current = result.version;
+        setUpdate({ kind: "available", info: result });
+      } else if (manual) {
+        setUpdate({ kind: "up-to-date", currentVersion: result.currentVersion });
+      }
+    } catch (e) {
+      if (run !== checkRun.current) return;
+      // Automatic checks fail silently (e.g. offline); only manual ones report errors.
+      if (manual) setUpdate({ kind: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  }, []);
+
+  const closeUpdate = useCallback(() => {
+    checkRun.current++;
+    setUpdate(null);
+  }, []);
+
+  useEffect(() => {
+    if (!settings.checkForUpdates) return;
+    const first = window.setTimeout(() => runUpdateCheck(false), 4000);
+    const periodic = window.setInterval(() => runUpdateCheck(false), CHECK_INTERVAL);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(periodic);
+    };
+  }, [settings.checkForUpdates, runUpdateCheck]);
+
+  // "Check for Updates…" in the macOS app menu.
+  useEffect(() => {
+    const unlisten = listen("menu-check-updates", () => runUpdateCheck(true));
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, [runUpdateCheck]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey && e.code === "KeyZ" && !e.metaKey && !e.ctrlKey) {
@@ -555,13 +608,27 @@ export default function App() {
     [tabs],
   );
 
-  const settingsPanel = settingsOpen && (
-    <SettingsPanel
-      settings={settings}
-      systemDark={systemDark}
-      onChange={updateSettings}
-      onClose={() => setSettingsOpen(false)}
-    />
+  const overlays = (
+    <>
+      {settingsOpen && (
+        <SettingsPanel
+          settings={settings}
+          systemDark={systemDark}
+          onChange={updateSettings}
+          onCheckForUpdates={() => runUpdateCheck(true)}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
+      {update && (
+        <UpdateDialog
+          state={update}
+          notificationsEnabled={settings.checkForUpdates}
+          onNotificationsChange={(checkForUpdates) => updateSettings({ checkForUpdates })}
+          onRetry={() => runUpdateCheck(true)}
+          onClose={closeUpdate}
+        />
+      )}
+    </>
   );
 
   const toolbar = (
@@ -595,7 +662,7 @@ export default function App() {
           {toolbar}
           <Welcome recents={recents} onOpen={openFolder} />
         </main>
-        {settingsPanel}
+        {overlays}
         {toast && <div className="toast">{toast}</div>}
       </div>
     );
@@ -705,7 +772,7 @@ export default function App() {
           <NoFile />
         )}
       </main>
-      {settingsPanel}
+      {overlays}
       {toast && (
         <div className="toast" onClick={() => setToast(null)}>
           {toast}

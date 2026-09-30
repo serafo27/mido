@@ -31,6 +31,8 @@ export interface Settings {
   editorFontSize: number;
   wrap: boolean;
   autosave: boolean;
+  /** Check for new versions at launch (and periodically) and offer them. */
+  checkForUpdates: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -55,6 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editorFontSize: 14,
   wrap: true,
   autosave: true,
+  checkForUpdates: true,
 };
 
 export interface FontOption {

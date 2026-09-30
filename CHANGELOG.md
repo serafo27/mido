@@ -9,6 +9,11 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Added
+
+- Update checks: Mido looks for a new version at launch and every 12 hours, and shows what's new with a download button for your Mac's installer. Notifications can be turned off from the dialog or in Settings → Updates.
+- "Check for Updates…" in the Mido menu, and a "Check Now" button in Settings, to check manually at any time.
+
 ## [0.1.0] - 2026-09-30
 
 The first release of Mido, for macOS (Apple Silicon and Intel).
