@@ -565,6 +565,41 @@ code {
   font-weight: 600;
 }
 
+.platform-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.version-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.asset-meta {
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+.whats-new {
+  align-self: center;
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.whats-new:hover {
+  text-decoration: underline;
+}
+
 .platform-sub {
   margin: -4px 0 8px;
   font-size: 14px;

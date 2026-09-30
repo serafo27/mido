@@ -119,8 +119,25 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # To start the website deploy below.
+      actions: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      # tauri-action also uploads zipped .app bundles (meant for auto-updates,
+      # which Mido doesn't use); keep only the .dmg installers.
+      - name: Remove extra assets
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' |
+            grep -E '\.app\.tar\.gz(\.sig)?$' |
+            while read -r asset; do
+              gh release delete-asset "$GITHUB_REF_NAME" "$asset" --repo "$GITHUB_REPOSITORY" --yes
+            done
+
       - name: Publish the draft release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+
+      # Releases published with GITHUB_TOKEN don't trigger other workflows,
+      # so start the website deploy explicitly to pick up the new version.
+      - name: Update the website
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main

@@ -236,10 +236,18 @@
 
         <div class="platforms single">
           <article class="platform" data-platform="mac">
-            <h3>macOS</h3>
+            <div class="platform-head">
+              <h3>macOS</h3>
+              <span class="version-badge" id="release-version" hidden></span>
+            </div>
             <p class="platform-sub">Apple Silicon and Intel</p>
-            <a class="button primary block" data-asset="mac-arm" href="https://github.com/serafo27/mido/releases/latest">Apple Silicon (.dmg)</a>
-            <a class="button secondary block" data-asset="mac-intel" href="https://github.com/serafo27/mido/releases/latest">Intel (.dmg)</a>
+            <a class="button primary block" data-asset="mac-arm" href="https://github.com/serafo27/mido/releases/latest">
+              Apple Silicon <span class="asset-meta">.dmg</span>
+            </a>
+            <a class="button secondary block" data-asset="mac-intel" href="https://github.com/serafo27/mido/releases/latest">
+              Intel <span class="asset-meta">.dmg</span>
+            </a>
+            <a class="whats-new" id="whats-new" href="changelog.html" hidden></a>
           </article>
         </div>
 
@@ -270,6 +278,7 @@
       </div>
     </footer>
 
+    <script src="releases.js"></script>
     <script src="main.js"></script>
   </body>
 </html>

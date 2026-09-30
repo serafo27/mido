@@ -1,8 +1,8 @@
-// Lists the published GitHub releases. Their notes come from CHANGELOG.md
-// (the release workflow copies each version's section into its release), and
-// GitHub renders the Markdown to sanitized HTML for us.
+// Lists the published releases. Their notes come from CHANGELOG.md (the release
+// workflow copies each version's section into its release); GitHub renders the
+// Markdown to sanitized HTML, which the Pages workflow bakes into releases.json.
 (async function changelog() {
-  const REPO = "serafo27/mido";
+  const REPO = window.MidoReleases.REPO;
   const container = document.getElementById("releases");
 
   const LABELS = [
@@ -15,12 +15,7 @@
 
   let releases;
   try {
-    const response = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=50`, {
-      // Ask GitHub for the release notes already rendered as HTML.
-      headers: { Accept: "application/vnd.github.html+json" },
-    });
-    if (!response.ok) throw new Error(String(response.status));
-    releases = (await response.json()).filter((r) => !r.draft);
+    releases = await window.MidoReleases.load();
   } catch {
     container.innerHTML = `<p class="releases-status">The changelog couldn't be loaded right now. You can read it on
       <a href="https://github.com/${REPO}/releases">GitHub</a>.</p>`;

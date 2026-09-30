@@ -24,6 +24,17 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
+      # Bake the published releases into the site: download links and the
+      # changelog then work without visitors calling the rate-limited GitHub API.
+      - name: Release data
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -H "Accept: application/vnd.github.html+json" \
+            "repos/$GITHUB_REPOSITORY/releases?per_page=50" \
+            --jq '[.[] | select(.draft | not) | {tag_name, published_at, html_url, body_html,
+                   assets: [.assets[] | {name, size, browser_download_url}]}]' > site/releases.json
+          jq -r '.[] | "\(.tag_name): \([.assets[].name] | join(", "))"' site/releases.json
       # Pages caches files for 10 minutes: versioned URLs make every deploy
       # load its own CSS and JS instead of a stale copy.
       - name: Version asset URLs

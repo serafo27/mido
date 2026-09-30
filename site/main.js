@@ -21,54 +21,52 @@
   });
 })();
 
-// Downloads: link each button to the matching asset of the latest GitHub release.
+// Downloads: point each button straight at its installer in the latest release.
 (async function downloads() {
-  const REPO = "serafo27/mido";
-  const RELEASES = `https://github.com/${REPO}/releases`;
-
-  // Only macOS builds are published for now.
-  const PATTERNS = {
-    "mac-arm": /aarch64\.dmg$/i,
-    "mac-intel": /x64\.dmg$/i,
-  };
-
+  const R = window.MidoReleases;
   const heroButton = document.getElementById("hero-download");
   const heroNote = document.getElementById("hero-note");
   const info = document.getElementById("release-info");
 
   let release;
   try {
-    const response = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-      headers: { Accept: "application/vnd.github+json" },
-    });
-    if (!response.ok) throw new Error(String(response.status));
-    release = await response.json();
-    if (!release?.tag_name) throw new Error("Unexpected response");
+    release = (await R.load())[0];
   } catch {
-    // No published release yet (or the API is unreachable): point at the releases page.
-    info.innerHTML = `Installers will appear on the <a href="${RELEASES}">releases page</a> with the first release.`;
+    // Not deployed through the Pages workflow (e.g. a local preview).
+  }
+  if (!release) {
+    info.innerHTML = `Installers will appear on the <a href="https://github.com/${R.REPO}/releases">releases page</a> with the first release.`;
     heroButton.href = "#download";
     return;
   }
 
-  const version = release.tag_name.replace(/^v/, "");
-  const date = new Date(release.published_at).toLocaleDateString("en", { year: "numeric", month: "long", day: "numeric" });
-  info.innerHTML = `Version ${version} · released ${date} · <a href="changelog.html#v${version}">what's new</a>`;
+  const version = R.version(release);
+  const changelog = `changelog.html#v${version}`;
+  info.textContent = `Version ${version} · released ${R.date(release)}`;
   heroNote.textContent = `Version ${version} · Free · Your files stay plain Markdown on your disk`;
 
-  const urls = {};
-  for (const [key, pattern] of Object.entries(PATTERNS)) {
-    const asset = release.assets.find((a) => pattern.test(a.name));
-    if (asset) urls[key] = asset.browser_download_url;
-  }
+  const badge = document.getElementById("release-version");
+  badge.textContent = `v${version}`;
+  badge.hidden = false;
 
+  const whatsNew = document.getElementById("whats-new");
+  whatsNew.textContent = `What's new in ${version} →`;
+  whatsNew.href = changelog;
+  whatsNew.hidden = false;
+
+  const assets = { "mac-arm": R.dmg(release, "aarch64"), "mac-intel": R.dmg(release, "x64") };
   document.querySelectorAll("[data-asset]").forEach((link) => {
-    const url = urls[link.dataset.asset];
-    if (url) link.href = url;
-    else link.href = release.html_url;
+    const asset = assets[link.dataset.asset];
+    if (!asset) {
+      link.href = release.html_url;
+      return;
+    }
+    link.href = asset.browser_download_url;
+    link.title = asset.name;
+    link.querySelector(".asset-meta").textContent = `.dmg · ${R.size(asset.size)}`;
   });
 
-  // The hero button downloads directly on Macs; elsewhere it shows the download section.
+  // On a Mac the hero button downloads directly; elsewhere it shows the download section.
   const isMac = /mac/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent);
-  if (isMac && urls["mac-arm"]) heroButton.href = urls["mac-arm"];
+  if (isMac && assets["mac-arm"]) heroButton.href = assets["mac-arm"].browser_download_url;
 })();
