@@ -24,7 +24,6 @@
 // Downloads: point each button straight at its installer in the latest release.
 (async function downloads() {
   const R = window.MidoReleases;
-  const heroButton = document.getElementById("hero-download");
   const heroNote = document.getElementById("hero-note");
   const info = document.getElementById("release-info");
 
@@ -36,7 +35,6 @@
   }
   if (!release) {
     info.innerHTML = `Installers will appear on the <a href="https://github.com/${R.REPO}/releases">releases page</a> with the first release.`;
-    heroButton.href = "#download";
     return;
   }
 
@@ -65,8 +63,4 @@
     link.title = asset.name;
     link.querySelector(".asset-meta").textContent = `.dmg · ${R.size(asset.size)}`;
   });
-
-  // On a Mac the hero button downloads directly; elsewhere it shows the download section.
-  const isMac = /mac/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent);
-  if (isMac && assets["mac-arm"]) heroButton.href = assets["mac-arm"].browser_download_url;
 })();
