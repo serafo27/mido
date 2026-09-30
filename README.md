@@ -13,7 +13,8 @@
   <a href="https://serafo27.github.io/mido/">Website</a> ·
   <a href="https://github.com/serafo27/mido/releases/latest">Download</a> ·
   <a href="#features">Features</a> ·
-  <a href="#development">Development</a>
+  <a href="#development">Development</a> ·
+  <a href="#license">License</a>
 </p>
 
 ![Mido in split mode: Markdown source on the left, rendered page on the right](site/assets/screens/hero.webp)
@@ -118,3 +119,9 @@ src/lib/markdown.ts     remark/rehype plugins, sanitization schema, frontmatter
 src/styles/             app.css (interface and theme tokens), markdown.css (rendering)
 site/                   the GitHub Pages website
 ```
+
+## License
+
+Copyright © 2026 Serafino D'Angelillo. All rights reserved.
+
+Mido is **source-available, not open source**. You're welcome to read the code and to download and use the official installers for free, for personal or commercial purposes. Copying, modifying or redistributing the code or builds — including publishing it in other repositories or websites — requires prior written permission. See [LICENSE](LICENSE) for the full terms.

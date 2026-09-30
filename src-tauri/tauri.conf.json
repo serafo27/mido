@@ -35,6 +35,8 @@
     "active": true,
     "targets": "all",
     "category": "Productivity",
+    "copyright": "© 2026 Serafino D'Angelillo. All rights reserved.",
+    "license": "LicenseRef-Proprietary",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

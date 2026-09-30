@@ -1,0 +1,68 @@
+Mido — Proprietary Source-Available License
+
+Copyright (c) 2026 Serafino D'Angelillo. All rights reserved.
+
+This repository, including its source code, documentation, images, website and
+build scripts (the "Software"), is the property of the copyright holder. The
+source code is published so that it can be read and reviewed. It is NOT open
+source, and no rights are granted except those stated below.
+
+1. PERMITTED
+
+   a. Viewing. You may view and read the Software on GitHub.
+
+   b. Using official builds. You may download the official installers published
+      by the copyright holder (on this repository's Releases page or on the
+      official website) and install and use them free of charge, for personal
+      or commercial purposes.
+
+   c. GitHub features. If this repository is public, GitHub's Terms of Service
+      allow users to view and fork it within GitHub. Such forks exist only as
+      permitted by those Terms and receive no further rights under this
+      license: in particular, the prohibitions in section 2 apply to them.
+
+2. NOT PERMITTED WITHOUT PRIOR WRITTEN PERMISSION
+
+   Unless the copyright holder has given you explicit written permission, you
+   may not:
+
+   a. copy, reproduce, mirror or republish the Software, in whole or in part,
+      outside GitHub or in any other repository, website or service;
+   b. modify the Software or create derivative works based on it;
+   c. distribute, sublicense, sell, rent or otherwise make available the
+      Software or any build of it, including builds you compile yourself;
+   d. use the Software or any part of it in another product or project;
+   e. remove or alter this license or any copyright notice.
+
+3. PERMISSION REQUESTS
+
+   To request permission for any use not listed in section 1, contact the
+   copyright holder through https://github.com/serafo27. Permission is only
+   valid if given in writing.
+
+4. CONTRIBUTIONS
+
+   Unless agreed otherwise in writing, by submitting a contribution (such as a
+   pull request) you grant the copyright holder a perpetual, worldwide,
+   irrevocable, royalty-free license to use, modify and distribute that
+   contribution as part of the Software under any terms.
+
+5. THIRD-PARTY COMPONENTS
+
+   The Software depends on third-party libraries and fonts that are distributed
+   under their own licenses. This license does not apply to them, and nothing
+   in it limits the rights granted by those licenses.
+
+6. NO WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+   IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+7. TERMINATION
+
+   Any use of the Software that violates this license automatically terminates
+   the permissions granted in section 1.

@@ -2,6 +2,8 @@
 name = "mido"
 version = "0.1.0"
 description = "Mido — Markdown viewer & editor"
+license-file = "../LICENSE"
+publish = false
 edition = "2021"
 
 [lib]
