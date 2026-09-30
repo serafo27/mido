@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mido — A quiet place to read and write Markdown</title>
+    <meta
+      name="description"
+      content="Mido is a free desktop Markdown viewer and editor for macOS, Windows and Linux: beautiful reading, split editing, tabs, an outline and themes."
+    />
+    <meta property="og:title" content="Mido — A quiet place to read and write Markdown" />
+    <meta
+      property="og:description"
+      content="A free desktop Markdown viewer and editor with beautiful reading, split editing, tabs, an outline and themes."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;1,8..60,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="container nav-inner">
+        <a class="brand" href="#top">
+          <img src="assets/icon.svg" alt="" width="28" height="28" />
+          <span>Mido</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#themes">Themes</a>
+          <a href="#download">Download</a>
+          <a class="github-link" href="https://github.com/serafo27/mido" aria-label="Mido on GitHub">
+            <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+              />
+            </svg>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- Hero -->
+      <section class="hero container">
+        <p class="eyebrow">Markdown viewer &amp; editor for macOS, Windows and Linux</p>
+        <h1>A quiet place to read and write Markdown.</h1>
+        <p class="lede">
+          Open any folder and Mido turns your notes, docs and READMEs into beautifully typeset pages — then lets you
+          edit them side by side, with tabs, an outline and themes that feel like home.
+        </p>
+        <div class="cta">
+          <a class="button primary" id="hero-download" href="#download">
+            <span class="button-icon" aria-hidden="true">↓</span>
+            <span id="hero-download-label">Download Mido</span>
+          </a>
+          <a class="button secondary" href="https://github.com/serafo27/mido">View on GitHub</a>
+        </div>
+        <p class="cta-note" id="hero-note">Free · Your files stay plain Markdown on your disk</p>
+
+        <figure class="window hero-shot">
+          <img
+            src="assets/screens/hero.webp"
+            width="1440"
+            height="900"
+            alt="Mido in split mode: the Markdown source on the left and the rendered page on the right, with a folder tree and tabs"
+          />
+        </figure>
+      </section>
+
+      <!-- Modes -->
+      <section class="modes container" aria-label="Modes">
+        <div class="mode">
+          <span class="mode-key">⌘1</span>
+          <h3>Read</h3>
+          <p>Distraction-free, typeset pages with a navigable outline.</p>
+        </div>
+        <div class="mode">
+          <span class="mode-key">⌘2</span>
+          <h3>Split</h3>
+          <p>Source and preview side by side, scrolling in sync as you type.</p>
+        </div>
+        <div class="mode">
+          <span class="mode-key">⌘3</span>
+          <h3>Edit</h3>
+          <p>A focused editor with Markdown and code highlighting.</p>
+        </div>
+      </section>
+
+      <!-- Feature rows -->
+      <section id="features" class="features">
+        <div class="feature-row container">
+          <div class="feature-copy">
+            <p class="eyebrow">Reading</p>
+            <h2>Documents that look finished.</h2>
+            <p>
+              Tables, task lists, footnotes, GitHub-style alerts, math and syntax-highlighted code render the moment you
+              open a file. Frontmatter becomes a tidy card, and relative links and images just work.
+            </p>
+            <ul class="checks">
+              <li>Outline panel that follows you as you scroll</li>
+              <li>Wrap long lines, or keep them intact and scroll sideways</li>
+              <li>Edits made in other apps appear instantly</li>
+            </ul>
+          </div>
+          <figure class="window">
+            <img
+              src="assets/screens/read-dark.webp"
+              width="1440"
+              height="900"
+              loading="lazy"
+              alt="A document in read mode with the dark theme and the outline panel open"
+            />
+          </figure>
+        </div>
+
+        <div class="feature-row reverse container">
+          <div class="feature-copy">
+            <p class="eyebrow">Typography</p>
+            <h2>Make every page yours.</h2>
+            <p>
+              Pick a reading style — Mido, GitHub, Academic or Minimal — then fine-tune fonts, text size, line height and
+              page width. Use the bundled fonts or any font installed on your computer.
+            </p>
+            <ul class="checks">
+              <li>Four reading styles, from crisp docs to book-like serif</li>
+              <li>Separate fonts for body, headings and code</li>
+              <li>Justified text, frontmatter and wrapping on your terms</li>
+            </ul>
+          </div>
+          <figure class="window">
+            <img
+              src="assets/screens/academic-relax.webp"
+              width="1440"
+              height="900"
+              loading="lazy"
+              alt="The Academic reading style with serif typography and justified text on the Relax theme"
+            />
+          </figure>
+        </div>
+      </section>
+
+      <!-- Themes -->
+      <section id="themes" class="themes container">
+        <p class="eyebrow">Themes</p>
+        <h2>Feels like the tools you already love.</h2>
+        <p class="section-lede">
+          Eleven built-in themes, including VS Code and IntelliJ looks, plus your own: duplicate any theme, tweak its
+          colours, and share it as JSON.
+        </p>
+        <div class="theme-tabs" role="tablist" aria-label="Themes">
+          <button role="tab" aria-selected="true" data-shot="hero">Mido Light</button>
+          <button role="tab" aria-selected="false" data-shot="theme-vscode-dark">VS Code Dark+</button>
+          <button role="tab" aria-selected="false" data-shot="theme-darcula">IntelliJ Darcula</button>
+          <button role="tab" aria-selected="false" data-shot="theme-relax">Relax</button>
+          <button role="tab" aria-selected="false" data-shot="theme-nord">Nord</button>
+          <button role="tab" aria-selected="false" data-shot="theme-dracula">Dracula</button>
+          <button role="tab" aria-selected="false" data-shot="theme-vscode-light">VS Code Light+</button>
+        </div>
+        <figure class="window theme-shot">
+          <img
+            id="theme-image"
+            src="assets/screens/hero.webp"
+            width="1440"
+            height="900"
+            loading="lazy"
+            alt="Mido with the Mido Light theme"
+          />
+        </figure>
+      </section>
+
+      <!-- Grid -->
+      <section class="grid-section container" aria-label="More features">
+        <h2 class="center">Everything you need, nothing you don't.</h2>
+        <div class="grid">
+          <article class="card">
+            <h3>Tabs, the way you expect</h3>
+            <p>A single click previews a file, a double click keeps it open. Drag to reorder, with undo history per tab.</p>
+          </article>
+          <article class="card">
+            <h3>Your folder, your files</h3>
+            <p>Browse, filter, create, rename and trash Markdown files. No database, no import, no lock-in.</p>
+          </article>
+          <article class="card">
+            <h3>Keyboard first</h3>
+            <p>Switch modes, tabs, the outline and settings without touching the mouse. <kbd>⌘B</kbd> <kbd>⌘I</kbd> <kbd>⌘K</kbd> while writing.</p>
+          </article>
+          <article class="card">
+            <h3>Autosave, safely</h3>
+            <p>Changes are saved as you type — or turn it off and save with <kbd>⌘S</kbd>. Nothing is lost on close.</p>
+          </article>
+          <article class="card">
+            <h3>Custom themes</h3>
+            <p>Start from any theme, edit nineteen colours with live preview, and import or export themes as JSON.</p>
+          </article>
+          <article class="card">
+            <h3>Small and native</h3>
+            <p>Built with Tauri and Rust: a ~5 MB download that starts fast and uses your system's web view.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Settings showcase -->
+      <section class="feature-row container settings-row">
+        <div class="feature-copy">
+          <p class="eyebrow">Settings</p>
+          <h2>Every option, one panel away.</h2>
+          <p>
+            Press <kbd>⌘,</kbd> to open settings. Changes apply live, so you can see exactly how your pages will look before
+            you close the panel.
+          </p>
+        </div>
+        <figure class="window">
+          <img
+            src="assets/screens/settings-style.webp"
+            width="1440"
+            height="900"
+            loading="lazy"
+            alt="The settings panel with reading styles and font choices"
+          />
+        </figure>
+      </section>
+
+      <!-- Download -->
+      <section id="download" class="download container">
+        <p class="eyebrow">Download</p>
+        <h2>Get Mido</h2>
+        <p class="section-lede" id="release-info">Free for macOS, Windows and Linux.</p>
+
+        <div class="platforms">
+          <article class="platform" data-platform="mac">
+            <h3>macOS</h3>
+            <p class="platform-sub">Apple Silicon and Intel</p>
+            <a class="button primary block" data-asset="mac-arm" href="https://github.com/serafo27/mido/releases/latest">Apple Silicon (.dmg)</a>
+            <a class="button secondary block" data-asset="mac-intel" href="https://github.com/serafo27/mido/releases/latest">Intel (.dmg)</a>
+          </article>
+          <article class="platform" data-platform="windows">
+            <h3>Windows</h3>
+            <p class="platform-sub">Windows 10 or later</p>
+            <a class="button primary block" data-asset="win-exe" href="https://github.com/serafo27/mido/releases/latest">Installer (.exe)</a>
+            <a class="button secondary block" data-asset="win-msi" href="https://github.com/serafo27/mido/releases/latest">MSI package (.msi)</a>
+          </article>
+          <article class="platform" data-platform="linux">
+            <h3>Linux</h3>
+            <p class="platform-sub">64-bit (x86_64)</p>
+            <a class="button primary block" data-asset="linux-appimage" href="https://github.com/serafo27/mido/releases/latest">AppImage</a>
+            <div class="button-pair">
+              <a class="button secondary block" data-asset="linux-deb" href="https://github.com/serafo27/mido/releases/latest">.deb</a>
+              <a class="button secondary block" data-asset="linux-rpm" href="https://github.com/serafo27/mido/releases/latest">.rpm</a>
+            </div>
+          </article>
+        </div>
+
+        <details class="unsigned-note">
+          <summary>First launch on macOS or Windows</summary>
+          <p>
+            Mido isn't code-signed yet. On <strong>macOS</strong>, right-click the app and choose <em>Open</em> the first
+            time (or run <code>xattr -cr /Applications/Mido.app</code>). On <strong>Windows</strong>, choose
+            <em>More info → Run anyway</em> if SmartScreen appears.
+          </p>
+        </details>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer-inner">
+        <span class="brand small">
+          <img src="assets/icon.svg" alt="" width="20" height="20" />
+          Mido
+        </span>
+        <span>Built with Tauri, Rust and React.</span>
+        <a href="https://github.com/serafo27/mido">Source on GitHub</a>
+      </div>
+    </footer>
+
+    <script src="main.js"></script>
+  </body>
+</html>
