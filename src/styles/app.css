@@ -583,6 +583,25 @@ body.resizing .resizer {
 .tabs::-webkit-scrollbar {
   display: none;
 }
+/* Arrows either side of the tabs, shown only while they overflow. */
+.tab-scroll {
+  flex: none;
+  align-self: center;
+  width: 22px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--text-muted);
+  transition: background 0.12s, color 0.12s;
+}
+.tab-scroll:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.tab-scroll:disabled {
+  opacity: 0.35;
+}
 .tab {
   position: relative;
   /* Tabs keep their width and the strip scrolls, rather than squashing names. */
@@ -712,6 +731,10 @@ body.resizing .resizer {
 }
 :root[data-tabs="rounded"] .tab-strip.embedded {
   padding-top: 2px;
+}
+:root[data-tabs="rounded"] .tab-scroll {
+  /* Centre on the tabs, which sit below the strip's top padding. */
+  margin-top: 6px;
 }
 :root[data-tabs="rounded"] .tab {
   border: 1px solid transparent;

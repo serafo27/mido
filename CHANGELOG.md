@@ -9,6 +9,10 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Added
+
+- When the tabs don't all fit, arrows either side of them scroll the tab bar left and right.
+
 ### Fixed
 
 - Preview tabs no longer show a scrollbar, and with rounded tabs their outward curve no longer appears beside the close button. Their name can no longer be selected as text.

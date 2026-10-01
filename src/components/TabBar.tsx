@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FileText, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
 import { basename, dirname } from "../lib/paths";
 
 export interface TabInfo {
@@ -23,6 +23,8 @@ export default function TabBar({ tabs, activePath, onSelect, onPin, onClose, onM
   const listRef = useRef<HTMLDivElement>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+  // Which ends of the strip have tabs scrolled out of view.
+  const [hidden, setHidden] = useState({ start: false, end: false });
 
   // Keep the active tab visible (adjusting scrollLeft directly: scrollIntoView
   // can interrupt scroll animations elsewhere in WebKit).
@@ -36,6 +38,32 @@ export default function TabBar({ tabs, activePath, onSelect, onPin, onClose, onM
     else if (right > list.scrollLeft + list.clientWidth) list.scrollLeft = right - list.clientWidth;
   }, [activePath, tabs.length]);
 
+  // Track overflow on scroll, on resize (the window, or the arrows appearing)
+  // and whenever the tabs change.
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const update = () => {
+      const max = list.scrollWidth - list.clientWidth;
+      const next = { start: list.scrollLeft > 1, end: list.scrollLeft < max - 1 };
+      setHidden((prev) => (prev.start === next.start && prev.end === next.end ? prev : next));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(list);
+    list.addEventListener("scroll", update, { passive: true });
+    return () => {
+      observer.disconnect();
+      list.removeEventListener("scroll", update);
+    };
+  }, [tabs]);
+
+  const scrollBy = (direction: 1 | -1) => {
+    const list = listRef.current;
+    list?.scrollBy({ left: direction * list.clientWidth * 0.75, behavior: "smooth" });
+  };
+  const overflowing = hidden.start || hidden.end;
+
   // Disambiguate tabs that share a file name with their parent folder.
   const names = tabs.map((t) => basename(t.path));
   const hint = (i: number) =>
@@ -44,6 +72,11 @@ export default function TabBar({ tabs, activePath, onSelect, onPin, onClose, onM
   return (
     // Empty strip space still drags the window when the tabs live in the title bar.
     <div className={`tab-strip ${embedded ? "embedded" : ""}`} data-tauri-drag-region={embedded || undefined}>
+      {overflowing && (
+        <button className="tab-scroll" title="Scroll tabs left" disabled={!hidden.start} onClick={() => scrollBy(-1)}>
+          <ChevronLeft size={14} />
+        </button>
+      )}
       <div
         className="tabs"
         ref={listRef}
@@ -115,6 +148,11 @@ export default function TabBar({ tabs, activePath, onSelect, onPin, onClose, onM
           </div>
         ))}
       </div>
+      {overflowing && (
+        <button className="tab-scroll" title="Scroll tabs right" disabled={!hidden.end} onClick={() => scrollBy(1)}>
+          <ChevronRight size={14} />
+        </button>
+      )}
     </div>
   );
 }
