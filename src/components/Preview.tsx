@@ -54,27 +54,72 @@ const EXTERNAL = /^[a-z][a-z0-9+.-]*:/i;
 /** Offset from the top of the preview at which a section counts as "current". */
 const READING_OFFSET = 90;
 
-/** Source line of the block at the top of the preview's viewport. */
-export function previewTopLine(el: HTMLElement): number {
-  const limit = el.getBoundingClientRect().top + READING_OFFSET;
-  let line = 1;
-  for (const block of el.querySelectorAll<HTMLElement>("[data-line]")) {
-    if (block.getBoundingClientRect().top > limit) break;
-    line = Number(block.dataset.line);
-  }
-  return line;
+interface LinePoint {
+  line: number;
+  /** Position in the preview's scrollable content. */
+  top: number;
 }
 
-/** Scrolls the preview so the block starting at (or before) `line` is at the top. */
-export function revealPreviewLine(el: HTMLElement, line: number) {
-  let target: HTMLElement | null = null;
-  for (const block of el.querySelectorAll<HTMLElement>("[data-line]")) {
-    if (Number(block.dataset.line) > line) break;
-    target = block;
+/**
+ * Where source lines are on the page: each block tagged with its line
+ * (`data-line`, or `data-line-offset` from the top-level block around it),
+ * between the start of the document and the end of its last line.
+ */
+function linePoints(el: HTMLElement): LinePoint[] {
+  const origin = el.getBoundingClientRect().top - el.scrollTop;
+  const lastLine = Number(el.querySelector<HTMLElement>("[data-source-lines]")?.dataset.sourceLines ?? 1);
+  const points: LinePoint[] = [{ line: 1, top: 0 }];
+  for (const block of el.querySelectorAll<HTMLElement>("[data-line], [data-line-offset]")) {
+    let line = Number(block.dataset.line);
+    if (block.dataset.line === undefined) {
+      const top = block.parentElement?.closest<HTMLElement>("[data-line]");
+      if (!top) continue;
+      line = Number(top.dataset.line) + Number(block.dataset.lineOffset);
+    }
+    // Hidden (in a closed <details>): it has no place on the page.
+    if (block.getClientRects().length === 0) continue;
+    const top = block.getBoundingClientRect().top - origin;
+    const last = points[points.length - 1];
+    // Keep lines and positions both increasing, so either can be interpolated from the other.
+    if (line > last.line && top >= last.top) points.push({ line, top });
   }
-  if (!target) return;
-  const top = target.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
-  animateScroll(el, Math.max(0, top - 24));
+  points.push({ line: lastLine + 1, top: Math.max(el.scrollHeight, points[points.length - 1].top) });
+  return points;
+}
+
+/**
+ * The source line at `offset` pixels below the top of the preview, with the
+ * fraction of the way to the next line: interpolated between the blocks
+ * around that point, as VS Code's preview does.
+ */
+export function previewLineAt(el: HTMLElement, offset = 0): number {
+  const y = el.scrollTop + offset;
+  const points = linePoints(el);
+  let i = 0;
+  while (i + 2 < points.length && points[i + 1].top <= y) i++;
+  const [prev, next] = [points[i], points[i + 1]];
+  if (next.top <= prev.top) return prev.line;
+  return prev.line + (Math.min(1, Math.max(0, (y - prev.top) / (next.top - prev.top))) * (next.line - prev.line));
+}
+
+/** The scroll position that puts source line `line` (with a fraction) at the top of the preview. */
+export function previewScrollTopFor(el: HTMLElement, line: number): number {
+  const points = linePoints(el);
+  let i = 0;
+  while (i + 2 < points.length && points[i + 1].line <= line) i++;
+  const [prev, next] = [points[i], points[i + 1]];
+  const ratio = Math.min(1, Math.max(0, (line - prev.line) / (next.line - prev.line)));
+  return prev.top + ratio * (next.top - prev.top);
+}
+
+/** Source line of the block at the top of the preview's viewport. */
+export function previewTopLine(el: HTMLElement): number {
+  return Math.floor(previewLineAt(el, READING_OFFSET));
+}
+
+/** Scrolls the preview, animated, so source line `line` is near the top. */
+export function revealPreviewLine(el: HTMLElement, line: number) {
+  animateScroll(el, Math.max(0, previewScrollTopFor(el, line) - 24));
 }
 
 /**
@@ -144,6 +189,7 @@ export default function Preview(props: PreviewProps) {
   const [renderer] = useState(() => new BlockRenderer());
   // Keep typing responsive in split mode: render the preview at lower priority.
   const deferred = useDeferredValue(content);
+  const sourceLines = useMemo(() => deferred.split(/\r\n?|\n/).length, [deferred]);
   const frontmatter = useMemo(
     () => (showFrontmatter ? parseFrontmatter(deferred) : null),
     [deferred, showFrontmatter],
@@ -230,8 +276,8 @@ export default function Preview(props: PreviewProps) {
       pre({ node, children, ...rest }) {
         if (languageOf(node) === "mermaid") {
           // Keep the source line, for scroll sync and the outline.
-          const line = (rest as Record<string, unknown>)["data-line"] as number | undefined;
-          return <MermaidBlock code={textOf(node)} line={line} />;
+          const { "data-line": line, "data-line-offset": offset } = rest as Record<string, number | undefined>;
+          return <MermaidBlock code={textOf(node)} line={line} offset={offset} />;
         }
         return (
           <CodeBlock language={languageOf(node)} {...rest}>
@@ -312,7 +358,11 @@ export default function Preview(props: PreviewProps) {
           onSelectHighlight(highlightAt(e.currentTarget, e.clientX, e.clientY));
         }}
       >
-        <article ref={articleRef} className={`markdown ${wrap ? "wrap" : "nowrap"} ${justify ? "justify" : ""}`}>
+        <article
+          ref={articleRef}
+          className={`markdown ${wrap ? "wrap" : "nowrap"} ${justify ? "justify" : ""}`}
+          data-source-lines={sourceLines}
+        >
           {frontmatter && (
             <dl className="frontmatter">
               {frontmatter.map(({ key, value }) => (
@@ -396,7 +446,7 @@ class RenderBoundary extends Component<
   }
 }
 
-function MermaidBlock({ code, line }: { code: string; line?: number }) {
+function MermaidBlock({ code, line, offset }: { code: string; line?: number; offset?: number }) {
   const dark = useDarkTheme();
   const [svg, setSvg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -420,7 +470,7 @@ function MermaidBlock({ code, line }: { code: string; line?: number }) {
 
   if (error) {
     return (
-      <div className="mermaid-error" data-line={line}>
+      <div className="mermaid-error" data-line={line} data-line-offset={offset}>
         <div className="mermaid-error-title">Mermaid diagram error</div>
         <pre>{error}</pre>
       </div>
@@ -429,9 +479,9 @@ function MermaidBlock({ code, line }: { code: string; line?: number }) {
   // Mermaid sanitizes the diagram itself (securityLevel "strict").
   // While a new version renders, the previous one stays to avoid flicker.
   return svg ? (
-    <div className="mermaid-diagram" data-line={line} dangerouslySetInnerHTML={{ __html: svg }} />
+    <div className="mermaid-diagram" data-line={line} data-line-offset={offset} dangerouslySetInnerHTML={{ __html: svg }} />
   ) : (
-    <div className="mermaid-diagram loading" data-line={line}>
+    <div className="mermaid-diagram loading" data-line={line} data-line-offset={offset}>
       Rendering diagram…
     </div>
   );

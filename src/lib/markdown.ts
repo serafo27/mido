@@ -40,12 +40,34 @@ export function remarkAlerts() {
   };
 }
 
-/** Tags top-level blocks with their source line, used for editor→preview scroll sync. */
+/** Block elements inside a top-level block that scroll sync places by their line, as VS Code does. */
+export const NESTED_LINE_TAGS = new Set([
+  "p", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "pre", "blockquote", "table", "ul", "ol", "hr", "dt", "dd",
+]);
+
+/**
+ * Tags block elements below a top-level block, whose line is `top`, with how
+ * many lines further down they start (`data-line-offset`). Relative, so a
+ * block keeps its tags when edits above it move it.
+ */
+export function tagNestedLines(block: Element, top: number) {
+  visit(block, "element", (node: Element) => {
+    if (node === block || !NESTED_LINE_TAGS.has(node.tagName) || !node.position) return;
+    const offset = node.position.start.line - top;
+    if (offset > 0) node.properties = { ...node.properties, dataLineOffset: offset };
+  });
+}
+
+/**
+ * Tags top-level blocks with their source line (`data-line`), and blocks in
+ * them with their offset from it, for scroll sync.
+ */
 export function rehypeSourceLines() {
   return (tree: HastRoot) => {
     for (const node of tree.children) {
       if (node.type === "element" && node.position) {
         node.properties = { ...node.properties, dataLine: node.position.start.line };
+        tagNestedLines(node, node.position.start.line);
       }
     }
   };

@@ -79,7 +79,10 @@ export async function renderDocument(options: RenderOptions): Promise<string> {
   );
 
   const doc = new DOMParser().parseFromString(`<body>${markup}</body>`, "text/html");
-  for (const el of doc.querySelectorAll("[data-line]")) el.removeAttribute("data-line");
+  for (const el of doc.querySelectorAll("[data-line], [data-line-offset]")) {
+    el.removeAttribute("data-line");
+    el.removeAttribute("data-line-offset");
+  }
 
   for (const el of doc.querySelectorAll<HTMLElement>("[data-mermaid]")) {
     const code = el.dataset.mermaid ?? "";

@@ -24,7 +24,7 @@ import { urlAttributes } from "html-url-attributes";
 import GithubSlugger from "github-slugger";
 import { defaultUrlTransform } from "react-markdown";
 import { visit } from "unist-util-visit";
-import { rehypeAfterSlug, rehypeBeforeSlug, remarkPlugins, remarkPluginsAfterStart } from "./markdown";
+import { rehypeAfterSlug, rehypeBeforeSlug, remarkPlugins, remarkPluginsAfterStart, tagNestedLines } from "./markdown";
 
 /* ---------- splitting the source ---------- */
 
@@ -238,7 +238,8 @@ function trackTags(html: string, open: Map<string, number>) {
   }
 }
 
-const withoutPosition = (key: string, value: unknown) => (key === "position" ? undefined : value);
+
+type Position = NonNullable<HastContent["position"]>;
 
 const lineOf = (node: HastContent | MdastContent): number | undefined => node.position?.start.line;
 
@@ -399,13 +400,19 @@ export class BlockRenderer {
   /** Sanitizes and typesets a group of blocks, or reuses the result for the same content. */
   private renderGroup(nodes: HastContent[]): Group {
     const base = lineOf(nodes[0]) ?? 0;
-    const lines = nodes.map((n) => (lineOf(n) ?? base) - base).join(",");
-    const key = `${lines}\u0000${JSON.stringify(nodes, withoutPosition)}`;
+    // Positions count only as lines relative to the group, which its nested
+    // blocks are tagged with: moving the group doesn't change its key.
+    const key = JSON.stringify(nodes, (name, value) =>
+      name === "position" ? ((value as Position | undefined)?.start.line ?? base) - base : value,
+    );
     const cached = this.groups.get(key);
     if (cached) return cached;
 
     let tree: HastRoot = { type: "root", children: nodes };
     tree = beforeSlug.runSync(tree) as HastRoot;
+    for (const node of tree.children) {
+      if (node.type === "element" && node.position) tagNestedLines(node, node.position.start.line);
+    }
     // Heading text is read before math is typeset, as rehype-slug does.
     const headings: Group["headings"] = [];
     const walk = (children: (HastContent | ElementContent)[], path: number[]) =>

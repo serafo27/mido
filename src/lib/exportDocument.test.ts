@@ -25,7 +25,7 @@ describe("renderDocument", () => {
   });
 
   it("drops the preview's source-line attributes", async () => {
-    expect(await render("# Title\n\ntext")).not.toContain("data-line");
+    expect(await render("# Title\n\ntext\n\n- a\n- b")).not.toContain("data-line");
   });
 
   it("keeps sanitizing raw HTML", async () => {

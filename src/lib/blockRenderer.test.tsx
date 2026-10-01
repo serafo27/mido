@@ -114,6 +114,14 @@ describe("BlockRenderer", () => {
     expect(blocks(renderer, "\n\n# A\n\npara")).toContain('<p data-line="5">');
   });
 
+  it("keeps nested offsets relative when a block moves", () => {
+    const renderer = new BlockRenderer();
+    expect(blocks(renderer, "- a\n- b")).toContain('<li data-line-offset="1">');
+    const moved = blocks(renderer, "# T\n\n\n- a\n- b");
+    expect(moved).toContain('<ul data-line="4">');
+    expect(moved).toContain('<li data-line-offset="1">');
+  });
+
   it("re-renders only the blocks that changed", () => {
     const renderer = new BlockRenderer();
     const before = renderer.render("# A\n\none\n\ntwo");

@@ -54,6 +54,15 @@ describe("sanitizer", () => {
     expect(html).toMatch(/align="center"/);
   });
 
+  it("tags blocks inside top-level ones with their offset from its line", () => {
+    const html = render("- a\n- b\n\n  more\n\n| x |\n| - |\n| 1 |");
+    expect(html).toContain('<ul data-line="1">');
+    expect(html).not.toMatch(/<li data-line-offset="0"/);
+    expect(html).toContain('<li data-line-offset="1">');
+    expect(html).toContain('<p data-line-offset="3">more</p>');
+    expect(html).toContain('<tr data-line-offset="2">');
+  });
+
   it("tags raw HTML blocks with their source line, and only with that", () => {
     const html = render('<div align="center">\n\n<img src="a.png">\n\n</div>\n\n<p data-line="99">x</p>');
     expect(html).toContain('<div align="center" data-line="1">');

@@ -27,9 +27,13 @@ import QuickSearch from "./components/QuickSearch";
 import DesktopOnly from "./components/DesktopOnly";
 import Toolbar, { type ViewMode } from "./components/Toolbar";
 import Editor, {
+  activeEditor,
+  editorLineAt,
+  editorScrollTopFor,
   editorSelection,
   editorTopLine,
   forgetEditorState,
+  keepCursorInView,
   renameEditorState,
   revealEditorLine,
   revealEditorRange,
@@ -37,6 +41,8 @@ import Editor, {
 } from "./components/Editor";
 import Preview, {
   previewAnchor,
+  previewLineAt,
+  previewScrollTopFor,
   previewTopLine,
   revealPreviewElement,
   revealPreviewLine,
@@ -100,10 +106,20 @@ export default function App() {
   const [outlineOpen, setOutlineOpen] = useStoredState("mido.outlineOpen", false);
   const [commentsOpen, setCommentsOpen] = useStoredState("mido.commentsOpen", false);
 
+  // The source line at the top of the view being left, to show at the top of the next one.
+  const modeSwitchLine = useRef<number | null>(null);
+
   /** Read · Split · Edit. The web version only reads: the other two ask for the desktop app. */
   const changeMode = useCallback(
     (next: ViewMode) => {
       if (next !== "view" && requireDesktop("Editing")) return;
+      const current = live.current.mode;
+      if (next !== current) {
+        const preview = previewRef.current;
+        const view = activeEditor();
+        if (current === "view") modeSwitchLine.current = preview ? previewLineAt(preview) : null;
+        else modeSwitchLine.current = view ? editorLineAt(view) : null;
+      }
       setMode(next);
     },
     [setMode],
@@ -1087,19 +1103,45 @@ export default function App() {
   const onEditorScroll = useCallback(
     (view: EditorView) => {
       trackLine(editorTopLine(view));
-      if (live.current.mode !== "split") return;
+      // Not while it settles after following the preview: its own adjustments would pull the preview back.
+      if (live.current.mode !== "split" || isOwnScroll(view.scrollDOM) || settling.has(view)) return;
       const preview = previewRef.current;
-      if (preview) syncScroll(view, preview);
+      if (preview) syncPreview(view, preview);
     },
     [trackLine],
   );
 
   const onPreviewScroll = useCallback(
     (el: HTMLElement) => {
-      if (live.current.mode === "view") trackLine(previewTopLine(el));
+      const { mode } = live.current;
+      if (mode === "view") trackLine(previewTopLine(el));
+      // In split mode the editor follows the preview too, as in VS Code.
+      if (mode !== "split" || isOwnScroll(el)) return;
+      const view = activeEditor();
+      if (view) syncEditor(el, view);
     },
     [trackLine],
   );
+
+  // After switching views, show the line that was at the top of the last one.
+  useEffect(() => {
+    const line = modeSwitchLine.current;
+    modeSwitchLine.current = null;
+    if (line === null) return;
+    // In a frame, after a newly shown editor has restored its own scroll position.
+    const frame = requestAnimationFrame(() => {
+      const view = activeEditor();
+      const preview = previewRef.current;
+      if (mode !== "view" && view) {
+        scrollEditorToLine(view, line);
+        keepCursorInView(view);
+        if (mode === "split" && preview) syncPreview(view, preview);
+      } else if (mode === "view" && preview) {
+        setScrollTop(preview, previewScrollTopFor(preview, line));
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [mode]);
 
   const goToHeading = useCallback((heading: Heading) => {
     // Hold the highlight on the clicked heading while the view scrolls to it
@@ -1152,19 +1194,17 @@ export default function App() {
         return;
       }
       pendingReveal.current = null;
-      let line = 1;
       if ("anchor" in target) {
         // A fragment the page doesn't have leaves it at the top, as in a browser.
+        // In split mode the editor follows the preview through scroll sync.
         const anchor = previewAnchor(preview!, target.anchor);
-        if (!anchor) return;
-        if (view) return revealPreviewElement(preview!, anchor);
-        line = Number(anchor.closest<HTMLElement>("[data-line]")?.dataset.line ?? 1);
+        if (anchor) revealPreviewElement(preview!, anchor);
+      } else if (view) {
+        revealPreviewLine(preview!, target.line);
       } else {
-        line = target.line;
+        // In split mode the preview follows the editor through scroll sync.
+        revealEditorLine(target.line);
       }
-      if (view) revealPreviewLine(preview!, line);
-      // In split mode the preview follows the editor through scroll sync.
-      else revealEditorLine(line);
     };
     frame = requestAnimationFrame(reveal);
     return () => cancelAnimationFrame(frame);
@@ -1428,44 +1468,77 @@ function imagesLoaded(el: HTMLElement | null, timeout = 3000): Promise<unknown> 
   return Promise.race([Promise.all(pending), new Promise((done) => setTimeout(done, timeout))]);
 }
 
+/** Scroll positions the app set itself: the scroll event each causes isn't the user's. */
+const ownScrolls = new WeakMap<HTMLElement, { top: number; at: number }>();
+
+function setScrollTop(el: HTMLElement, top: number) {
+  el.scrollTop = top;
+  ownScrolls.set(el, { top: el.scrollTop, at: performance.now() });
+}
+
 /**
- * Aligns the preview with the editor using the source line numbers that
- * `rehypeSourceLines` stamps on each top-level block.
+ * Whether this scroll event is the one a `setScrollTop` caused. It's matched
+ * once, and soon: setting a position the element already had causes none,
+ * and the user may scroll there later.
  */
-function syncScroll(view: EditorView, preview: HTMLElement) {
+function isOwnScroll(el: HTMLElement): boolean {
+  const own = ownScrolls.get(el);
+  ownScrolls.delete(el);
+  return !!own && Math.abs(el.scrollTop - own.top) < 1 && performance.now() - own.at < 300;
+}
+
+const atTop = (el: HTMLElement) => el.scrollTop <= 1;
+const atBottom = (el: HTMLElement) => el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
+
+/**
+ * Scroll sync, both ways as in VS Code: the source line at the top of one
+ * side, with its fraction, goes to the top of the other. Blocks in the
+ * preview carry their source line, and positions between them are
+ * interpolated.
+ */
+function syncPreview(view: EditorView, preview: HTMLElement) {
   const scroller = view.scrollDOM;
-  if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 4) {
-    preview.scrollTop = preview.scrollHeight;
-    return;
-  }
-  const block = view.lineBlockAtHeight(scroller.scrollTop);
-  const line = view.state.doc.lineAt(block.from).number;
-  const progress = line + (scroller.scrollTop - block.top) / Math.max(1, block.height);
+  if (atTop(scroller)) setScrollTop(preview, 0);
+  else if (atBottom(scroller)) setScrollTop(preview, preview.scrollHeight);
+  else setScrollTop(preview, previewScrollTopFor(preview, editorLineAt(view)));
+}
 
-  const blocks = preview.querySelectorAll<HTMLElement>("[data-line]");
-  if (blocks.length === 0) return;
-  const base = preview.getBoundingClientRect().top - preview.scrollTop;
-  const top = (el: HTMLElement) => el.getBoundingClientRect().top - base;
+function syncEditor(preview: HTMLElement, view: EditorView) {
+  const scroller = view.scrollDOM;
+  if (atTop(preview)) setScrollTop(scroller, 0);
+  else if (atBottom(preview)) setScrollTop(scroller, scroller.scrollHeight);
+  else scrollEditorToLine(view, previewLineAt(preview));
+}
 
-  let prev: HTMLElement | null = null;
-  let next: HTMLElement | null = null;
-  for (const el of blocks) {
-    if (Number(el.dataset.line) <= progress) prev = el;
-    else {
-      next = el;
-      break;
-    }
-  }
-  if (!prev) {
-    preview.scrollTop = 0;
-    return;
-  }
-  const prevLine = Number(prev.dataset.line);
-  const nextLine = next ? Number(next.dataset.line) : view.state.doc.lines + 1;
-  const prevTop = top(prev);
-  const nextTop = next ? top(next) : prevTop + prev.offsetHeight;
-  const ratio = (progress - prevLine) / Math.max(1, nextLine - prevLine);
-  preview.scrollTop = prevTop + (nextTop - prevTop) * ratio - 40;
+/** Ends the editor's settling after a jump (see `scrollEditorToLine`). */
+const settling = new WeakMap<EditorView, () => void>();
+const USER_SCROLLS = ["wheel", "pointerdown", "keydown", "touchstart"] as const;
+
+/**
+ * Puts `line` at the top of the editor. The editor estimates the height of
+ * lines it hasn't drawn, and keeps what's in view still as it measures them,
+ * so the jump is repeated for a few frames, until the user takes over.
+ */
+function scrollEditorToLine(view: EditorView, line: number) {
+  const scroller = view.scrollDOM;
+  const place = () => setScrollTop(scroller, editorScrollTopFor(view, line));
+  settling.get(view)?.();
+  place();
+  let frame = 0;
+  let frames = 0;
+  const stop = () => {
+    cancelAnimationFrame(frame);
+    for (const type of USER_SCROLLS) scroller.removeEventListener(type, stop);
+    settling.delete(view);
+  };
+  const again = () => {
+    place();
+    if (++frames < 4) frame = requestAnimationFrame(again);
+    else stop();
+  };
+  for (const type of USER_SCROLLS) scroller.addEventListener(type, stop, { passive: true });
+  frame = requestAnimationFrame(again);
+  settling.set(view, stop);
 }
 
 /** The web version needs a desktop-sized window; on a phone, point to the app instead. */

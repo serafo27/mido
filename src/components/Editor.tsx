@@ -361,10 +361,49 @@ export function editorSelectionLine(): LineRect | null {
   return { left: start.left, right, top: start.top, bottom: start.bottom };
 }
 
+/**
+ * Where the document starts in the editor's scrollable content (after its
+ * padding): line block heights count from there, scroll positions from 0.
+ */
+const documentOffset = (view: EditorView) =>
+  view.documentTop - view.scrollDOM.getBoundingClientRect().top + view.scrollDOM.scrollTop;
+
 /** First source line visible at the top of the editor. */
 export function editorTopLine(view: EditorView): number {
-  return view.state.doc.lineAt(view.lineBlockAtHeight(view.scrollDOM.scrollTop).from).number;
+  return Math.floor(editorLineAt(view));
 }
+
+/** The source line at the top of the editor, with the fraction of it scrolled past. */
+export function editorLineAt(view: EditorView): number {
+  const top = Math.max(0, view.scrollDOM.scrollTop - documentOffset(view));
+  const block = view.lineBlockAtHeight(top);
+  return view.state.doc.lineAt(block.from).number + Math.min(1, (top - block.top) / Math.max(1, block.height));
+}
+
+/** The scroll position that puts source line `line` (with a fraction) at the top of the editor. */
+export function editorScrollTopFor(view: EditorView, line: number): number {
+  const { doc } = view.state;
+  const number = Math.min(Math.max(1, Math.floor(line)), doc.lines);
+  const block = view.lineBlockAt(doc.line(number).from);
+  return documentOffset(view) + block.top + (line - number) * block.height;
+}
+
+/**
+ * Puts the cursor at the start of the line at the top of the editor, unless
+ * it's already in view, so typing doesn't jump back to where it was.
+ */
+export function keepCursorInView(view: EditorView) {
+  const { scrollTop, clientHeight } = view.scrollDOM;
+  const offset = documentOffset(view);
+  const top = view.lineBlockAtHeight(scrollTop - offset + 1);
+  const bottom = view.lineBlockAtHeight(scrollTop - offset + clientHeight - 1);
+  const head = view.state.selection.main.head;
+  if (head >= top.from && head <= bottom.to) return;
+  view.dispatch({ selection: { anchor: top.from } });
+}
+
+/** The editor showing the active document, if one is open. */
+export const activeEditor = (): EditorView | null => currentView;
 
 export default function Editor(props: EditorProps) {
   const { docKey, value, wrap, onChange, onScroll, onAddImages, highlights, onSelectHighlight, onHoverHighlight } =
