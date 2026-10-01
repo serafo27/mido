@@ -9,6 +9,8 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-01
+
 ### Added
 
 - Search in files (`⌘⇧F`): search the text of every Markdown file in the open folder, with match-case and whole-word options, and jump to a result's line with a click.
@@ -70,7 +72,8 @@ The first release of Mido, for macOS (Apple Silicon and Intel).
 - Custom themes with a colour editor and JSON import and export.
 - Auto, light and dark modes, with an optional accent colour.
 
-[Unreleased]: https://github.com/serafo27/mido/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/serafo27/mido/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/serafo27/mido/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/serafo27/mido/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/serafo27/mido/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/serafo27/mido/releases/tag/v0.1.0
