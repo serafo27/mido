@@ -47,6 +47,12 @@ impl Workspace {
         resolve_inside(&self.root()?, path)
     }
 
+    /// Errs unless changing `path` stays inside the open folder once symlinks
+    /// are followed. Reads may follow a symlink out of the folder; writes may not.
+    fn writable(&self, path: &Path) -> Result<(), String> {
+        writable_inside(&self.root()?, path)
+    }
+
     /// Like `resolve`, but refuses the open folder itself.
     fn resolve_entry(&self, path: &str) -> Result<PathBuf, String> {
         let root = self.root()?;
@@ -156,6 +162,23 @@ fn resolve_inside(root: &Path, path: &str) -> Result<PathBuf, String> {
     match normalize(Path::new(path)) {
         Some(resolved) if resolved.starts_with(root) => Ok(resolved),
         _ => Err(format!("{path} is outside the open folder")),
+    }
+}
+
+/// The folder `path` is in (`path` itself if it has none).
+fn parent_of(path: &Path) -> &Path {
+    path.parent().unwrap_or(path)
+}
+
+/// Errs unless `path`, or its nearest existing ancestor when it doesn't exist
+/// yet, is inside `root` on disk, symlinks resolved. Pass a symlink's parent to
+/// allow changing the link itself, or the link to check what it points to.
+fn writable_inside(root: &Path, path: &Path) -> Result<(), String> {
+    let root = fs::canonicalize(root).map_err(err)?;
+    let real = path.ancestors().find_map(|p| fs::canonicalize(p).ok());
+    match real {
+        Some(real) if real.starts_with(&root) => Ok(()),
+        _ => Err(format!("{} is outside the open folder", path.display())),
     }
 }
 
@@ -361,6 +384,8 @@ async fn write_file(
     expected: Option<String>,
 ) -> Result<WriteOutcome, String> {
     let path = workspace.resolve(&path)?;
+    // The write goes through symlinks, so it's their target that must be inside.
+    workspace.writable(&path)?;
     write_checked(&path, &content, expected.as_deref()).map_err(err)
 }
 
@@ -407,6 +432,7 @@ fn write_atomic(path: &Path, content: &[u8]) -> io::Result<()> {
 #[tauri::command]
 async fn create_file(workspace: State<'_, Workspace>, path: String) -> Result<(), String> {
     let path = workspace.resolve_entry(&path)?;
+    workspace.writable(&path)?;
     if path.exists() {
         return Err(format!("{} already exists", path.display()));
     }
@@ -423,6 +449,7 @@ async fn create_file(workspace: State<'_, Workspace>, path: String) -> Result<()
 #[tauri::command]
 async fn create_dir(workspace: State<'_, Workspace>, path: String) -> Result<(), String> {
     let path = workspace.resolve_entry(&path)?;
+    workspace.writable(&path)?;
     if path.exists() {
         return Err(format!("{} already exists", path.display()));
     }
@@ -437,11 +464,19 @@ async fn rename_path(
 ) -> Result<(), String> {
     let from = workspace.resolve_entry(&from)?;
     let to = workspace.resolve_entry(&to)?;
+    let root = workspace.root()?;
+    // Renaming a symlink moves the link, not its target: check its folder.
+    workspace.writable(parent_of(&from))?;
+    workspace.writable(&to)?;
+    if let (Some(old), Some(new)) = (comments::dir_for(&root, &from), comments::dir_for(&root, &to)) {
+        workspace.writable(parent_of(&old))?;
+        workspace.writable(&new)?;
+    }
     if to.exists() {
         return Err(format!("{} already exists", to.display()));
     }
     fs::rename(&from, &to).map_err(err)?;
-    comments::moved(&workspace.root()?, &from, &to).map_err(err)
+    comments::moved(&root, &from, &to).map_err(err)
 }
 
 /// Saves an image pasted or dropped into the editor in the `assets` folder
@@ -461,6 +496,7 @@ async fn save_asset(
         percent_encoding::percent_decode_str(value).decode_utf8_lossy().into_owned()
     };
     let document = workspace.resolve(&header("x-document"))?;
+    workspace.writable(&parent_of(&document).join(assets::ASSETS_DIR))?;
     assets::save(&document, &header("x-name"), &header("x-mime"), bytes).map_err(err)
 }
 
@@ -496,8 +532,14 @@ async fn export_html(
 #[tauri::command]
 async fn trash_path(workspace: State<'_, Workspace>, path: String) -> Result<(), String> {
     let path = workspace.resolve_entry(&path)?;
+    // Trashing a symlink moves the link, not its target: check its folder.
+    workspace.writable(parent_of(&path))?;
+    let comments = comments::dir_for(&workspace.root()?, &path).filter(|d| d.exists());
+    if let Some(dir) = &comments {
+        workspace.writable(parent_of(dir))?;
+    }
     trash::delete(&path).map_err(err)?;
-    if let Some(dir) = comments::dir_for(&workspace.root()?, &path).filter(|d| d.exists()) {
+    if let Some(dir) = comments {
         trash::delete(dir).map_err(err)?;
     }
     Ok(())
@@ -525,7 +567,9 @@ async fn add_comment_file(
     name: String,
     content: String,
 ) -> Result<(), String> {
-    comments::add(&comments_dir(&workspace, &document)?, &thread, &name, &content).map_err(err)
+    let dir = comments_dir(&workspace, &document)?;
+    workspace.writable(&dir.join(&thread))?;
+    comments::add(&dir, &thread, &name, &content).map_err(err)
 }
 
 #[tauri::command]
@@ -537,7 +581,9 @@ async fn compact_comment_thread(
     content: String,
     replaces: Vec<String>,
 ) -> Result<(), String> {
-    comments::compact(&comments_dir(&workspace, &document)?, &thread, &name, &content, &replaces).map_err(err)
+    let dir = comments_dir(&workspace, &document)?;
+    workspace.writable(&dir.join(&thread))?;
+    comments::compact(&dir, &thread, &name, &content, &replaces).map_err(err)
 }
 
 /// Who comments are signed by: the git user of the open folder, if any.
@@ -738,6 +784,40 @@ mod tests {
         ] {
             assert!(resolve_inside(root, path).is_err(), "{path} should be rejected");
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_writes_through_symlinks_leading_out() {
+        use std::os::unix::fs::symlink;
+        let outside = temp_dir();
+        let dir = temp_dir();
+        let root = dir.path();
+        fs::write(outside.path().join("secret.md"), "").unwrap();
+        fs::create_dir(root.join("sub")).unwrap();
+        fs::write(root.join("sub/a.md"), "").unwrap();
+        symlink(outside.path(), root.join("out")).unwrap();
+        symlink(outside.path().join("secret.md"), root.join("secret.md")).unwrap();
+        symlink(root.join("sub"), root.join("in")).unwrap();
+
+        for ok in ["sub/a.md", "sub/new.md", "new/deep/b.md", "in/a.md", "in/new.md"] {
+            assert!(writable_inside(root, &root.join(ok)).is_ok(), "{ok} should be writable");
+        }
+        for out in ["out", "out/secret.md", "out/new.md", "out/new/deep.md", "secret.md"] {
+            assert!(writable_inside(root, &root.join(out)).is_err(), "{out} should be refused");
+        }
+        // The links themselves sit in the folder: they can be renamed or trashed.
+        assert!(writable_inside(root, parent_of(&root.join("out"))).is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn accepts_a_root_reached_through_a_symlink() {
+        let dir = temp_dir();
+        fs::create_dir(dir.path().join("real")).unwrap();
+        std::os::unix::fs::symlink(dir.path().join("real"), dir.path().join("link")).unwrap();
+        let root = dir.path().join("link");
+        assert!(writable_inside(&root, &root.join("a.md")).is_ok());
     }
 
     #[test]

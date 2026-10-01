@@ -12,6 +12,7 @@ GitHub and on the website's changelog page.
 ### Security
 
 - Mido only opens folders you chose: in the Open Folder dialog, from the Finder, the Dock or the command line. Any other folder, including a recent folder opened before this version, asks for your confirmation once, so a malicious document can never reach the rest of the disk.
+- A symlink in the open folder that leads outside it can still be opened and read, but Mido no longer saves, creates or deletes files through it.
 
 ## [0.9.0] - 2026-10-01
 
