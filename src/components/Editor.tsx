@@ -10,14 +10,16 @@ import {
   StateEffect,
   StateField,
   type Extension,
+  type Text,
 } from "@codemirror/state";
 import { Decoration, EditorView, keymap, type Command, type DecorationSet } from "@codemirror/view";
-import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/language";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 import { imageFiles } from "../lib/images";
 import type { SourceHighlight } from "../lib/previewComments";
 import ScrollMarkers, { sameMarkers, type ScrollMarker } from "./ScrollMarkers";
-import Minimap from "./Minimap";
+import Minimap, { type MinimapSpace } from "./Minimap";
+import { LineKind, layoutLines, lineAtY, wrapRows, yOfLine, type Layout, type Metrics } from "../lib/minimapLayout";
 
 interface EditorProps {
   /** Identifies the document (the tab's path); each gets its own state. */
@@ -178,49 +180,82 @@ function highlightMarkers(view: EditorView): ScrollMarker[] {
 /** Minimap pixels per line of text. */
 const MINIMAP_LINE = 2;
 
+const px = (value: string) => parseFloat(value) || 0;
+
+/** What the minimap's layout depends on, as the editor shows the document now. */
+function minimapMetrics(view: EditorView): Metrics {
+  let wrapWidth: number | null = null;
+  if (view.lineWrapping) {
+    const content = getComputedStyle(view.contentDOM);
+    const line = view.contentDOM.querySelector(".cm-line");
+    const lineStyle = line ? getComputedStyle(line) : null;
+    wrapWidth =
+      view.contentDOM.clientWidth -
+      px(content.paddingLeft) -
+      px(content.paddingRight) -
+      (lineStyle ? px(lineStyle.paddingLeft) + px(lineStyle.paddingRight) : 0);
+  }
+  return {
+    lineHeight: view.defaultLineHeight,
+    charWidth: view.defaultCharacterWidth,
+    wrapWidth,
+    paddingTop: view.documentPadding.top,
+    paddingBottom: view.documentPadding.bottom,
+  };
+}
+
+/** The document laid out for the minimap, from `cache` while the text and the metrics are the same. */
+function minimapLayout(view: EditorView, cache: { doc?: Text; key?: string; layout?: Layout }): Layout {
+  const metrics = minimapMetrics(view);
+  const key = JSON.stringify(metrics);
+  if (!cache.layout || cache.doc !== view.state.doc || cache.key !== key) {
+    cache.layout = layoutLines(view.state.doc.toJSON(), metrics);
+    cache.doc = view.state.doc;
+    cache.key = key;
+  }
+  return cache.layout;
+}
+
 /**
  * Draws the part of the minimap starting `offset` pixels down: each word a
  * small bar, headings and code in their own colours, like VS Code's.
  */
-function drawMinimap(view: EditorView, ctx: CanvasRenderingContext2D, offset: number, width: number, height: number) {
-  const lineHeight = view.defaultLineHeight;
+function drawMinimap(
+  view: EditorView,
+  layout: Layout,
+  ctx: CanvasRenderingContext2D,
+  offset: number,
+  width: number,
+  height: number,
+) {
+  const { lineHeight, charWidth: editorCharWidth, wrapWidth } = layout.metrics!;
   const scale = MINIMAP_LINE / lineHeight;
-  const padding = view.documentPadding.top;
   const style = getComputedStyle(view.dom);
   const color = (name: string) => style.getPropertyValue(name).trim() || "#888";
   const colors = { text: color("--text-muted"), heading: color("--md-heading"), code: color("--hl-string") };
   const charWidth = Math.min(1.2, (width - 8) / 100);
   const columns = Math.floor((width - 8) / charWidth);
   const { doc } = view.state;
-  const tree = syntaxTree(view.state);
+  const { tops, kinds, sizes } = layout;
 
-  let block = view.lineBlockAtHeight(Math.max(0, offset / scale - padding));
-  for (;;) {
-    const y = (block.top + padding) * scale - offset;
+  for (let i = Math.floor(lineAtY(layout, offset / scale)); i < tops.length; i++) {
+    const y = tops[i] * scale - offset;
     if (y > height) break;
-    const text = doc.sliceString(block.from, block.to);
-    const heading = /^#{1,6}\s/.test(text);
-    let code = false;
-    for (let node: { name: string; parent: unknown } | null = tree.resolveInner(block.from, 1); node; ) {
-      if (node.name === "FencedCode" || node.name === "CodeBlock") code = true;
-      node = node.parent as typeof node;
-    }
-    ctx.fillStyle = heading ? colors.heading : code ? colors.code : colors.text;
-    ctx.globalAlpha = heading ? 0.95 : 0.6;
-    // A wrapped line takes several rows.
-    const rows = Math.max(1, Math.round(block.height / lineHeight));
-    const perRow = Math.ceil(text.length / rows);
-    for (let r = 0; r < rows; r++) {
-      const row = text.slice(r * perRow, (r + 1) * perRow);
-      for (const word of row.matchAll(/\S+/g)) {
-        const column = word.index ?? 0;
+    const text = doc.line(i + 1).text;
+    const kind = kinds[i];
+    const size = sizes[i];
+    ctx.fillStyle = kind === LineKind.Heading ? colors.heading : kind === LineKind.Code ? colors.code : colors.text;
+    ctx.globalAlpha = kind === LineKind.Heading ? 0.95 : 0.6;
+    const wrapColumns = wrapWidth === null ? Infinity : Math.floor(wrapWidth / (editorCharWidth * size));
+    wrapRows(text, wrapColumns).forEach(([start, end], r) => {
+      for (const word of text.slice(start, end).matchAll(/\S+/g)) {
+        const column = (word.index ?? 0) * size;
         if (column >= columns) break;
-        const length = Math.min(word[0].length, columns - column);
-        ctx.fillRect(4 + column * charWidth, y + r * MINIMAP_LINE, length * charWidth, heading ? 1.8 : 1.3);
+        const length = Math.min(word[0].length * size, columns - column);
+        const thickness = kind === LineKind.Heading ? 1.8 : 1.3;
+        ctx.fillRect(4 + column * charWidth, y + r * MINIMAP_LINE * size, length * charWidth, thickness);
       }
-    }
-    if (block.to >= doc.length) break;
-    block = view.lineBlockAt(block.to + 1);
+    });
   }
   ctx.globalAlpha = 1;
 }
@@ -373,9 +408,9 @@ export function editorTopLine(view: EditorView): number {
   return Math.floor(editorLineAt(view));
 }
 
-/** The source line at the top of the editor, with the fraction of it scrolled past. */
-export function editorLineAt(view: EditorView): number {
-  const top = Math.max(0, view.scrollDOM.scrollTop - documentOffset(view));
+/** The source line at the top of the editor (or at `scrollTop`), with the fraction of it scrolled past. */
+export function editorLineAt(view: EditorView, scrollTop = view.scrollDOM.scrollTop): number {
+  const top = Math.max(0, scrollTop - documentOffset(view));
   const block = view.lineBlockAtHeight(top);
   return view.state.doc.lineAt(block.from).number + Math.min(1, (top - block.top) / Math.max(1, block.height));
 }
@@ -412,6 +447,7 @@ export default function Editor(props: EditorProps) {
   // The minimap redraws whenever the text or its layout changes.
   const [scroller, setScroller] = useState<HTMLElement | null>(null);
   const [minimapVersion, setMinimapVersion] = useState(0);
+  const layoutCache = useRef<{ doc?: Text; key?: string; layout?: Layout }>({});
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const keyRef = useRef(docKey);
@@ -585,14 +621,26 @@ export default function Editor(props: EditorProps) {
   }, [highlights, docKey]);
 
   const view = viewRef.current;
+  const layout = minimap && view ? minimapLayout(view, layoutCache.current) : null;
+  // The minimap shows that layout; the editor's scroll positions map to it through source lines.
+  const space: MinimapSpace | undefined =
+    view && layout
+      ? {
+          height: layout.height,
+          fromScroll: (top) =>
+            top <= documentOffset(view) ? top : yOfLine(layout, editorLineAt(view, top) - 1),
+          toScroll: (y) => (y <= layout.metrics!.paddingTop ? y : editorScrollTopFor(view, lineAtY(layout, y) + 1)),
+        }
+      : undefined;
   return (
     <div className={`pane ${minimap ? "with-minimap" : ""}`}>
       <div className="editor" ref={hostRef} />
-      {minimap && view ? (
+      {minimap && view && layout ? (
         <Minimap
           scroller={scroller}
           scale={MINIMAP_LINE / view.defaultLineHeight}
-          draw={(ctx, offset, width, height) => drawMinimap(view, ctx, offset, width, height)}
+          space={space}
+          draw={(ctx, offset, width, height) => drawMinimap(view, layout, ctx, offset, width, height)}
           version={`${minimapVersion}:${docKey}`}
           markers={markers}
           onSelectMarker={selectMarker}

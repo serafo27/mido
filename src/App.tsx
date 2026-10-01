@@ -106,7 +106,8 @@ export default function App() {
   const [outlineOpen, setOutlineOpen] = useStoredState("mido.outlineOpen", false);
   const [commentsOpen, setCommentsOpen] = useStoredState("mido.commentsOpen", false);
 
-  // The source line at the top of the view being left, to show at the top of the next one.
+  // The source line at the top of the view being left, to show at the top of the next one
+  // (0: the view was scrolled to the very top).
   const modeSwitchLine = useRef<number | null>(null);
 
   /** Read · Split · Edit. The web version only reads: the other two ask for the desktop app. */
@@ -117,8 +118,10 @@ export default function App() {
       if (next !== current) {
         const preview = previewRef.current;
         const view = activeEditor();
-        if (current === "view") modeSwitchLine.current = preview ? previewLineAt(preview) : null;
-        else modeSwitchLine.current = view ? editorLineAt(view) : null;
+        const scroller = current === "view" ? preview : view?.scrollDOM;
+        if (!scroller) modeSwitchLine.current = null;
+        else if (atTop(scroller)) modeSwitchLine.current = 0;
+        else modeSwitchLine.current = current === "view" ? previewLineAt(preview!) : editorLineAt(view!);
       }
       setMode(next);
     },
@@ -1133,11 +1136,12 @@ export default function App() {
       const view = activeEditor();
       const preview = previewRef.current;
       if (mode !== "view" && view) {
-        scrollEditorToLine(view, line);
+        if (line === 0) setScrollTop(view.scrollDOM, 0);
+        else scrollEditorToLine(view, line);
         keepCursorInView(view);
         if (mode === "split" && preview) syncPreview(view, preview);
       } else if (mode === "view" && preview) {
-        setScrollTop(preview, previewScrollTopFor(preview, line));
+        setScrollTop(preview, line === 0 ? 0 : previewScrollTopFor(preview, line));
       }
     });
     return () => cancelAnimationFrame(frame);

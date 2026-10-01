@@ -11,11 +11,27 @@ import type { ScrollMarker } from "./ScrollMarkers";
 
 export const MINIMAP_WIDTH = 96;
 
+/**
+ * The content a minimap shows, when it isn't the scroller's own content
+ * scaled down: its height, and how positions map between the two.
+ */
+export interface MinimapSpace {
+  height: number;
+  /** The content position shown at a scroll position of the scroller. */
+  fromScroll: (scrollTop: number) => number;
+  /** The scroll position that shows a content position. */
+  toScroll: (y: number) => number;
+}
+
+const SAME_SPACE = { fromScroll: (top: number) => top, toScroll: (y: number) => y };
+
 interface MinimapProps {
   /** The element that scrolls: the preview, or the editor's scroller. */
   scroller: HTMLElement | null;
-  /** Minimap pixels per pixel of scrollable content. */
+  /** Minimap pixels per pixel of content. */
   scale: number;
+  /** The content drawn, if it isn't the scroller's. */
+  space?: MinimapSpace;
   /**
    * Draws the minimap's visible part: `offset` is how far down the scaled
    * content it starts. Used by the editor, which can't be copied.
@@ -43,7 +59,8 @@ interface Geometry {
  * small, with the visible part framed. Click to jump, drag the frame to
  * scroll. Content taller than the minimap scrolls along with the document.
  */
-export default function Minimap({ scroller, scale, draw, version, children, markers, onSelectMarker }: MinimapProps) {
+export default function Minimap(props: MinimapProps) {
+  const { scroller, scale, space, draw, version, children, markers, onSelectMarker } = props;
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [geometry, setGeometry] = useState<Geometry>({ scrollTop: 0, scrollHeight: 1, clientHeight: 1, height: 1 });
@@ -81,12 +98,16 @@ export default function Minimap({ scroller, scale, draw, version, children, mark
   }, [scroller]);
 
   const { scrollTop, scrollHeight, clientHeight, height } = geometry;
-  const scrollable = Math.max(0, scrollHeight - clientHeight);
-  const ratio = scrollable ? Math.min(1, scrollTop / scrollable) : 0;
+  const { fromScroll, toScroll } = space ?? SAME_SPACE;
+  const contentHeight = space?.height ?? scrollHeight;
+  // Where the top of the view is in the content.
+  const position = fromScroll(scrollTop);
+  const scrollable = Math.max(0, contentHeight - clientHeight);
+  const ratio = scrollable ? Math.min(1, Math.max(0, position / scrollable)) : 0;
   // When the scaled content is taller than the minimap, it scrolls too.
-  const maxOffset = Math.max(0, scrollHeight * scale - height);
+  const maxOffset = Math.max(0, contentHeight * scale - height);
   const offset = maxOffset * ratio;
-  const sliderTop = scrollTop * scale - offset;
+  const sliderTop = position * scale - offset;
   const sliderHeight = Math.max(12, clientHeight * scale);
   // How far the frame travels over the whole scroll.
   const travel = scrollable * scale - maxOffset;
@@ -114,16 +135,17 @@ export default function Minimap({ scroller, scale, draw, version, children, mark
     const root = e.currentTarget;
     const y = e.clientY - root.getBoundingClientRect().top;
     // Clicking outside the frame first centres the document on that point.
+    let start = position;
     if (y < sliderTop || y > sliderTop + sliderHeight) {
-      scroller.scrollTop = (y + offset) / scale - clientHeight / 2;
+      start = (y + offset) / scale - clientHeight / 2;
+      scroller.scrollTop = toScroll(start);
     }
     if (travel <= 0) return;
     const startY = e.clientY;
-    const startScroll = scroller.scrollTop;
     root.setPointerCapture(e.pointerId);
     root.classList.add("dragging");
     const move = (ev: globalThis.PointerEvent) => {
-      scroller.scrollTop = startScroll + ((ev.clientY - startY) * scrollable) / travel;
+      scroller.scrollTop = toScroll(start + ((ev.clientY - startY) * scrollable) / travel);
     };
     const up = () => {
       root.removeEventListener("pointermove", move);
@@ -162,7 +184,7 @@ export default function Minimap({ scroller, scale, draw, version, children, mark
         <button
           key={m.id}
           className={`minimap-marker ${m.active ? "active" : ""}`}
-          style={{ top: m.top * scrollHeight * scale - offset }}
+          style={{ top: fromScroll(m.top * scrollHeight) * scale - offset }}
           tabIndex={-1}
           title="Show comment"
           onClick={() => onSelectMarker(m.id)}
