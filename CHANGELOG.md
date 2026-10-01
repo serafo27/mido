@@ -9,6 +9,8 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-01
+
 ### Added
 
 - Mido for the web, at <https://serafo27.github.io/mido/app/>: open folders and Markdown files from your computer and read them in the browser, with the app's rendering, themes, tabs, outline, search, export and printing. It's read-only: editing, creating, renaming and deleting point to the desktop app. Nothing is uploaded. Chromium browsers reopen recent folders and pick up changes made on disk; Safari and Firefox read a folder as it is when opened.
@@ -92,7 +94,8 @@ The first release of Mido, for macOS (Apple Silicon and Intel).
 - Custom themes with a colour editor and JSON import and export.
 - Auto, light and dark modes, with an optional accent colour.
 
-[Unreleased]: https://github.com/serafo27/mido/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/serafo27/mido/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/serafo27/mido/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/serafo27/mido/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/serafo27/mido/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/serafo27/mido/compare/v0.2.0...v0.3.0
