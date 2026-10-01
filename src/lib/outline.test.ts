@@ -42,6 +42,15 @@ describe("extractHeadings", () => {
     expect(extractHeadings(src)[0].text).toBe("Bold code link html *star");
   });
 
+  it("keeps underscores inside words, but strips underscore emphasis", () => {
+    const text = (src: string) => extractHeadings(src)[0].text;
+    expect(text("# use snake_case and my_var_name")).toBe("use snake_case and my_var_name");
+    expect(text("# file__name v1_2")).toBe("file__name v1_2");
+    expect(text("# _emphasis_ and __strong__")).toBe("emphasis and strong");
+    expect(text("# città_bella")).toBe("città_bella");
+    expect(text("# intra*word*stars")).toBe("intrawordstars");
+  });
+
   it("requires a space after the hashes", () => {
     expect(extractHeadings("#hashtag")).toEqual([]);
   });

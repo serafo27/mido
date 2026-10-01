@@ -5,13 +5,20 @@ export interface Heading {
   line: number;
 }
 
+const WORD_CHAR = /[\p{L}\p{N}]/u;
+
 /** Strips inline Markdown so headings read as plain text. */
 function plain(text: string): string {
   return text
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/<[^>]+>/g, "")
     // One pass, so an escaped marker (`\*`) is kept as text rather than stripped.
-    .replace(/\\([\\`*_{}[\]()#+\-.!])|\*\*|__|\*|_|~~|`/g, (_, escaped?: string) => escaped ?? "")
+    .replace(/\\([\\`*_{}[\]()#+\-.!])|\*\*|__|\*|_|~~|`/g, (marker, escaped: string | undefined, at: number, all: string) => {
+      if (escaped !== undefined) return escaped;
+      // Underscores inside a word (`snake_case`) aren't emphasis, unlike asterisks.
+      const intraword = WORD_CHAR.test(all[at - 1] ?? "") && WORD_CHAR.test(all[at + marker.length] ?? "");
+      return marker[0] === "_" && intraword ? marker : "";
+    })
     .trim();
 }
 
