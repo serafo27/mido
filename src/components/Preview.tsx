@@ -13,10 +13,11 @@ import {
 import type { Components } from "react-markdown";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, ImageOff } from "lucide-react";
 import { decodeLink, dirname, isMarkdown, resolve, splitLink } from "../lib/paths";
 import { CLOBBER_PREFIX, languageOf, parseFrontmatter, textOf } from "../lib/markdown";
 import { BlockRenderer } from "../lib/blockRenderer";
+import { blocksImage, type RemoteImages } from "../lib/settings";
 import { renderMermaid, useMermaidTheme } from "../lib/mermaid";
 import {
   clearHighlights,
@@ -47,6 +48,8 @@ interface PreviewProps {
   onHoverHighlight?: (id: string | null, x: number, y: number) => void;
   /** A minimap of the page in place of the scrollbar. */
   minimap?: boolean;
+  /** Images from the web to load. */
+  remoteImages?: RemoteImages;
 }
 
 const EXTERNAL = /^[a-z][a-z0-9+.-]*:/i;
@@ -181,7 +184,9 @@ const scrollPositions = new Map<string, number>();
 
 export default function Preview(props: PreviewProps) {
   const { content, filePath, root, wrap, justify, showFrontmatter, scrollRef, onOpenFile, onScroll } = props;
-  const { highlights, onSelectHighlight, onHoverHighlight, minimap } = props;
+  const { highlights, onSelectHighlight, onHoverHighlight, minimap, remoteImages = "all" } = props;
+  // Blocked images the reader chose to load anyway, for as long as the document is open.
+  const [allowedImages, setAllowedImages] = useState<ReadonlySet<string>>(() => new Set());
   const hoverFrame = useRef(0);
   const articleRef = useRef<HTMLElement>(null);
   const [markers, setMarkers] = useState<ScrollMarker[]>([]);
@@ -267,6 +272,15 @@ export default function Preview(props: PreviewProps) {
         );
       },
       img({ node: _node, src, alt, ...rest }) {
+        if (typeof src === "string" && blocksImage(remoteImages, src) && !allowedImages.has(src)) {
+          return (
+            <BlockedImage
+              src={src}
+              alt={alt ?? ""}
+              onLoad={() => setAllowedImages((prev) => new Set(prev).add(src))}
+            />
+          );
+        }
         const source =
           typeof src === "string" && src && !EXTERNAL.test(src)
             ? convertFileSrc(toLocal(decodeLink(src)))
@@ -285,6 +299,12 @@ export default function Preview(props: PreviewProps) {
           </CodeBlock>
         );
       },
+      // <picture> sources: a blocked one is left out, so the <img> inside (blocked or not) shows.
+      source({ node: _node, srcSet, ...rest }) {
+        const urls = typeof srcSet === "string" ? srcSet.split(",").map((c) => c.trim().split(/\s+/)[0]) : [];
+        if (urls.some((u) => blocksImage(remoteImages, u) && !allowedImages.has(u))) return null;
+        return <source {...rest} srcSet={srcSet} />;
+      },
       table({ node: _node, children, ...rest }) {
         return (
           <div className="table-wrap">
@@ -293,7 +313,7 @@ export default function Preview(props: PreviewProps) {
         );
       },
     };
-  }, [filePath, root, onOpenFile, scrollRef]);
+  }, [filePath, root, onOpenFile, scrollRef, remoteImages, allowedImages]);
 
   // The minimap shows a copy of the rendered page, made again as it changes.
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
@@ -444,6 +464,23 @@ class RenderBoundary extends Component<
       </div>
     );
   }
+}
+
+/** In place of an image from the web that isn't loaded: its alt text and server; a click loads it. */
+function BlockedImage({ src, alt, onLoad }: { src: string; alt: string; onLoad: () => void }) {
+  let host = src;
+  try {
+    host = new URL(src, "https://x").host;
+  } catch {
+    // Not a URL after all: show it as written.
+  }
+  return (
+    <button className="blocked-image" title={`Image from ${src} not loaded (Settings → Images from the web). Click to load it.`} onClick={onLoad}>
+      <ImageOff size={14} aria-hidden />
+      <span>{alt || "Image"}</span>
+      <span className="blocked-image-host">{host}</span>
+    </button>
+  );
 }
 
 function MermaidBlock({ code, line, offset }: { code: string; line?: number; offset?: number }) {

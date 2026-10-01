@@ -139,6 +139,25 @@ export default function SettingsPanel(props: SettingsPanelProps) {
             checked={settings.minimap}
             onChange={(minimap) => onChange({ minimap })}
           />
+          <Row label="Images from the web">
+            <div className="segmented small" title="An image loaded from a server tells it the document was opened">
+              {(
+                [
+                  ["all", "All"],
+                  ["secure", "HTTPS only"],
+                  ["none", "None"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  className={settings.remoteImages === id ? "selected" : ""}
+                  onClick={() => onChange({ remoteImages: id })}
+                >
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          </Row>
         </Section>
 
         {!isWeb && (

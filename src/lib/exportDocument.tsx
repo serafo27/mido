@@ -5,6 +5,7 @@ import markdownCss from "../styles/markdown.css?raw";
 import { languageOf, parseFrontmatter, rehypePlugins, remarkPlugins, textOf } from "./markdown";
 import { renderMermaid, type MermaidTheme } from "./mermaid";
 import { decodeLink, dirname, resolve } from "./paths";
+import { blocksImage, type RemoteImages } from "./settings";
 
 const EXTERNAL = /^[a-z][a-z0-9+.-]*:/i;
 
@@ -19,6 +20,8 @@ export interface RenderOptions {
   assetUrl: (path: string) => string;
   /** Inline local images as data URIs, so the result stands on its own. */
   embedImages: boolean;
+  /** Images from the web to keep (default all); others show as their alt text. */
+  remoteImages?: RemoteImages;
 }
 
 /**
@@ -32,6 +35,9 @@ export async function renderDocument(options: RenderOptions): Promise<string> {
 
   const components: Components = {
     img({ node: _node, src, alt, ...rest }) {
+      if (typeof src === "string" && blocksImage(options.remoteImages ?? "all", src)) {
+        return <span className="blocked-image">{alt || "Image"}</span>;
+      }
       if (typeof src !== "string" || !src || EXTERNAL.test(src)) return <img {...rest} src={src} alt={alt ?? ""} />;
       const path = toLocal(decodeLink(src));
       return <img {...rest} src={assetUrl(path)} alt={alt ?? ""} data-local-path={path} data-original-src={src} />;

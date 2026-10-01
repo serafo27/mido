@@ -694,3 +694,32 @@
   font-size: 0.8em;
   color: var(--text-muted);
 }
+
+/* An image from the web the settings don't load (see Settings → Images from the web). */
+.markdown .blocked-image {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 9px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.85em;
+  vertical-align: middle;
+  cursor: pointer;
+}
+.markdown .blocked-image:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.markdown .blocked-image > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.markdown .blocked-image-host {
+  color: var(--text-faint);
+}

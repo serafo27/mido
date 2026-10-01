@@ -51,6 +51,18 @@ describe("renderDocument", () => {
     expect(await render('<img src="100%.png">')).toContain('src="asset://localhost/notes/sub/100%.png"');
   });
 
+  it("leaves out images from the web the settings don't load, keeping their alt text", async () => {
+    const src = "![a](http://x/a.png) ![b](https://x/b.png) ![c](c.png)";
+    const secure = await render(src, { remoteImages: "secure" });
+    expect(secure).not.toContain("http://x/a.png");
+    expect(secure).toContain('<span class="blocked-image">a</span>');
+    expect(secure).toContain('src="https://x/b.png"');
+    const none = await render(src, { remoteImages: "none" });
+    expect(none).not.toMatch(/src="https?:/);
+    expect(none).toContain('src="asset://localhost/notes/sub/c.png"');
+    expect(await render(src)).toContain('src="http://x/a.png"');
+  });
+
   it("embeds local images as data URIs, keeping the original link when one can't be read", async () => {
     const fetch = vi.fn(async (url: string) =>
       url.endsWith("/a.png")

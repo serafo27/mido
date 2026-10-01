@@ -19,7 +19,7 @@ import { api, type FileNode, type OpenRequest } from "./lib/api";
 import { basename, dirname, isInside, isMarkdown, join } from "./lib/paths";
 import { DOWNLOAD_URL, isMac, isWeb, requireDesktop, WEB_ACCESS_NEEDED } from "./lib/platform";
 import { useStoredState } from "./lib/useStoredState";
-import { DEFAULT_SETTINGS, applySettings, lightThemeVariables, type Settings } from "./lib/settings";
+import { DEFAULT_SETTINGS, applySettings, lightThemeVariables, type RemoteImages, type Settings } from "./lib/settings";
 import { currentMermaidTheme, mermaidTheme, type MermaidTheme } from "./lib/mermaid";
 import { currentMarkdownVariables, htmlDocument, renderDocument } from "./lib/exportDocument";
 import { assetName, imageMarkdown } from "./lib/images";
@@ -959,7 +959,7 @@ export default function App() {
   /* ---------- export & print ---------- */
 
   const renderTab = useCallback(
-    (tab: Tab, options: { mermaid: MermaidTheme; embedImages: boolean }) =>
+    (tab: Tab, options: { mermaid: MermaidTheme; embedImages: boolean; remoteImages?: RemoteImages }) =>
       renderDocument({
         source: tab.content,
         filePath: tab.path,
@@ -1007,7 +1007,7 @@ export default function App() {
       // Paper is light: diagrams take the light theme's colours, like the page.
       const light = lightThemeVariables(live.current.settings);
       const mermaid = mermaidTheme((name) => light[name] ?? "", false);
-      const body = await renderTab(tab, { mermaid, embedImages: false });
+      const body = await renderTab(tab, { mermaid, embedImages: false, remoteImages: live.current.settings.remoteImages });
       flushSync(() => setPrintBody(body));
       await imagesLoaded(printRef.current);
       // On macOS Tauri routes this to WebKit's native print panel, which also saves PDFs.
@@ -1393,6 +1393,7 @@ export default function App() {
                       onSelectHighlight={showThread}
                       onHoverHighlight={hoverHighlight}
                       minimap={settings.minimap}
+                      remoteImages={settings.remoteImages}
                     />
                   )}
                 </div>

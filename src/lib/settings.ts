@@ -8,6 +8,12 @@ export type FontRole = "body" | "heading" | "code";
 /** "classic": square tabs with dividers. "rounded": folder tabs with rounded tops. */
 export type TabStyle = "classic" | "rounded";
 
+/**
+ * Which images from the internet documents may load, as in VS Code's
+ * Markdown preview: loading one tells its server the document was opened.
+ */
+export type RemoteImages = "all" | "secure" | "none";
+
 export interface Settings {
   theme: ThemePref;
   /** Theme used in light mode (and by "system" when the OS is light). */
@@ -39,6 +45,7 @@ export interface Settings {
   commentAuthor: string;
   /** A minimap of the document in place of the scrollbar, in the editor and the preview. */
   minimap: boolean;
+  remoteImages: RemoteImages;
   tabStyle: TabStyle;
 }
 
@@ -67,6 +74,7 @@ export const DEFAULT_SETTINGS: Settings = {
   checkForUpdates: true,
   commentAuthor: "",
   minimap: false,
+  remoteImages: "secure",
   tabStyle: "classic",
 };
 
@@ -209,4 +217,12 @@ export function applySettings(settings: Settings, systemDark: boolean) {
     "--editor-font-size": `${settings.editorFontSize}px`,
   };
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+}
+
+/** Whether `src` is an image from the internet that `policy` doesn't load. */
+export function blocksImage(policy: RemoteImages, src: string): boolean {
+  if (policy === "all") return false;
+  // Protocol-relative URLs count as insecure: the app's own origin isn't https everywhere.
+  if (/^(http:)?\/\//i.test(src)) return true;
+  return policy === "none" && /^https:/i.test(src);
 }
