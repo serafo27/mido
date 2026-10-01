@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Check, ListChecks, MessageSquare, MessageSquarePlus, RotateCcw, Trash2, X } from "lucide-react";
-import { sameAuthor, type Author, type Range, type Thread } from "../lib/comments";
+import { plainQuote, sameAuthor, type Author, type Range, type Thread } from "../lib/comments";
 import { altKey, modKey } from "../lib/platform";
 
 export interface PlacedThread {
@@ -102,7 +102,7 @@ export default function Comments(props: CommentsProps) {
       <div className="comments-list" ref={listRef}>
         {draft && (
           <div className="comment-thread active draft">
-            <blockquote className="comment-quote">{draft.quote}</blockquote>
+            <blockquote className="comment-quote">{plainQuote(draft.quote)}</blockquote>
             <Composer
               placeholder="Add a comment…"
               submitLabel="Comment"
@@ -177,7 +177,7 @@ function ThreadCard({ placed, active, author, readOnly, ...actions }: ThreadCard
       }}
     >
       <div className="comment-thread-top">
-        <blockquote className="comment-quote">{thread.anchor.exact}</blockquote>
+        <blockquote className="comment-quote">{plainQuote(thread.anchor.exact)}</blockquote>
         {!readOnly &&
           (thread.resolved ? (
             <button className="icon-button" onClick={actions.onReopen} title="Reopen thread">

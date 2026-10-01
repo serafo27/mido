@@ -957,8 +957,8 @@ body.resizing .resizer {
 }
 .comment-thread.active {
   cursor: default;
-  border-color: color-mix(in srgb, var(--warm) 60%, var(--border));
-  box-shadow: 0 0 0 3px var(--comment-highlight);
+  border-color: var(--border);
+  background: var(--bg-elev);
 }
 .comment-thread.resolved,
 .comment-thread.detached {
@@ -978,7 +978,7 @@ body.resizing .resizer {
   min-width: 0;
   margin: 0 0 8px;
   padding-left: 8px;
-  border-left: 2px solid var(--comment-underline);
+  border-left: 2px solid var(--border);
   font-size: 12px;
   line-height: 1.45;
   color: var(--text-muted);
@@ -1059,6 +1059,18 @@ body.resizing .resizer {
   color: var(--text);
 }
 .comment-composer input.text-input {
+  color: var(--text);
+}
+/* Quieter than other inputs: the panel has enough going on. */
+.comment-composer .text-input:focus {
+  border-color: var(--text-faint);
+  box-shadow: none;
+}
+.comment-composer .ghost-button {
+  border-color: transparent;
+  color: var(--text-muted);
+}
+.comment-composer .ghost-button:hover {
   color: var(--text);
 }
 .comment-composer-actions {

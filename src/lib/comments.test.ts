@@ -3,6 +3,7 @@ import {
   buildThreads,
   createAnchor,
   findRenderedText,
+  plainQuote,
   locate,
   sameAuthor,
   serializeEvents,
@@ -133,5 +134,13 @@ describe("rendered text", () => {
 
   it("leaves out words the page doesn't show", () => {
     expect(visibleWordsOf("a [link](https://example.com) and <b>bold</b>")).toEqual(["a", "link", "and", "bold"]);
+  });
+});
+
+describe("plainQuote", () => {
+  it("quotes the text without Markdown markup", () => {
+    expect(plainQuote("contract**: MySQL `table` name")).toBe("contract: MySQL table name");
+    expect(plainQuote("## A [link](https://x.y) and _this_")).toBe("A link and this");
+    expect(plainQuote("- one\n- two")).toBe("one\ntwo");
   });
 });

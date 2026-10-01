@@ -250,6 +250,17 @@ function between(source: string, { exact, prefix, suffix }: Anchor): Range | nul
   return null;
 }
 
+/** Commented source text as it reads on the page, for quoting it: without Markdown markup. */
+export function plainQuote(source: string): string {
+  return source
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/<[^>]*>/g, "")
+    .replace(/^\s{0,3}(#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/gm, "")
+    .replace(/(\*\*|__|\*|_|~~|`)/g, "")
+    .replace(/[ \t]+/g, " ")
+    .trim();
+}
+
 /* ---------- rendered text ↔ source ---------- */
 
 const WORD = /[\p{L}\p{N}]+/gu;
