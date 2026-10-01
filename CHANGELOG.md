@@ -12,6 +12,11 @@ GitHub and on the website's changelog page.
 ### Added
 
 - Paste images (`⌘V`, e.g. a screenshot) or drop image files into the editor: Mido saves them in an `assets` folder next to the document, never replacing an existing file, and inserts the link where you paste or drop.
+- Quick search (`⌘P`): a Spotlight-style panel that finds files by name, fuzzily, and every line containing the text you type, across the open folder. Choose with the arrow keys and press Return to open the file at that line.
+
+### Changed
+
+- `⌘P` now opens quick search instead of focusing the sidebar's file filter, which is still there.
 
 ## [0.4.0] - 2026-10-01
 

@@ -23,6 +23,7 @@ import { DEFAULT_SETTINGS, applySettings, lightThemeVariables, type Settings } f
 import { currentMarkdownVariables, htmlDocument, renderDocument } from "./lib/exportDocument";
 import { assetName, imageMarkdown } from "./lib/images";
 import Sidebar from "./components/Sidebar";
+import QuickSearch from "./components/QuickSearch";
 import Toolbar, { type ViewMode } from "./components/Toolbar";
 import Editor, {
   editorTopLine,
@@ -80,6 +81,7 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const active = tabs.find((t) => t.path === activePath) ?? null;
@@ -754,11 +756,7 @@ export default function App() {
         s: saveActive,
         o: () => openFolder(),
         w: () => live.current.activePath && closeTab(live.current.activePath),
-        p: () => {
-          setSidebarOpen(true);
-          setSearchOpen(false);
-          requestAnimationFrame(() => window.dispatchEvent(new Event("mido:focus-filter")));
-        },
+        p: () => setQuickSearchOpen((open) => !open),
         ",": () => setSettingsOpen((o) => !o),
         "\\": () => setSidebarOpen((o) => !o),
         "1": () => setMode("view"),
@@ -866,6 +864,16 @@ export default function App() {
 
   const overlays = (
     <>
+      {quickSearchOpen && root && (
+        <QuickSearch
+          root={root}
+          tree={tree}
+          openPaths={tabs.map((t) => t.path)}
+          onOpenFile={openFile}
+          onOpenMatch={openMatch}
+          onClose={() => setQuickSearchOpen(false)}
+        />
+      )}
       {settingsOpen && (
         <SettingsPanel
           settings={settings}
