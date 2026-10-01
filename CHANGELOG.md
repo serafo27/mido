@@ -9,6 +9,8 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-01
+
 ### Added
 
 - Paste images (`⌘V`, e.g. a screenshot) or drop image files into the editor: Mido saves them in an `assets` folder next to the document, never replacing an existing file, and inserts the link where you paste or drop.
@@ -81,7 +83,8 @@ The first release of Mido, for macOS (Apple Silicon and Intel).
 - Custom themes with a colour editor and JSON import and export.
 - Auto, light and dark modes, with an optional accent colour.
 
-[Unreleased]: https://github.com/serafo27/mido/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/serafo27/mido/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/serafo27/mido/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/serafo27/mido/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/serafo27/mido/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/serafo27/mido/compare/v0.1.0...v0.2.0
