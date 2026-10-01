@@ -9,6 +9,8 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-01
+
 ### Added
 
 - Open Markdown files from the Finder (double-click or Open With), by dropping them on the Dock icon, or from the terminal with `open -a Mido notes.md`. Mido opens the file's folder and the file in a tab; a folder opens as the workspace.
@@ -61,6 +63,7 @@ The first release of Mido, for macOS (Apple Silicon and Intel).
 - Custom themes with a colour editor and JSON import and export.
 - Auto, light and dark modes, with an optional accent colour.
 
-[Unreleased]: https://github.com/serafo27/mido/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/serafo27/mido/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/serafo27/mido/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/serafo27/mido/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/serafo27/mido/releases/tag/v0.1.0
