@@ -9,6 +9,8 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-01
+
 ### Fixed
 
 - Scrolling with the mouse wheel or the trackpad over the minimap scrolls the document.
@@ -109,7 +111,8 @@ The first release of Mido, for macOS (Apple Silicon and Intel).
 - Custom themes with a colour editor and JSON import and export.
 - Auto, light and dark modes, with an optional accent colour.
 
-[Unreleased]: https://github.com/serafo27/mido/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/serafo27/mido/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/serafo27/mido/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/serafo27/mido/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/serafo27/mido/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/serafo27/mido/compare/v0.4.0...v0.5.0
