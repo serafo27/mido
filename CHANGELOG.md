@@ -9,6 +9,8 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-01
+
 ### Added
 
 - Comments: select text in the editor or the preview and click **Comment** over the selection, or press `⌥⌘M`, to start a thread on it. A Comments panel (`⌘⇧M`) beside the outline lists the threads in document order, with replies, resolving and reopening. Commented text has a light dotted underline; hovering it shows the first comment and its replies, clicking it opens the thread, and ticks beside the scrollbar show where the threads are. Comments are signed with your git user and saved in a hidden `.mido` folder inside the open folder, one file per comment, so they can be committed and pushed with the documents and never cause merge conflicts. Resolving a thread gathers its comments into a single file. Threads follow their text as the document changes, move with renamed files, and those whose text was removed are listed apart. Mido for the web shows comments but doesn't write them.
@@ -103,7 +105,8 @@ The first release of Mido, for macOS (Apple Silicon and Intel).
 - Custom themes with a colour editor and JSON import and export.
 - Auto, light and dark modes, with an optional accent colour.
 
-[Unreleased]: https://github.com/serafo27/mido/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/serafo27/mido/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/serafo27/mido/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/serafo27/mido/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/serafo27/mido/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/serafo27/mido/compare/v0.3.0...v0.4.0
