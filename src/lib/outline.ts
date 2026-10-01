@@ -10,8 +10,8 @@ function plain(text: string): string {
   return text
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/<[^>]+>/g, "")
-    .replace(/(\*\*|__|\*|_|~~|`)/g, "")
-    .replace(/\\([\\`*_{}[\]()#+\-.!])/g, "$1")
+    // One pass, so an escaped marker (`\*`) is kept as text rather than stripped.
+    .replace(/\\([\\`*_{}[\]()#+\-.!])|\*\*|__|\*|_|~~|`/g, (_, escaped?: string) => escaped ?? "")
     .trim();
 }
 

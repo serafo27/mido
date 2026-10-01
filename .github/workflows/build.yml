@@ -61,10 +61,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Once per workflow is enough: the tests don't depend on the target. The
-      # frontend is built first because compiling the app needs ../dist.
-      - name: Rust tests
+      # frontend is built before the Rust tests because compiling the app needs ../dist.
+      - name: Tests
         if: matrix.target == 'aarch64-apple-darwin'
         run: |
+          pnpm test
           pnpm build
           cargo test --manifest-path src-tauri/Cargo.toml
 

@@ -89,7 +89,7 @@ const ALLOWED_TAGS = new Set([
  * The notes are already sanitized by GitHub; this keeps only simple formatting
  * as a second line of defence, since they end up in the app's own window.
  */
-function sanitizeNotes(html: string): string {
+export function sanitizeNotes(html: string): string {
   const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
   const clean = (node: Element) => {
     for (const child of [...node.children]) {

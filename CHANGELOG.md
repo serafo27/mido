@@ -15,6 +15,7 @@ GitHub and on the website's changelog page.
 - Files are saved atomically, so a crash or a full disk can't leave a file empty or half-written.
 - Opening a large folder no longer freezes the window while Mido reads it.
 - A tab or window no longer closes when its file couldn't be saved.
+- Escaped characters in headings (like `\*`) now show correctly in the outline.
 
 ### Security
 

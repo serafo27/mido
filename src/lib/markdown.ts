@@ -1,6 +1,13 @@
 import type { Root as HastRoot } from "hast";
 import type { Root as MdastRoot, Blockquote, Paragraph } from "mdast";
-import { defaultSchema } from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import remarkFrontmatter from "remark-frontmatter";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSlug from "rehype-slug";
+import rehypeKatex from "rehype-katex";
+import rehypeHighlight from "rehype-highlight";
 import { visit } from "unist-util-visit";
 
 /**
@@ -60,6 +67,17 @@ export const sanitizeSchema = {
     img: [...(attrs.img ?? []), "width", "height"],
   },
 };
+
+/** The preview's rendering pipeline. */
+export const remarkPlugins = [remarkGfm, remarkMath, [remarkFrontmatter, ["yaml", "toml"]], remarkAlerts];
+export const rehypePlugins = [
+  rehypeSourceLines,
+  rehypeRaw,
+  [rehypeSanitize, sanitizeSchema],
+  rehypeSlug,
+  rehypeKatex,
+  [rehypeHighlight, { detect: false }],
+];
 
 export interface FrontmatterEntry {
   key: string;

@@ -1,24 +1,11 @@
 import { memo, useDeferredValue, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import remarkFrontmatter from "remark-frontmatter";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
-import rehypeSlug from "rehype-slug";
-import rehypeKatex from "rehype-katex";
-import rehypeHighlight from "rehype-highlight";
 import type { Element } from "hast";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Check, Copy } from "lucide-react";
 import { dirname, isMarkdown, resolve } from "../lib/paths";
-import {
-  parseFrontmatter,
-  rehypeSourceLines,
-  remarkAlerts,
-  sanitizeSchema,
-} from "../lib/markdown";
+import { parseFrontmatter, rehypePlugins, remarkPlugins } from "../lib/markdown";
 
 interface PreviewProps {
   content: string;
@@ -31,16 +18,6 @@ interface PreviewProps {
   onScroll?: (el: HTMLDivElement) => void;
   onOpenFile: (path: string) => void;
 }
-
-const remarkPlugins = [remarkGfm, remarkMath, [remarkFrontmatter, ["yaml", "toml"]], remarkAlerts];
-const rehypePlugins = [
-  rehypeSourceLines,
-  rehypeRaw,
-  [rehypeSanitize, sanitizeSchema],
-  rehypeSlug,
-  rehypeKatex,
-  [rehypeHighlight, { detect: false }],
-];
 
 const EXTERNAL = /^[a-z][a-z0-9+.-]*:/i;
 
