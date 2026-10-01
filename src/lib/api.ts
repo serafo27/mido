@@ -7,10 +7,17 @@ export interface FileNode {
   children?: FileNode[] | null;
 }
 
+/** A file or folder the system asked Mido to open (Finder, Dock, command line). */
+export interface OpenRequest {
+  path: string;
+  isDir: boolean;
+}
+
 export const api = {
   /** Opens `root` as the workspace (file commands are limited to it) and returns its tree. */
   openFolder: (root: string) => invoke<FileNode[]>("open_folder", { root }),
   readTree: () => invoke<FileNode[]>("read_tree"),
+  takeOpenRequests: () => invoke<OpenRequest[]>("take_open_requests"),
   readFile: (path: string) => invoke<string>("read_file", { path }),
   /**
    * Writes `content` unless the file on disk no longer matches `expected` (what

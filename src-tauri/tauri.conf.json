@@ -47,6 +47,15 @@
     "active": true,
     "targets": "all",
     "category": "Productivity",
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown", "mdown", "mkd", "mdx"],
+        "contentTypes": ["net.daringfireball.markdown"],
+        "name": "Markdown document",
+        "role": "Editor",
+        "mimeType": "text/markdown"
+      }
+    ],
     "copyright": "© 2026 Serafino D'Angelillo. All rights reserved.",
     "license": "LicenseRef-Proprietary",
     "icon": [

@@ -52,6 +52,54 @@ impl Workspace {
     }
 }
 
+/// A file or folder the system asked Mido to open: from the Finder, the Dock
+/// or the command line.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct OpenRequest {
+    path: String,
+    is_dir: bool,
+}
+
+/// Open requests not yet taken by the webview. They can arrive before it has
+/// loaded (when a file launches Mido), so they wait here instead of being
+/// sent as event payloads that nobody might be listening to yet.
+#[derive(Default)]
+struct OpenRequests(Mutex<Vec<OpenRequest>>);
+
+/// The folders and Markdown files among `paths`, made absolute. Anything else
+/// (other file types, missing paths, stray arguments) is ignored.
+fn open_requests(paths: impl IntoIterator<Item = PathBuf>) -> Vec<OpenRequest> {
+    paths
+        .into_iter()
+        .filter_map(|p| normalize(&std::path::absolute(p).ok()?))
+        .filter_map(|p| {
+            let is_dir = p.is_dir();
+            (is_dir || (p.is_file() && is_markdown(&p))).then(|| OpenRequest {
+                path: p.to_string_lossy().into_owned(),
+                is_dir,
+            })
+        })
+        .collect()
+}
+
+fn queue_open_requests(app: &AppHandle, paths: impl IntoIterator<Item = PathBuf>) {
+    let requests = open_requests(paths);
+    if requests.is_empty() {
+        return;
+    }
+    if let Ok(mut pending) = app.state::<OpenRequests>().0.lock() {
+        pending.extend(requests);
+    }
+    // Tells the webview to take them, if it's already listening.
+    let _ = app.emit("open-requests", ());
+}
+
+#[tauri::command]
+fn take_open_requests(pending: State<OpenRequests>) -> Vec<OpenRequest> {
+    pending.0.lock().map(|mut p| std::mem::take(&mut *p)).unwrap_or_default()
+}
+
 /// Resolves `.` and `..` without touching the disk, since the path may not
 /// exist yet. Returns `None` for relative paths and for `..` above the root.
 fn normalize(path: &Path) -> Option<PathBuf> {
@@ -386,12 +434,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(WatcherState::default())
         .manage(Workspace::default())
-        .setup(|_app| {
+        .manage(OpenRequests::default())
+        .setup(|app| {
             #[cfg(target_os = "macos")]
             {
-                let menu = build_menu(_app.handle())?;
-                _app.set_menu(menu)?;
+                let menu = build_menu(app.handle())?;
+                app.set_menu(menu)?;
             }
+            // `Mido.app/Contents/MacOS/mido notes/a.md`; `open -a Mido` and the
+            // Finder go through `RunEvent::Opened` instead.
+            queue_open_requests(app.handle(), std::env::args_os().skip(1).map(PathBuf::from));
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -404,6 +456,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             open_folder,
+            take_open_requests,
             read_tree,
             read_file,
             write_file,
@@ -413,8 +466,16 @@ pub fn run() {
             trash_path,
             app_arch
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Mido");
+        .build(tauri::generate_context!())
+        .expect("error while building Mido")
+        .run(|_app, _event| {
+            // Files opened from the Finder, "Open With", the Dock icon or `open -a Mido`.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = _event {
+                let paths = urls.into_iter().filter_map(|url| url.to_file_path().ok());
+                queue_open_requests(_app, paths);
+            }
+        });
 }
 
 #[cfg(test)]
@@ -449,6 +510,28 @@ mod tests {
         ] {
             assert!(resolve_inside(root, path).is_err(), "{path} should be rejected");
         }
+    }
+
+    #[test]
+    fn keeps_only_folders_and_markdown_files_to_open() {
+        let dir = temp_dir();
+        let root = dir.path();
+        fs::write(root.join("a.md"), "").unwrap();
+        fs::write(root.join("b.txt"), "").unwrap();
+        fs::create_dir(root.join("sub")).unwrap();
+        let requests = open_requests([
+            root.join("a.md"),
+            root.join("b.txt"),
+            root.join("sub"),
+            root.join("sub/../a.md"),
+            root.join("missing.md"),
+            PathBuf::from("-psn_0_12345"),
+        ]);
+        let file = |path: PathBuf, is_dir| OpenRequest { path: path.to_string_lossy().into_owned(), is_dir };
+        assert_eq!(
+            requests,
+            vec![file(root.join("a.md"), false), file(root.join("sub"), true), file(root.join("a.md"), false)]
+        );
     }
 
     #[test]

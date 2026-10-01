@@ -13,7 +13,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorView } from "@codemirror/view";
-import { api, type FileNode } from "./lib/api";
+import { api, type FileNode, type OpenRequest } from "./lib/api";
 import { basename, dirname, isInside, isMarkdown, join } from "./lib/paths";
 import { isMac } from "./lib/platform";
 import { useStoredState } from "./lib/useStoredState";
@@ -94,8 +94,8 @@ export default function App() {
   const workspaceRef = useRef<HTMLDivElement>(null);
 
   // Latest values for async callbacks and event listeners.
-  const live = useRef({ tabs, activePath, mode, settings });
-  live.current = { tabs, activePath, mode, settings };
+  const live = useRef({ tabs, activePath, mode, settings, root });
+  live.current = { tabs, activePath, mode, settings, root };
 
   const fail = useCallback((e: unknown) => {
     console.error(e);
@@ -310,18 +310,75 @@ export default function App() {
     }
   }, [root, fail]);
 
+  /** Resolves to false if the folder wasn't switched (dialog cancelled, or a file couldn't be saved). */
   const openFolder = useCallback(
     async (path?: string) => {
       const dir = path ?? (await openDialog({ directory: true, multiple: false, title: "Open Folder" }));
-      if (typeof dir !== "string") return;
-      if (!(await saveAll())) return;
+      if (typeof dir !== "string") return false;
+      if (!(await saveAll())) return false;
       removeTabs(() => true);
       setActivePath(null);
       setRoot(dir);
       setRecents((r) => [dir, ...r.filter((x) => x !== dir)].slice(0, 8));
+      return true;
     },
     [saveAll, removeTabs, setActivePath, setRoot, setRecents],
   );
+
+  /* ---------- files opened from the Finder, the Dock or the command line ---------- */
+
+  // The folder the backend has open: `root` once `open_folder` has succeeded for it.
+  const openedRoot = useRef<string | null>(null);
+  const openRequests = useRef<OpenRequest[]>([]);
+  const handlingRequests = useRef(false);
+
+  /**
+   * Opens what the system asked for, in order. A file inside the open folder
+   * opens in a tab; otherwise its folder becomes the workspace first, and this
+   * runs again once that folder is open.
+   */
+  const handleOpenRequests = useCallback(async () => {
+    if (handlingRequests.current) return;
+    handlingRequests.current = true;
+    try {
+      while (openRequests.current.length > 0) {
+        const opened = openedRoot.current;
+        // A folder is still opening: this runs again once it's ready.
+        if (!opened && live.current.root) return;
+        const request = openRequests.current[0];
+        if (!request.isDir && opened && isInside(opened, request.path)) {
+          openRequests.current.shift();
+          await openFile(request.path, true);
+        } else if (request.isDir && request.path === opened) {
+          openRequests.current.shift();
+        } else {
+          // A file stays queued, to open once its folder is ready.
+          if (request.isDir) openRequests.current.shift();
+          openedRoot.current = null;
+          if (!(await openFolder(request.isDir ? request.path : dirname(request.path)))) {
+            openedRoot.current = opened;
+            openRequests.current = [];
+          }
+          return;
+        }
+      }
+    } finally {
+      handlingRequests.current = false;
+    }
+  }, [openFile, openFolder]);
+
+  useEffect(() => {
+    const take = async () => {
+      openRequests.current.push(...(await api.takeOpenRequests()));
+      handleOpenRequests();
+    };
+    const unlisten = listen("open-requests", take);
+    // Also take the requests that came before the listener, e.g. the file that launched Mido.
+    unlisten.then(take);
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, [handleOpenRequests]);
 
   // Restores the tabs from the previous session, once the folder is open
   // (Mido can only read files inside it).
@@ -346,29 +403,36 @@ export default function App() {
 
   // Open the workspace (and start watching it) whenever the root changes.
   useEffect(() => {
+    openedRoot.current = null;
     if (!root) {
       setTree([]);
       tabsRestored.current = true;
+      handleOpenRequests();
       return;
     }
     let cancelled = false;
     api
       .openFolder(root)
-      .then((nodes) => {
+      .then(async (nodes) => {
         if (cancelled) return;
         setTree(nodes);
-        return restoreTabs();
+        await restoreTabs();
+        if (cancelled) return;
+        openedRoot.current = root;
+        handleOpenRequests();
       })
       .catch((e) => {
         if (cancelled) return;
         fail(e);
+        // Don't retry opening what's in a folder that can't be opened.
+        openRequests.current = openRequests.current.filter((r) => !isInside(root, r.path));
         setRecents((r) => r.filter((x) => x !== root));
         setRoot(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [root, fail, setRoot, setRecents, restoreTabs]);
+  }, [root, fail, setRoot, setRecents, restoreTabs, handleOpenRequests]);
 
   // React to changes made outside the app.
   useEffect(() => {
