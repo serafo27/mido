@@ -35,7 +35,12 @@ import Editor, {
   revealEditorRange,
   useEditorRemeasure,
 } from "./components/Editor";
-import Preview, { previewTopLine, revealPreviewLine } from "./components/Preview";
+import Preview, {
+  previewAnchor,
+  previewTopLine,
+  revealPreviewElement,
+  revealPreviewLine,
+} from "./components/Preview";
 import Outline from "./components/Outline";
 import Comments, { CommentPeek, type PlacedThread } from "./components/Comments";
 import SelectionMenu from "./components/SelectionMenu";
@@ -1110,8 +1115,8 @@ export default function App() {
     }
   }, []);
 
-  // A search result to scroll to once its file is showing.
-  const pendingReveal = useRef<{ path: string; line: number } | null>(null);
+  // A search result, or a link's `#fragment`, to scroll to once its file is showing.
+  const pendingReveal = useRef<{ path: string; line: number } | { path: string; anchor: string } | null>(null);
   const [revealRequest, setRevealRequest] = useState(0);
 
   const openMatch = useCallback(
@@ -1123,25 +1128,43 @@ export default function App() {
     [openFile],
   );
 
+  const openLink = useCallback(
+    async (path: string, anchor?: string) => {
+      pendingReveal.current = anchor ? { path, anchor } : null;
+      await openFile(path);
+      if (anchor) setRevealRequest((n) => n + 1);
+    },
+    [openFile],
+  );
+
   useEffect(() => {
     const target = pendingReveal.current;
     if (!target || target.path !== activePath) return;
     let frame = 0;
     let attempts = 0;
     const reveal = () => {
-      if (live.current.mode === "view") {
-        const preview = previewRef.current;
-        // The preview of a file that just opened may not have rendered yet.
-        if (!preview?.querySelector("[data-line]")) {
-          if (attempts++ < 30) frame = requestAnimationFrame(reveal);
-          return;
-        }
-        revealPreviewLine(preview, target.line);
-      } else {
-        // In split mode the preview follows the editor through scroll sync.
-        revealEditorLine(target.line);
+      const preview = previewRef.current;
+      const view = live.current.mode === "view";
+      // The preview of a file that just opened may not have rendered yet.
+      // A link's fragment is looked up there, in split mode too.
+      if ((view || "anchor" in target) && !preview?.querySelector("[data-line]")) {
+        if (attempts++ < 30) frame = requestAnimationFrame(reveal);
+        return;
       }
       pendingReveal.current = null;
+      let line = 1;
+      if ("anchor" in target) {
+        // A fragment the page doesn't have leaves it at the top, as in a browser.
+        const anchor = previewAnchor(preview!, target.anchor);
+        if (!anchor) return;
+        if (view) return revealPreviewElement(preview!, anchor);
+        line = Number(anchor.closest<HTMLElement>("[data-line]")?.dataset.line ?? 1);
+      } else {
+        line = target.line;
+      }
+      if (view) revealPreviewLine(preview!, line);
+      // In split mode the preview follows the editor through scroll sync.
+      else revealEditorLine(line);
     };
     frame = requestAnimationFrame(reveal);
     return () => cancelAnimationFrame(frame);
@@ -1317,7 +1340,7 @@ export default function App() {
                       showFrontmatter={settings.showFrontmatter}
                       scrollRef={previewRef}
                       onScroll={onPreviewScroll}
-                      onOpenFile={openFile}
+                      onOpenFile={openLink}
                       highlights={highlights}
                       onSelectHighlight={showThread}
                       onHoverHighlight={hoverHighlight}

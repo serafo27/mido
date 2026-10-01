@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { basename, decodeLink, dirname, isInside, isMarkdown, join, relative, resolve } from "./paths";
+import { basename, decodeLink, dirname, splitLink, isInside, isMarkdown, join, relative, resolve } from "./paths";
 
 describe("basename / dirname", () => {
   it("splits POSIX and Windows paths", () => {
@@ -78,5 +78,17 @@ describe("decodeLink", () => {
   it("keeps a link with a malformed escape as written", () => {
     expect(decodeLink("100%.png")).toBe("100%.png");
     expect(decodeLink("a%zz", decodeURIComponent)).toBe("a%zz");
+  });
+});
+
+describe("splitLink", () => {
+  it("separates the path from the fragment, decoding both", () => {
+    expect(splitLink("other%20doc.md#caf%C3%A9")).toEqual({ path: "other doc.md", anchor: "café" });
+    expect(splitLink("#section")).toEqual({ path: "", anchor: "section" });
+    expect(splitLink("a.md")).toEqual({ path: "a.md", anchor: "" });
+  });
+
+  it("splits at the first #, keeping the rest in the fragment", () => {
+    expect(splitLink("a.md#x#y")).toEqual({ path: "a.md", anchor: "x#y" });
   });
 });

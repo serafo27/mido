@@ -14,7 +14,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Check, Copy } from "lucide-react";
-import { decodeLink, dirname, isMarkdown, resolve } from "../lib/paths";
+import { decodeLink, dirname, isMarkdown, resolve, splitLink } from "../lib/paths";
 import { languageOf, parseFrontmatter, rehypePlugins, remarkPlugins, textOf } from "../lib/markdown";
 import { renderMermaid, useDarkTheme } from "../lib/mermaid";
 import {
@@ -36,7 +36,8 @@ interface PreviewProps {
   showFrontmatter: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   onScroll?: (el: HTMLDivElement) => void;
-  onOpenFile: (path: string) => void;
+  /** A link to another file was followed, with the `#fragment` it points at, if any. */
+  onOpenFile: (path: string, anchor?: string) => void;
   /** Commented text to highlight, as ranges of `content`. */
   highlights?: SourceHighlight[];
   /** A highlight was clicked (its id), or the text outside them (null). */
@@ -73,6 +74,17 @@ export function revealPreviewLine(el: HTMLElement, line: number) {
   if (!target) return;
   const top = target.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
   animateScroll(el, Math.max(0, top - 24));
+}
+
+/** The element a `#fragment` (already decoded) points at, if the page has one. */
+export function previewAnchor(el: HTMLElement, id: string): HTMLElement | null {
+  return el.querySelector<HTMLElement>(`[id="${CSS.escape(id)}"]`);
+}
+
+/** Scrolls the preview so `target` is near the top. */
+export function revealPreviewElement(el: HTMLElement, target: HTMLElement) {
+  const top = target.getBoundingClientRect().top - el.getBoundingClientRect().top;
+  animateScroll(el, Math.max(0, el.scrollTop + top - 24));
 }
 
 const animations = new WeakMap<HTMLElement, () => void>();
@@ -159,24 +171,26 @@ export default function Preview(props: PreviewProps) {
     const toLocal = (src: string) =>
       src.startsWith("/") ? resolve(root, src.slice(1)) : resolve(baseDir, src);
 
+    const scrollToAnchor = (id: string) => {
+      const container = scrollRef.current;
+      const target = container && previewAnchor(container, id);
+      if (container && target) revealPreviewElement(container, target);
+    };
+
     const followLink = (href: string) => {
-      if (href.startsWith("#")) {
-        const id = decodeLink(href.slice(1), decodeURIComponent);
-        const container = scrollRef.current;
-        const target = container?.querySelector<HTMLElement>(`[id="${CSS.escape(id)}"]`);
-        if (container && target) {
-          const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top;
-          animateScroll(container, Math.max(0, container.scrollTop + top - 24));
-        }
-        return;
-      }
       if (EXTERNAL.test(href)) {
         openUrl(href).catch(console.error);
         return;
       }
-      const target = toLocal(decodeLink(href.split("#")[0]));
-      if (isMarkdown(target)) onOpenFile(target);
-      else revealItemInDir(target).catch(console.error);
+      const { path, anchor } = splitLink(href);
+      const target = path ? toLocal(path) : filePath;
+      if (target === filePath) {
+        if (anchor) scrollToAnchor(anchor);
+      } else if (isMarkdown(target)) {
+        onOpenFile(target, anchor || undefined);
+      } else {
+        revealItemInDir(target).catch(console.error);
+      }
     };
 
     return {

@@ -60,3 +60,10 @@ export function decodeLink(href: string, decode: (s: string) => string = decodeU
     return href;
   }
 }
+
+/** A local link split into its path and its `#fragment`, both decoded; either may be empty. */
+export function splitLink(href: string): { path: string; anchor: string } {
+  const hash = href.indexOf("#");
+  if (hash < 0) return { path: decodeLink(href), anchor: "" };
+  return { path: decodeLink(href.slice(0, hash)), anchor: decodeLink(href.slice(hash + 1), decodeURIComponent) };
+}
