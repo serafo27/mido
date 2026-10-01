@@ -16,7 +16,14 @@ import { Check, Copy } from "lucide-react";
 import { dirname, isMarkdown, resolve } from "../lib/paths";
 import { languageOf, parseFrontmatter, rehypePlugins, remarkPlugins, textOf } from "../lib/markdown";
 import { renderMermaid, useDarkTheme } from "../lib/mermaid";
-import { clearHighlights, highlightAt, paintHighlights, type SourceHighlight } from "../lib/previewComments";
+import {
+  clearHighlights,
+  highlightAt,
+  highlightMarkers,
+  paintHighlights,
+  type SourceHighlight,
+} from "../lib/previewComments";
+import ScrollMarkers, { sameMarkers, type ScrollMarker } from "./ScrollMarkers";
 
 interface PreviewProps {
   content: string;
@@ -30,8 +37,8 @@ interface PreviewProps {
   onOpenFile: (path: string) => void;
   /** Commented text to highlight, as ranges of `content`. */
   highlights?: SourceHighlight[];
-  /** A highlight was clicked. */
-  onSelectHighlight?: (id: string) => void;
+  /** A highlight was clicked (its id), or the text outside them (null). */
+  onSelectHighlight?: (id: string | null) => void;
   /** The mouse moved onto a highlight (its id) or off them all (null). */
   onHoverHighlight?: (id: string | null, x: number, y: number) => void;
 }
@@ -106,6 +113,8 @@ export default function Preview(props: PreviewProps) {
   const { content, filePath, root, wrap, justify, showFrontmatter, scrollRef, onOpenFile, onScroll } = props;
   const { highlights, onSelectHighlight, onHoverHighlight } = props;
   const hoverFrame = useRef(0);
+  const articleRef = useRef<HTMLElement>(null);
+  const [markers, setMarkers] = useState<ScrollMarker[]>([]);
   // Keep typing responsive in split mode: render the preview at lower priority.
   const deferred = useDeferredValue(content);
   const frontmatter = useMemo(
@@ -123,6 +132,16 @@ export default function Preview(props: PreviewProps) {
     const el = scrollRef.current;
     if (!el || deferred !== content) return;
     paintHighlights(el, content, highlights ?? []);
+    const update = () => {
+      const next = highlightMarkers(el);
+      setMarkers((prev) => (sameMarkers(prev, next) ? prev : next));
+    };
+    update();
+    // Images, diagrams and window resizes move the text after it's painted.
+    const observer = new ResizeObserver(update);
+    if (articleRef.current) observer.observe(articleRef.current);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [deferred, content, highlights, scrollRef]);
   useEffect(() => {
     const el = scrollRef.current;
@@ -201,46 +220,55 @@ export default function Preview(props: PreviewProps) {
     };
   }, [filePath, root, onOpenFile, scrollRef]);
 
+  const selectMarker = (id: string) => {
+    const el = scrollRef.current;
+    const marker = markers.find((m) => m.id === id);
+    if (el && marker) animateScroll(el, Math.max(0, marker.top * el.scrollHeight - el.clientHeight / 3));
+    onSelectHighlight?.(id);
+  };
+
   return (
-    <div
-      className="preview"
-      ref={scrollRef}
-      onScroll={(e) => {
-        scrollPositions.set(filePath, e.currentTarget.scrollTop);
-        onScroll?.(e.currentTarget);
-      }}
-      onMouseMove={(e) => {
-        if (!onHoverHighlight) return;
-        const { currentTarget: el, clientX: x, clientY: y, buttons } = e;
-        cancelAnimationFrame(hoverFrame.current);
-        hoverFrame.current = requestAnimationFrame(() =>
-          // Not while selecting text.
-          onHoverHighlight(buttons ? null : highlightAt(el, x, y), x, y),
-        );
-      }}
-      onMouseLeave={(e) => {
-        cancelAnimationFrame(hoverFrame.current);
-        onHoverHighlight?.(null, e.clientX, e.clientY);
-      }}
-      onClick={(e) => {
-        if (!onSelectHighlight || !window.getSelection()?.isCollapsed) return;
-        const id = highlightAt(e.currentTarget, e.clientX, e.clientY);
-        if (id) onSelectHighlight(id);
-      }}
-    >
-      <article className={`markdown ${wrap ? "wrap" : "nowrap"} ${justify ? "justify" : ""}`}>
-        {frontmatter && (
-          <dl className="frontmatter">
-            {frontmatter.map(({ key, value }) => (
-              <div key={key}>
-                <dt>{key}</dt>
-                <dd>{value || "—"}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
-        <RenderedMarkdown source={deferred} components={components} />
-      </article>
+    <div className="pane">
+      <div
+        className="preview"
+        ref={scrollRef}
+        onScroll={(e) => {
+          scrollPositions.set(filePath, e.currentTarget.scrollTop);
+          onScroll?.(e.currentTarget);
+        }}
+        onMouseMove={(e) => {
+          if (!onHoverHighlight) return;
+          const { currentTarget: el, clientX: x, clientY: y, buttons } = e;
+          cancelAnimationFrame(hoverFrame.current);
+          hoverFrame.current = requestAnimationFrame(() =>
+            // Not while selecting text.
+            onHoverHighlight(buttons ? null : highlightAt(el, x, y), x, y),
+          );
+        }}
+        onMouseLeave={(e) => {
+          cancelAnimationFrame(hoverFrame.current);
+          onHoverHighlight?.(null, e.clientX, e.clientY);
+        }}
+        onClick={(e) => {
+          if (!onSelectHighlight || !window.getSelection()?.isCollapsed) return;
+          onSelectHighlight(highlightAt(e.currentTarget, e.clientX, e.clientY));
+        }}
+      >
+        <article ref={articleRef} className={`markdown ${wrap ? "wrap" : "nowrap"} ${justify ? "justify" : ""}`}>
+          {frontmatter && (
+            <dl className="frontmatter">
+              {frontmatter.map(({ key, value }) => (
+                <div key={key}>
+                  <dt>{key}</dt>
+                  <dd>{value || "—"}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          <RenderedMarkdown source={deferred} components={components} />
+        </article>
+      </div>
+      <ScrollMarkers markers={markers} onSelect={selectMarker} />
     </div>
   );
 }

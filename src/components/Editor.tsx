@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { basicSetup } from "@uiw/react-codemirror";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
@@ -16,6 +16,7 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 import { imageFiles } from "../lib/images";
 import type { SourceHighlight } from "../lib/previewComments";
+import ScrollMarkers, { sameMarkers, type ScrollMarker } from "./ScrollMarkers";
 
 interface EditorProps {
   /** Identifies the document (the tab's path); each gets its own state. */
@@ -28,8 +29,8 @@ interface EditorProps {
   onAddImages?: (docKey: string, files: File[]) => Promise<string | null>;
   /** Commented text to highlight. */
   highlights?: SourceHighlight[];
-  /** A highlight was clicked. */
-  onSelectHighlight?: (id: string) => void;
+  /** A highlight was clicked (its id), or the text outside them (null). */
+  onSelectHighlight?: (id: string | null) => void;
   /** The mouse moved onto a highlight (its id) or off them all (null). */
   onHoverHighlight?: (id: string | null, x: number, y: number) => void;
 }
@@ -135,6 +136,7 @@ const highlightField = StateField.define<DecorationSet>({
           Decoration.mark({
             class: `cm-comment-highlight${h.active ? " active" : h.hovered ? " hover" : ""}`,
             id: h.id,
+            active: h.active,
           }).range(h.from, h.to),
         );
       decorations = Decoration.set(marks, true);
@@ -153,6 +155,21 @@ function highlightAtPos(state: EditorState, pos: number): string | null {
     }
   });
   return (found as { id: string } | null)?.id ?? null;
+}
+
+/** Where the comment highlights are, as positions in the scrollable content. */
+function highlightMarkers(view: EditorView): ScrollMarker[] {
+  const height = view.scrollDOM.scrollHeight;
+  if (!height) return [];
+  const markers: ScrollMarker[] = [];
+  view.state.field(highlightField).between(0, view.state.doc.length, (from, _to, deco) => {
+    const id = deco.spec.id as string;
+    // A new comment's text isn't a thread yet.
+    if (id === "draft") return;
+    const top = (view.lineBlockAt(from).top + view.documentPadding.top) / height;
+    markers.push({ id, top, active: !!deco.spec.active });
+  });
+  return markers;
 }
 
 /** Toggles `marker` around each selection (e.g. `**` for bold). */
@@ -306,6 +323,28 @@ export default function Editor(props: EditorProps) {
   callbacks.current = { onChange, onScroll, onAddImages, onSelectHighlight, onHoverHighlight };
   const highlightsRef = useRef(highlights);
   highlightsRef.current = highlights;
+  const [markers, setMarkers] = useState<ScrollMarker[]>([]);
+  const markersFrame = useRef(0);
+  const updateMarkers = (view: EditorView) => {
+    cancelAnimationFrame(markersFrame.current);
+    markersFrame.current = requestAnimationFrame(() => {
+      if (viewRef.current !== view) return;
+      const next = highlightMarkers(view);
+      setMarkers((prev) => (sameMarkers(prev, next) ? prev : next));
+    });
+  };
+
+  /** Scrolls a highlight into view and reports it as selected. */
+  const selectMarker = (id: string) => {
+    const view = viewRef.current;
+    if (!view) return;
+    let at: number | null = null;
+    view.state.field(highlightField).between(0, view.state.doc.length, (from, _to, deco) => {
+      if (deco.spec.id === id && at === null) at = from;
+    });
+    if (at !== null) view.dispatch({ effects: EditorView.scrollIntoView(at, { y: "center" }) });
+    callbacks.current.onSelectHighlight?.(id);
+  };
   const wrapRef = useRef(wrap);
   wrapRef.current = wrap;
 
@@ -342,14 +381,15 @@ export default function Editor(props: EditorProps) {
         wrapCompartment.of(wrapRef.current ? EditorView.lineWrapping : []),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) callbacks.current.onChange(keyRef.current, update.state.doc.toString());
+          const highlightsChanged = update.transactions.some((tr) => tr.effects.some((e) => e.is(setHighlights)));
+          if (update.docChanged || update.geometryChanged || highlightsChanged) updateMarkers(update.view);
         }),
         EditorView.domEventObservers({
           scroll: (_e, view) => callbacks.current.onScroll?.(view),
           click: (event, view) => {
             if (!view.state.selection.main.empty) return;
             const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-            const id = pos === null ? null : highlightAtPos(view.state, pos);
-            if (id) callbacks.current.onSelectHighlight?.(id);
+            callbacks.current.onSelectHighlight?.(pos === null ? null : highlightAtPos(view.state, pos));
           },
           mousemove: (event, view) => {
             const hover = callbacks.current.onHoverHighlight;
@@ -410,6 +450,7 @@ export default function Editor(props: EditorProps) {
     restore(view, keyRef.current, value);
     view.focus();
     return () => {
+      cancelAnimationFrame(markersFrame.current);
       stash(view, keyRef.current);
       view.destroy();
       viewRef.current = null;
@@ -445,7 +486,12 @@ export default function Editor(props: EditorProps) {
     if (view && keyRef.current === docKey) view.dispatch({ effects: setHighlights.of(highlights ?? []) });
   }, [highlights, docKey]);
 
-  return <div className="editor" ref={hostRef} />;
+  return (
+    <div className="pane">
+      <div className="editor" ref={hostRef} />
+      <ScrollMarkers markers={markers} onSelect={selectMarker} />
+    </div>
+  );
 }
 
 /** Re-measures editors after font settings change. */

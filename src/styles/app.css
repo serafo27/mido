@@ -765,6 +765,12 @@ body.resizing .resizer {
   min-height: 0;
 }
 
+/* Editor and preview, each with its comment ticks over the scrollbar. */
+.pane {
+  position: relative;
+  height: 100%;
+}
+
 .editor {
   height: 100%;
   overflow: hidden;
@@ -1080,6 +1086,33 @@ body.resizing .resizer {
   text-align: center;
   pointer-events: none;
 }
+.scroll-markers {
+  position: absolute;
+  top: 4px;
+  right: 1px;
+  bottom: 4px;
+  width: 10px;
+  pointer-events: none;
+}
+.scroll-markers button {
+  position: absolute;
+  right: 1px;
+  width: 8px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 2px;
+  background: var(--comment-underline);
+  opacity: 0.75;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 0.12s, transform 0.12s;
+}
+.scroll-markers button:hover,
+.scroll-markers button.active {
+  opacity: 1;
+  transform: scaleY(1.5);
+}
+
 .selection-menu {
   position: fixed;
   z-index: 150;

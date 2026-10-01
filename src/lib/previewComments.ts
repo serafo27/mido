@@ -99,7 +99,7 @@ function pageRange(all: { el: HTMLElement; line: number }[], source: string, ran
 const supported = () => typeof CSS !== "undefined" && "highlights" in CSS && typeof Highlight !== "undefined";
 
 /** Painted ranges by thread, for finding the thread under a click. */
-const painted = new WeakMap<HTMLElement, { id: string; range: globalThis.Range }[]>();
+const painted = new WeakMap<HTMLElement, { id: string; range: globalThis.Range; h: SourceHighlight }[]>();
 
 /** Highlights the commented text in the preview, replacing earlier highlights. */
 export function paintHighlights(container: HTMLElement, source: string, highlights: SourceHighlight[]) {
@@ -122,6 +122,19 @@ export function clearHighlights(container: HTMLElement) {
   painted.delete(container);
   if (!supported()) return;
   for (const name of ["mido-comment", "mido-comment-hover", "mido-comment-active"]) CSS.highlights.delete(name);
+}
+
+/** Where the painted highlights are, as positions in the preview's scrollable content. */
+export function highlightMarkers(container: HTMLElement): { id: string; top: number; active: boolean }[] {
+  const height = container.scrollHeight;
+  if (!height) return [];
+  const origin = container.getBoundingClientRect().top - container.scrollTop;
+  return (painted.get(container) ?? [])
+    .filter((r) => r.id !== "draft")
+    .map(({ id, range, h }) => {
+      const rect = range.getClientRects()[0] ?? range.getBoundingClientRect();
+      return { id, top: (rect.top - origin) / height, active: h.active };
+    });
 }
 
 /** The thread whose highlight is at the point (`x`, `y`), if any. */

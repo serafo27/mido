@@ -583,6 +583,10 @@ export default function App() {
     loadComments();
   }, [activePath, tree, loadComments]);
   useEffect(() => setActiveThread(null), [activePath]);
+  // A thread is open only while the panel shows it.
+  useEffect(() => {
+    if (!commentsOpen) setActiveThread(null);
+  }, [commentsOpen]);
 
   useEffect(() => {
     const unlisten = listen("comments-changed", loadComments);
@@ -628,12 +632,20 @@ export default function App() {
   const highlights = useMemo<SourceHighlight[]>(() => {
     const list: SourceHighlight[] = placedThreads.flatMap(({ thread, range }) =>
       range && !thread.resolved
-        ? [{ id: thread.id, ...range, active: thread.id === activeThread && !draftRange, hovered: thread.id === hover?.id }]
+        ? [
+            {
+              id: thread.id,
+              ...range,
+              // Filled in only while it's open in the panel.
+              active: commentsOpen && thread.id === activeThread && !draftRange,
+              hovered: thread.id === hover?.id,
+            },
+          ]
         : [],
     );
     if (draftRange) list.push({ id: "draft", ...draftRange, active: true });
     return list;
-  }, [placedThreads, activeThread, hover?.id, draftRange?.from, draftRange?.to]);
+  }, [placedThreads, commentsOpen, activeThread, hover?.id, draftRange?.from, draftRange?.to]);
   const peekThread =
     hover?.x !== undefined && hover.id !== activeThread
       ? placedThreads.find((t) => t.thread.id === hover.id)?.thread
@@ -686,8 +698,9 @@ export default function App() {
       if (!draft || !by) return;
       const id = ulid();
       await addEvent(draft.path, { ...newEvent(id, by), id, type: "create", body, anchor: draft.anchor });
+      // Back to reading: the new thread shows lightly, like the others.
       setDraft(null);
-      setActiveThread(id);
+      setActiveThread(null);
     },
     [draft, signer, addEvent],
   );
@@ -749,12 +762,12 @@ export default function App() {
     [placedThreads, activeContent],
   );
 
-  /** A highlight was clicked in the document: show its thread. */
+  /** A highlight was clicked in the document: show its thread. Clicking elsewhere lets it go. */
   const showThread = useCallback(
-    (id: string) => {
+    (id: string | null) => {
       if (id === "draft") return;
       setActiveThread(id);
-      setCommentsOpen(true);
+      if (id) setCommentsOpen(true);
     },
     [setCommentsOpen],
   );
