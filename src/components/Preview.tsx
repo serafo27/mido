@@ -10,12 +10,13 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
+import type { Components } from "react-markdown";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Check, Copy } from "lucide-react";
 import { decodeLink, dirname, isMarkdown, resolve, splitLink } from "../lib/paths";
-import { CLOBBER_PREFIX, languageOf, parseFrontmatter, rehypePlugins, remarkPlugins, textOf } from "../lib/markdown";
+import { CLOBBER_PREFIX, languageOf, parseFrontmatter, textOf } from "../lib/markdown";
+import { BlockRenderer } from "../lib/blockRenderer";
 import { renderMermaid, useDarkTheme } from "../lib/mermaid";
 import {
   clearHighlights,
@@ -139,6 +140,8 @@ export default function Preview(props: PreviewProps) {
   const hoverFrame = useRef(0);
   const articleRef = useRef<HTMLElement>(null);
   const [markers, setMarkers] = useState<ScrollMarker[]>([]);
+  // Keeps the blocks of the document rendered, to render again only what an edit changes.
+  const [renderer] = useState(() => new BlockRenderer());
   // Keep typing responsive in split mode: render the preview at lower priority.
   const deferred = useDeferredValue(content);
   const frontmatter = useMemo(
@@ -321,7 +324,7 @@ export default function Preview(props: PreviewProps) {
             </dl>
           )}
           <RenderBoundary source={deferred}>
-            <RenderedMarkdown source={deferred} components={components} />
+            <RenderedMarkdown source={deferred} components={components} renderer={renderer} />
           </RenderBoundary>
         </article>
       </div>
@@ -351,19 +354,13 @@ export default function Preview(props: PreviewProps) {
 const RenderedMarkdown = memo(function RenderedMarkdown({
   source,
   components,
+  renderer,
 }: {
   source: string;
   components: Components;
+  renderer: BlockRenderer;
 }) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={remarkPlugins as never}
-      rehypePlugins={rehypePlugins as never}
-      components={components}
-    >
-      {source}
-    </ReactMarkdown>
-  );
+  return <>{renderer.render(source, components)}</>;
 });
 
 /**

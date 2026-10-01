@@ -93,16 +93,18 @@ export const sanitizeSchema = {
 
 /** The preview's rendering pipeline. */
 export const remarkPlugins = [remarkGfm, remarkMath, [remarkFrontmatter, ["yaml", "toml"]], remarkAlerts];
+/** The same, for Markdown that can't start with frontmatter (a part of a document after its start). */
+export const remarkPluginsAfterStart = remarkPlugins.filter((p) => !Array.isArray(p) || p[0] !== remarkFrontmatter);
+/** Steps before and after heading ids, which the preview's block renderer gives across blocks. */
+export const rehypeBeforeSlug = [rehypeRaw, rehypeClobberPrefix, [rehypeSanitize, sanitizeSchema]];
+export const rehypeAfterSlug = [rehypeKatex, [rehypeHighlight, { detect: false }]];
 export const rehypePlugins = [
-  rehypeRaw,
-  rehypeClobberPrefix,
-  [rehypeSanitize, sanitizeSchema],
+  ...rehypeBeforeSlug,
   // After raw HTML is parsed, so its blocks get a line too; after sanitizing,
   // so a document can't set lines of its own.
   rehypeSourceLines,
   rehypeSlug,
-  rehypeKatex,
-  [rehypeHighlight, { detect: false }],
+  ...rehypeAfterSlug,
 ];
 
 export interface FrontmatterEntry {
