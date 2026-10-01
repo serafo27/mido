@@ -9,10 +9,13 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-01
+
 ### Security
 
 - Mido only opens folders you chose: in the Open Folder dialog, from the Finder, the Dock or the command line. Any other folder, including a recent folder opened before this version, asks for your confirmation once, so a malicious document can never reach the rest of the disk.
 - A symlink in the open folder that leads outside it can still be opened and read, but Mido no longer saves, creates or deletes files through it.
+- Pages exported as HTML only use KaTeX's stylesheet from the CDN if it is exactly the expected file.
 
 ## [0.9.0] - 2026-10-01
 
@@ -132,7 +135,8 @@ The first release of Mido, for macOS (Apple Silicon and Intel).
 - Custom themes with a colour editor and JSON import and export.
 - Auto, light and dark modes, with an optional accent colour.
 
-[Unreleased]: https://github.com/serafo27/mido/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/serafo27/mido/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/serafo27/mido/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/serafo27/mido/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/serafo27/mido/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/serafo27/mido/compare/v0.7.0...v0.7.1
