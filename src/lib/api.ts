@@ -39,6 +39,8 @@ export const api = {
   readTree: () => invoke<FileNode[]>("read_tree"),
   searchFiles: (query: string, options: SearchOptions) =>
     invoke<SearchResults>("search_files", { query, options }),
+  /** Asks where to save, then writes the page; resolves to the saved path, or null if cancelled. */
+  exportHtml: (defaultPath: string, html: string) => invoke<string | null>("export_html", { defaultPath, html }),
   takeOpenRequests: () => invoke<OpenRequest[]>("take_open_requests"),
   readFile: (path: string) => invoke<string>("read_file", { path }),
   /**

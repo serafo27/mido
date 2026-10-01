@@ -10,12 +10,11 @@ import {
   type RefObject,
 } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
-import type { Element, ElementContent } from "hast";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Check, Copy } from "lucide-react";
 import { dirname, isMarkdown, resolve } from "../lib/paths";
-import { parseFrontmatter, rehypePlugins, remarkPlugins } from "../lib/markdown";
+import { languageOf, parseFrontmatter, rehypePlugins, remarkPlugins, textOf } from "../lib/markdown";
 import { renderMermaid, useDarkTheme } from "../lib/mermaid";
 
 interface PreviewProps {
@@ -224,22 +223,7 @@ const RenderedMarkdown = memo(function RenderedMarkdown({
   );
 });
 
-function languageOf(node: Element | undefined): string | undefined {
-  const code = node?.children[0];
-  if (code?.type !== "element") return undefined;
-  const classes = code.properties.className;
-  if (!Array.isArray(classes)) return undefined;
-  const lang = classes.map(String).find((c) => c.startsWith("language-"));
-  return lang?.slice("language-".length);
-}
 
-/** The text content of a hast node. */
-function textOf(node: Element | ElementContent | undefined): string {
-  if (!node) return "";
-  if (node.type === "text") return node.value;
-  if (node.type === "element") return node.children.map(textOf).join("");
-  return "";
-}
 
 function MermaidBlock({ code, line }: { code: string; line?: number }) {
   const dark = useDarkTheme();

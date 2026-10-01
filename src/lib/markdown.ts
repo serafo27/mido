@@ -1,4 +1,4 @@
-import type { Root as HastRoot } from "hast";
+import type { Element, ElementContent, Root as HastRoot } from "hast";
 import type { Root as MdastRoot, Blockquote, Paragraph } from "mdast";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -120,4 +120,22 @@ export function documentStats(text: string) {
     lines: text === "" ? 0 : text.split("\n").length,
     minutes: Math.max(1, Math.round(words / 220)),
   };
+}
+
+/** The language of a `<pre><code class="language-…">` block. */
+export function languageOf(node: Element | undefined): string | undefined {
+  const code = node?.children[0];
+  if (code?.type !== "element") return undefined;
+  const classes = code.properties.className;
+  if (!Array.isArray(classes)) return undefined;
+  const lang = classes.map(String).find((c) => c.startsWith("language-"));
+  return lang?.slice("language-".length);
+}
+
+/** The text content of a hast node. */
+export function textOf(node: Element | ElementContent | undefined): string {
+  if (!node) return "";
+  if (node.type === "text") return node.value;
+  if (node.type === "element") return node.children.map(textOf).join("");
+  return "";
 }

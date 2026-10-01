@@ -375,6 +375,34 @@ async fn rename_path(
     fs::rename(&from, &to).map_err(err)
 }
 
+/// Asks where to save an exported HTML page, then writes it there. The save
+/// dialog runs here rather than in the webview, so the destination outside
+/// the open folder is always one the user picked. Returns the saved path, or
+/// `None` if the dialog was cancelled.
+#[tauri::command]
+async fn export_html(
+    app: AppHandle,
+    default_path: String,
+    html: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let default_path = PathBuf::from(default_path);
+    let mut dialog = app.dialog().file().set_title("Export as HTML").add_filter("HTML", &["html"]);
+    if let Some(dir) = default_path.parent() {
+        dialog = dialog.set_directory(dir);
+    }
+    if let Some(name) = default_path.file_name() {
+        dialog = dialog.set_file_name(name.to_string_lossy());
+    }
+    let Some(chosen) = dialog.blocking_save_file() else {
+        return Ok(None);
+    };
+    let path = chosen.into_path().map_err(err)?;
+    write_atomic(&path, html.as_bytes()).map_err(err)?;
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
 /// Moves the path to the OS trash instead of deleting it permanently.
 #[tauri::command]
 async fn trash_path(workspace: State<'_, Workspace>, path: String) -> Result<(), String> {
@@ -438,6 +466,17 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .separator()
         .item(&PredefinedMenuItem::quit(app, None)?)
         .build()?;
+    let export_html = MenuItemBuilder::with_id("export-html", "Export as HTML…")
+        .accelerator("CmdOrCtrl+Shift+E")
+        .build(app)?;
+    let print = MenuItemBuilder::with_id("print", "Print…")
+        .accelerator("CmdOrCtrl+Alt+P")
+        .build(app)?;
+    let file_menu = SubmenuBuilder::new(app, "File")
+        .item(&export_html)
+        .separator()
+        .item(&print)
+        .build()?;
     let edit_menu = SubmenuBuilder::new(app, "Edit")
         .item(&PredefinedMenuItem::cut(app, None)?)
         .item(&PredefinedMenuItem::copy(app, None)?)
@@ -451,7 +490,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .item(&PredefinedMenuItem::fullscreen(app, None)?)
         .build()?;
     MenuBuilder::new(app)
-        .items(&[&app_menu, &edit_menu, &window_menu])
+        .items(&[&app_menu, &file_menu, &edit_menu, &window_menu])
         .build()
 }
 
@@ -478,6 +517,8 @@ pub fn run() {
             let name = match event.id().as_ref() {
                 "settings" => "menu-settings",
                 "check-updates" => "menu-check-updates",
+                "export-html" => "menu-export-html",
+                "print" => "menu-print",
                 _ => return,
             };
             let _ = app.emit(name, ());
@@ -493,6 +534,7 @@ pub fn run() {
             create_dir,
             rename_path,
             trash_path,
+            export_html,
             app_arch
         ])
         .build(tauri::generate_context!())

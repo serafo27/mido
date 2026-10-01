@@ -160,6 +160,13 @@ export function fontFor(settings: Settings, role: FontRole): string {
   }
 }
 
+/** Variables of the light theme in use, for printing: paper is light whatever the app shows. */
+export function lightThemeVariables(settings: Settings): Record<string, string> {
+  const theme = activeTheme({ ...settings, theme: "light" }, false);
+  const accent = ACCENTS.find((a) => a.id === settings.accent)?.light;
+  return themeVariables(theme, accent);
+}
+
 let appliedThemeVars: string[] = [];
 
 /** Exposes the theme and reading settings as CSS variables on the document root. */

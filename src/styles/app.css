@@ -1913,3 +1913,53 @@ body.resizing .resizer {
   color: var(--text);
   border-radius: 2px;
 }
+
+/* ============================================================
+   Printing
+   ============================================================ */
+/* The document to print is rendered apart from the app, in the light theme
+   (set inline from the user's light theme); only these alert colours come
+   from the stylesheet, so they're repeated from the light tokens above. */
+.print-view {
+  display: none;
+  color-scheme: light;
+  color: var(--text);
+  --alert-note: #2f6fb3;
+  --alert-tip: #2d7a4a;
+  --alert-important: #7a4bb3;
+  --alert-warning: #b0700f;
+  --alert-caution: #b8433a;
+}
+
+@page {
+  margin: 18mm 16mm;
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: none !important;
+  }
+  .app {
+    display: none !important;
+  }
+  .print-view {
+    display: block;
+  }
+  .print-view .markdown {
+    max-width: none;
+    padding: 0;
+  }
+  .print-view :is(.code-block, .table-wrap, img, blockquote, .katex-display, .mermaid-diagram, .frontmatter) {
+    break-inside: avoid;
+  }
+  .print-view :is(h1, h2, h3, h4, h5, h6) {
+    break-after: avoid;
+  }
+  .print-view .code-meta {
+    display: none;
+  }
+}

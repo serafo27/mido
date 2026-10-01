@@ -13,6 +13,8 @@ GitHub and on the website's changelog page.
 
 - Search in files (`⌘⇧F`): search the text of every Markdown file in the open folder, with match-case and whole-word options, and jump to a result's line with a click.
 - Mermaid diagrams: ` ```mermaid ` code blocks render as diagrams that follow the light or dark theme, with the error shown in place of a diagram that doesn't parse.
+- Export as HTML (`⌘⇧E`): a standalone page with the current theme and reading style, local images embedded and diagrams included.
+- Print (`⌥⌘P`), which also saves PDFs from the print panel: the document prints on its own, in the light theme, with page breaks kept out of code blocks, tables, images and diagrams.
 
 ## [0.3.0] - 2026-10-01
 

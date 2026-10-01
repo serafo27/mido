@@ -46,6 +46,7 @@ Mido isn't code-signed yet: the first time, right-click the app and choose **Ope
 - **Reading styles** — Mido, GitHub, Academic and Minimal presets, plus separate fonts for body, headings and code (bundled, system, or any installed font), text size, line height, page width, justified text and frontmatter visibility.
 - **Themes** — Auto / Light / Dark mode with a preferred theme for each. Built in: Mido Light & Dark, VS Code Light+ & Dark+, IntelliJ Light & Darcula, Relax, Relax Night, Solarized Light, Nord and Dracula. Accent colour follows the theme or can be overridden.
 - **Custom themes** — duplicate any theme, edit its nineteen colours with live preview, and share it as JSON (see below).
+- **Export and print** — **File → Export as HTML…** (`⌘⇧E`) saves a standalone page with the current theme and reading style, images embedded and diagrams included. **File → Print…** (`⌥⌘P`) prints the document on its own in the light theme; choose **Save as PDF** in the print panel for a PDF.
 - **Saving** — autosave while you type (can be turned off) or `⌘S`. Mido asks before closing with unsaved changes.
 - **File path bar** — shows `folder › … › file` above the tabs; turn it off in settings to move the tabs into the title bar.
 
@@ -56,6 +57,8 @@ Mido isn't code-signed yet: the first time, right-click the app and choose **Ope
 | `⌘O` | Open folder |
 | `⌘1` `⌘2` `⌘3` | Read · Split · Edit |
 | `⌘S` | Save |
+| `⌘⇧E` | Export as HTML |
+| `⌥⌘P` | Print (or save as PDF) |
 | `⌘W` | Close tab |
 | `⌘⇧[` `⌘⇧]` / `Ctrl+Tab` | Previous · next tab |
 | `⌘P` | Filter files |

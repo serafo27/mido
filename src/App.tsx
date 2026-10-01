@@ -5,19 +5,22 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { flushSync } from "react-dom";
 import { ask, message, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorView } from "@codemirror/view";
 import { api, type FileNode, type OpenRequest } from "./lib/api";
 import { basename, dirname, isInside, isMarkdown, join } from "./lib/paths";
 import { isMac } from "./lib/platform";
 import { useStoredState } from "./lib/useStoredState";
-import { DEFAULT_SETTINGS, applySettings, type Settings } from "./lib/settings";
+import { DEFAULT_SETTINGS, applySettings, lightThemeVariables, type Settings } from "./lib/settings";
+import { currentMarkdownVariables, htmlDocument, renderDocument } from "./lib/exportDocument";
 import Sidebar from "./components/Sidebar";
 import Toolbar, { type ViewMode } from "./components/Toolbar";
 import Editor, {
@@ -631,6 +634,72 @@ export default function App() {
     };
   }, [runUpdateCheck]);
 
+  /* ---------- export & print ---------- */
+
+  const renderTab = useCallback(
+    (tab: Tab, options: { dark: boolean; embedImages: boolean }) =>
+      renderDocument({
+        source: tab.content,
+        filePath: tab.path,
+        root: live.current.root ?? dirname(tab.path),
+        showFrontmatter: live.current.settings.showFrontmatter,
+        assetUrl: (path) => convertFileSrc(path),
+        ...options,
+      }),
+    [],
+  );
+
+  const activeTab = () => live.current.tabs.find((t) => t.path === live.current.activePath);
+
+  const exportHtml = useCallback(async () => {
+    const tab = activeTab();
+    if (!tab) return;
+    try {
+      const { settings } = live.current;
+      const dark = document.documentElement.dataset.theme === "dark";
+      const html = htmlDocument({
+        title: basename(tab.path).replace(/\.[^.]+$/, ""),
+        body: await renderTab(tab, { dark, embedImages: true }),
+        theme: dark ? "dark" : "light",
+        style: settings.style,
+        variables: currentMarkdownVariables(),
+        wrap: settings.wrap,
+        justify: settings.justify,
+      });
+      const saved = await api.exportHtml(tab.path.replace(/\.[^./\\]+$/, "") + ".html", html);
+      if (saved) setToast(`Exported to ${basename(saved)}`);
+    } catch (e) {
+      fail(e);
+    }
+  }, [renderTab, fail]);
+
+  // The document being printed, rendered apart from the app (which print CSS hides).
+  const [printBody, setPrintBody] = useState<string | null>(null);
+  const printRef = useRef<HTMLDivElement>(null);
+  const printVariables = useMemo(() => lightThemeVariables(settings) as CSSProperties, [settings]);
+
+  const printDocument = useCallback(async () => {
+    const tab = activeTab();
+    if (!tab) return;
+    try {
+      const body = await renderTab(tab, { dark: false, embedImages: false });
+      flushSync(() => setPrintBody(body));
+      await imagesLoaded(printRef.current);
+      // On macOS Tauri routes this to WebKit's native print panel, which also saves PDFs.
+      await window.print();
+    } catch (e) {
+      fail(e);
+    }
+  }, [renderTab, fail]);
+
+  // "Export as HTML…" and "Print…" in the File menu (macOS).
+  useEffect(() => {
+    const unlisteners = [listen("menu-export-html", exportHtml), listen("menu-print", printDocument)];
+    return () => {
+      for (const u of unlisteners) u.then((f) => f());
+    };
+  }, [exportHtml, printDocument]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey && e.code === "KeyZ" && !e.metaKey && !e.ctrlKey) {
@@ -649,6 +718,9 @@ export default function App() {
         if (e.code === "KeyO") {
           e.preventDefault();
           setOutlineOpen((o) => !o);
+        } else if (e.code === "KeyE") {
+          e.preventDefault();
+          exportHtml();
         } else if (e.code === "KeyF") {
           e.preventDefault();
           setSidebarOpen(true);
@@ -684,7 +756,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive, openFolder, closeTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setMode]);
+  }, [saveActive, openFolder, closeTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setMode, exportHtml]);
 
   const dragResize = (e: ReactPointerEvent<HTMLDivElement>, onMove: (ev: PointerEvent) => void) => {
     e.preventDefault();
@@ -836,120 +908,145 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      {sidebarOpen && (
-        <>
-          <Sidebar
-            root={root}
-            tree={tree}
-            activePath={activePath}
-            width={sidebarWidth}
-            onOpenFile={openFile}
-            onPinFile={pinFile}
-            onOpenFolder={() => openFolder()}
-            onRefresh={refreshTree}
-            onCreate={createEntry}
-            onRename={renameEntry}
-            onTrash={trashEntry}
-            onReveal={(p) => revealItemInDir(p).catch(fail)}
-            searchOpen={searchOpen}
-            onSearchOpenChange={setSearchOpen}
-            onOpenMatch={openMatch}
-          />
-          <div
-            className="resizer sidebar-resizer"
-            onPointerDown={(e) => dragResize(e, (ev) => setSidebarWidth(clamp(ev.clientX, 180, 520)))}
-          />
-        </>
-      )}
-      <main className="main">
-        {toolbar}
-        {settings.showPathBar && tabs.length > 0 && (
-          <TabBar
-            tabs={tabInfos}
-            activePath={activePath}
-            onSelect={setActivePath}
-            onPin={pinTab}
-            onClose={closeTab}
-            onMove={moveTab}
-          />
-        )}
-        {active ? (
+    <>
+      <div className="app">
+        {sidebarOpen && (
           <>
-            <div className="content-row">
-              <div
-                ref={workspaceRef}
-                className={`workspace mode-${mode}`}
-                style={{ gridTemplateColumns: mode === "split" ? `${splitRatio}fr 1px ${1 - splitRatio}fr` : "1fr" }}
-              >
-                {mode !== "view" && (
-                  <Editor
-                    key="editor"
-                    docKey={active.path}
-                    value={active.content}
-                    wrap={settings.wrap}
-                    onChange={updateContent}
-                    onScroll={onEditorScroll}
-                  />
-                )}
-                {mode === "split" && (
-                  <div
-                    key="split-resizer"
-                    className="resizer split-resizer"
-                    onPointerDown={(e) =>
-                      dragResize(e, (ev) => {
-                        const rect = workspaceRef.current!.getBoundingClientRect();
-                        setSplitRatio(clamp((ev.clientX - rect.left) / rect.width, 0.2, 0.8));
-                      })
-                    }
-                  />
-                )}
-                {mode !== "edit" && (
-                  <Preview
-                    key={`preview:${active.path}`}
-                    content={active.content}
-                    filePath={active.path}
-                    root={root}
-                    wrap={settings.wrap}
-                    justify={settings.justify}
-                    showFrontmatter={settings.showFrontmatter}
-                    scrollRef={previewRef}
-                    onScroll={onPreviewScroll}
-                    onOpenFile={openFile}
+            <Sidebar
+              root={root}
+              tree={tree}
+              activePath={activePath}
+              width={sidebarWidth}
+              onOpenFile={openFile}
+              onPinFile={pinFile}
+              onOpenFolder={() => openFolder()}
+              onRefresh={refreshTree}
+              onCreate={createEntry}
+              onRename={renameEntry}
+              onTrash={trashEntry}
+              onReveal={(p) => revealItemInDir(p).catch(fail)}
+              searchOpen={searchOpen}
+              onSearchOpenChange={setSearchOpen}
+              onOpenMatch={openMatch}
+            />
+            <div
+              className="resizer sidebar-resizer"
+              onPointerDown={(e) => dragResize(e, (ev) => setSidebarWidth(clamp(ev.clientX, 180, 520)))}
+            />
+          </>
+        )}
+        <main className="main">
+          {toolbar}
+          {settings.showPathBar && tabs.length > 0 && (
+            <TabBar
+              tabs={tabInfos}
+              activePath={activePath}
+              onSelect={setActivePath}
+              onPin={pinTab}
+              onClose={closeTab}
+              onMove={moveTab}
+            />
+          )}
+          {active ? (
+            <>
+              <div className="content-row">
+                <div
+                  ref={workspaceRef}
+                  className={`workspace mode-${mode}`}
+                  style={{ gridTemplateColumns: mode === "split" ? `${splitRatio}fr 1px ${1 - splitRatio}fr` : "1fr" }}
+                >
+                  {mode !== "view" && (
+                    <Editor
+                      key="editor"
+                      docKey={active.path}
+                      value={active.content}
+                      wrap={settings.wrap}
+                      onChange={updateContent}
+                      onScroll={onEditorScroll}
+                    />
+                  )}
+                  {mode === "split" && (
+                    <div
+                      key="split-resizer"
+                      className="resizer split-resizer"
+                      onPointerDown={(e) =>
+                        dragResize(e, (ev) => {
+                          const rect = workspaceRef.current!.getBoundingClientRect();
+                          setSplitRatio(clamp((ev.clientX - rect.left) / rect.width, 0.2, 0.8));
+                        })
+                      }
+                    />
+                  )}
+                  {mode !== "edit" && (
+                    <Preview
+                      key={`preview:${active.path}`}
+                      content={active.content}
+                      filePath={active.path}
+                      root={root}
+                      wrap={settings.wrap}
+                      justify={settings.justify}
+                      showFrontmatter={settings.showFrontmatter}
+                      scrollRef={previewRef}
+                      onScroll={onPreviewScroll}
+                      onOpenFile={openFile}
+                    />
+                  )}
+                </div>
+                {outlineOpen && (
+                  <Outline
+                    headings={headings}
+                    activeIndex={headingAt(headings, currentLine)}
+                    onSelect={goToHeading}
+                    onClose={() => setOutlineOpen(false)}
                   />
                 )}
               </div>
-              {outlineOpen && (
-                <Outline
-                  headings={headings}
-                  activeIndex={headingAt(headings, currentLine)}
-                  onSelect={goToHeading}
-                  onClose={() => setOutlineOpen(false)}
-                />
-              )}
-            </div>
-            <StatusBar
-              content={active.content}
-              dirty={dirty}
-              saving={saving}
-              wrap={settings.wrap}
-              autosave={settings.autosave}
-              onWrap={toggleWrap}
-              onAutosave={() => updateSettings({ autosave: !settings.autosave })}
-            />
-          </>
-        ) : (
-          <NoFile />
+              <StatusBar
+                content={active.content}
+                dirty={dirty}
+                saving={saving}
+                wrap={settings.wrap}
+                autosave={settings.autosave}
+                onWrap={toggleWrap}
+                onAutosave={() => updateSettings({ autosave: !settings.autosave })}
+              />
+            </>
+          ) : (
+            <NoFile />
+          )}
+        </main>
+        {overlays}
+        {toast && (
+          <div className="toast" onClick={() => setToast(null)}>
+            {toast}
+          </div>
         )}
-      </main>
-      {overlays}
-      {toast && (
-        <div className="toast" onClick={() => setToast(null)}>
-          {toast}
+      </div>
+      {printBody !== null && (
+        <div className="print-view" ref={printRef} style={printVariables}>
+          {/* Rendered by renderDocument: sanitized like the preview. */}
+          <article
+            className={`markdown wrap ${settings.justify ? "justify" : ""}`}
+            dangerouslySetInnerHTML={{ __html: printBody }}
+          />
         </div>
       )}
-    </div>
+    </>
   );
+}
+
+/** Resolves once the images in `el` have loaded or failed, or after `timeout` ms. */
+function imagesLoaded(el: HTMLElement | null, timeout = 3000): Promise<unknown> {
+  const pending = [...(el?.querySelectorAll("img") ?? [])]
+    .filter((img) => !img.complete)
+    .map(
+      (img) =>
+        new Promise((done) => {
+          img.addEventListener("load", done);
+          img.addEventListener("error", done);
+        }),
+    );
+  return Promise.race([Promise.all(pending), new Promise((done) => setTimeout(done, timeout))]);
 }
 
 /**
