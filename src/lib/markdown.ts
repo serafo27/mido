@@ -51,12 +51,35 @@ export function rehypeSourceLines() {
   };
 }
 
+export const CLOBBER_PREFIX = "user-content-";
+
+/**
+ * Prefixes the ids and names a document sets (and the references to them),
+ * so raw HTML like `<img id="__TAURI__">` can't shadow globals of the page
+ * (DOM clobbering). Ones already prefixed, like footnotes', are kept; heading
+ * slugs are added later, unprefixed, as links to them expect.
+ */
+export function rehypeClobberPrefix() {
+  const prefix = (v: unknown) => (String(v).startsWith(CLOBBER_PREFIX) ? String(v) : CLOBBER_PREFIX + v);
+  return (tree: HastRoot) => {
+    visit(tree, "element", (node: Element) => {
+      const p = node.properties;
+      for (const key of ["id", "name"]) {
+        if (p[key] != null && p[key] !== "") p[key] = prefix(p[key]);
+      }
+      for (const key of ["ariaDescribedBy", "ariaLabelledBy"]) {
+        if (Array.isArray(p[key])) p[key] = p[key].map(prefix);
+      }
+    });
+  };
+}
+
 const attrs = defaultSchema.attributes ?? {};
 
 /** Sanitize raw HTML while keeping what our own plugins produce. */
 export const sanitizeSchema = {
   ...defaultSchema,
-  // Footnote ids are already prefixed by remark-rehype; don't double-prefix them.
+  // rehypeClobberPrefix has prefixed ids already, skipping the ones that were.
   clobberPrefix: "",
   attributes: {
     ...attrs,
@@ -72,6 +95,7 @@ export const sanitizeSchema = {
 export const remarkPlugins = [remarkGfm, remarkMath, [remarkFrontmatter, ["yaml", "toml"]], remarkAlerts];
 export const rehypePlugins = [
   rehypeRaw,
+  rehypeClobberPrefix,
   [rehypeSanitize, sanitizeSchema],
   // After raw HTML is parsed, so its blocks get a line too; after sanitizing,
   // so a document can't set lines of its own.

@@ -30,6 +30,22 @@ describe("sanitizer", () => {
     expect(html).not.toMatch(/<iframe|<object|<form|style=/);
   });
 
+  it("prefixes ids and names from raw HTML, so they can't clobber globals", () => {
+    const html = render('<img id="__TAURI__" name="x"> <a name="top"></a>\n\n<a href="#t" aria-describedby="n">t</a>');
+    expect(html).toContain('id="user-content-__TAURI__"');
+    expect(html).toContain('name="user-content-x"');
+    expect(html).toContain('name="user-content-top"');
+    expect(html).toContain('aria-describedby="user-content-n"');
+  });
+
+  it("keeps footnote links pointing at their targets, and heading ids as slugs", () => {
+    const html = render("# Title\n\na[^1]\n\n[^1]: n");
+    expect(html).toContain('id="title"');
+    expect(html).toContain('href="#user-content-fn-1"');
+    expect(html).toContain('id="user-content-fn-1"');
+    expect(html).toMatch(/aria-describedby="([^"]+)"[\s\S]*id="\1"/);
+  });
+
   it("keeps the attributes the preview relies on", () => {
     const html = render('# Title\n\n<img src="a.png" width="40" height="20">\n\n<p align="center">c</p>');
     expect(html).toContain('data-line="1"');

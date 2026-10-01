@@ -15,7 +15,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Check, Copy } from "lucide-react";
 import { decodeLink, dirname, isMarkdown, resolve, splitLink } from "../lib/paths";
-import { languageOf, parseFrontmatter, rehypePlugins, remarkPlugins, textOf } from "../lib/markdown";
+import { CLOBBER_PREFIX, languageOf, parseFrontmatter, rehypePlugins, remarkPlugins, textOf } from "../lib/markdown";
 import { renderMermaid, useDarkTheme } from "../lib/mermaid";
 import {
   clearHighlights,
@@ -76,9 +76,17 @@ export function revealPreviewLine(el: HTMLElement, line: number) {
   animateScroll(el, Math.max(0, top - 24));
 }
 
-/** The element a `#fragment` (already decoded) points at, if the page has one. */
+/**
+ * The element a `#fragment` (already decoded) points at, if the page has one.
+ * Ids and names from the document's HTML carry a prefix, so `#top` also
+ * finds `<a name="top">`, as on GitHub.
+ */
 export function previewAnchor(el: HTMLElement, id: string): HTMLElement | null {
-  return el.querySelector<HTMLElement>(`[id="${CSS.escape(id)}"]`);
+  for (const v of [id, CLOBBER_PREFIX + id].map((v) => CSS.escape(v))) {
+    const target = el.querySelector<HTMLElement>(`[id="${v}"], a[name="${v}"]`);
+    if (target) return target;
+  }
+  return null;
 }
 
 /** Scrolls the preview so `target` is near the top. */
