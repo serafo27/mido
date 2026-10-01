@@ -415,6 +415,163 @@ code {
 }
 
 /* ============================================================
+   Comments illustration: the app's document and Comments panel, in HTML
+   ============================================================ */
+.mock-comments {
+  display: grid;
+  grid-template-columns: 1fr 250px;
+  min-height: 380px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.mock-doc {
+  position: relative;
+  padding: 34px 40px;
+}
+
+.mock-doc p {
+  margin: 0 0 14px;
+  color: var(--text);
+}
+
+.mock-doc .mock-h {
+  margin-bottom: 18px;
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--heading);
+}
+
+.mock-doc .mock-faint {
+  color: var(--muted);
+}
+
+.mock-mark {
+  background: color-mix(in srgb, var(--warm) 6%, transparent);
+  text-decoration: underline dotted color-mix(in srgb, var(--warm) 80%, transparent);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+.mock-mark.active {
+  background: color-mix(in srgb, var(--warm) 26%, transparent);
+  text-decoration-style: solid;
+}
+
+.mock-ticks {
+  position: absolute;
+  top: 8px;
+  right: 3px;
+  bottom: 8px;
+  width: 8px;
+}
+
+.mock-ticks i {
+  position: absolute;
+  right: 0;
+  width: 8px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--warm);
+  opacity: 0.8;
+}
+
+.mock-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 10px 14px;
+  border-left: 1px solid var(--border);
+  background: var(--bg-soft);
+}
+
+.mock-panel p {
+  margin: 0;
+}
+
+.mock-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding-left: 6px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.mock-panel-title span {
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--border);
+  font-size: 10px;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+
+.mock-card {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  font-size: 12px;
+}
+
+.mock-card.active {
+  background: var(--surface);
+}
+
+.mock-quote {
+  margin-bottom: 8px !important;
+  padding-left: 8px;
+  border-left: 2px solid var(--border);
+  color: var(--muted);
+}
+
+.mock-comment + .mock-comment {
+  margin-top: 9px;
+}
+
+.mock-comment > p:last-child {
+  margin-left: 27px;
+}
+
+.mock-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mock-meta b {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 9px;
+  color: #fff;
+}
+
+.mock-meta time {
+  font-weight: 400;
+  color: var(--faint);
+}
+
+.mock-reply {
+  margin-top: 10px !important;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--faint);
+}
+
+/* ============================================================
    Themes
    ============================================================ */
 .themes {
@@ -820,6 +977,17 @@ code {
   .grid,
   .platforms {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .mock-comments {
+    grid-template-columns: 1fr;
+  }
+
+  .mock-panel {
+    border-left: 0;
+    border-top: 1px solid var(--border);
   }
 }
 

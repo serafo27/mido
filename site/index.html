@@ -109,6 +109,7 @@
               <li>Outline panel that follows you as you scroll</li>
               <li>Wrap long lines, or keep them intact and scroll sideways</li>
               <li>Edits made in other apps appear instantly</li>
+              <li>An optional minimap, like VS Code's, in place of the scrollbar</li>
             </ul>
           </div>
           <figure class="window">
@@ -144,6 +145,60 @@
               loading="lazy"
               alt="The Academic reading style with serif typography and justified text on the Relax theme"
             />
+          </figure>
+        </div>
+
+        <div class="feature-row container">
+          <div class="feature-copy">
+            <p class="eyebrow">Comments</p>
+            <h2>Review together, right in the repo.</h2>
+            <p>
+              Select any sentence and comment on it. Threads sit beside the text, with replies, resolve and reopen,
+              signed with your git name. They're saved in a hidden <code>.mido</code> folder next to your documents, so a
+              commit and a push share them with everyone.
+            </p>
+            <ul class="checks">
+              <li>A light dotted underline that shows the thread on hover</li>
+              <li>One file per comment: branches merge without conflicts</li>
+              <li>No accounts, no server: just files in your repository</li>
+            </ul>
+          </div>
+          <figure class="window mock-comments" role="img" aria-label="A document with a commented sentence underlined, and the Comments panel showing its thread">
+            <div class="mock-doc" aria-hidden="true">
+              <p class="mock-h">Release plan</p>
+              <p>
+                The new pricing ships behind a flag in March.
+                <span class="mock-mark active">Rates are read from the shared config table</span>, refreshed every night.
+              </p>
+              <p>
+                Rollout starts with two markets, then
+                <span class="mock-mark">widens once error rates stay flat</span> for a week.
+              </p>
+              <p class="mock-faint">Support gets the new FAQ a day before launch.</p>
+              <span class="mock-ticks"><i style="top: 30%"></i><i style="top: 52%"></i></span>
+            </div>
+            <div class="mock-panel" aria-hidden="true">
+              <p class="mock-panel-title">Comments <span>2</span></p>
+              <div class="mock-card active">
+                <p class="mock-quote">Rates are read from the shared config table</p>
+                <div class="mock-comment">
+                  <p class="mock-meta"><b style="background: hsl(200 45% 52%)">AL</b> Ada Lovelace <time>2 days ago</time></p>
+                  <p>Who owns this table? We should confirm before coding.</p>
+                </div>
+                <div class="mock-comment">
+                  <p class="mock-meta"><b style="background: hsl(28 55% 52%)">GH</b> Grace Hopper <time>yesterday</time></p>
+                  <p>The data team. Asked them to document it.</p>
+                </div>
+                <p class="mock-reply">Reply…</p>
+              </div>
+              <div class="mock-card">
+                <p class="mock-quote">widens once error rates stay flat</p>
+                <div class="mock-comment">
+                  <p class="mock-meta"><b style="background: hsl(140 35% 45%)">LT</b> Linus T. <time>3 hours ago</time></p>
+                  <p>Which dashboard do we watch?</p>
+                </div>
+              </div>
+            </div>
           </figure>
         </div>
       </section>
