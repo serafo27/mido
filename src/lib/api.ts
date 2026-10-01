@@ -37,6 +37,11 @@ export interface SearchResults {
 export const api = {
   /** Opens `root` as the workspace (file commands are limited to it) and returns its tree. */
   openFolder: (root: string) => invoke<FileNode[]>("open_folder", { root }),
+  /**
+   * Asks for a folder in the native dialog; resolves to it, or null if cancelled.
+   * Folders picked this way open without the confirmation `openFolder` asks for others.
+   */
+  pickFolder: () => invoke<string | null>("pick_folder"),
   readTree: () => invoke<FileNode[]>("read_tree"),
   searchFiles: (query: string, options: SearchOptions) =>
     invoke<SearchResults>("search_files", { query, options }),

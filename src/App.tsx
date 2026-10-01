@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { flushSync } from "react-dom";
-import { ask, message, open as openDialog } from "@tauri-apps/plugin-dialog";
+import { ask, message } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -373,7 +373,7 @@ export default function App() {
   /** Resolves to false if the folder wasn't switched (dialog cancelled, or a file couldn't be saved). */
   const openFolder = useCallback(
     async (path?: string) => {
-      const dir = path ?? (await openDialog({ directory: true, multiple: false, title: "Open Folder" }));
+      const dir = path ?? (await api.pickFolder());
       if (typeof dir !== "string") return false;
       if (!(await saveAll())) return false;
       removeTabs(() => true);

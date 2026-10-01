@@ -1,5 +1,6 @@
 mod assets;
 mod comments;
+mod folders;
 mod search;
 
 use std::fs;
@@ -29,7 +30,8 @@ struct FileNode {
 #[derive(Default)]
 struct WatcherState(Mutex<Option<Debouncer<RecommendedWatcher>>>);
 
-/// The folder open in Mido. File commands only accept paths inside it, so even
+/// The folder open in Mido. File commands only accept paths inside it, and
+/// only folders the user granted can be opened (see `GrantedFolders`), so even
 /// a compromised webview (say, a malicious Markdown file getting past the
 /// sanitizer) can't read or write the rest of the disk.
 #[derive(Default)]
@@ -53,6 +55,19 @@ impl Workspace {
             return Err("The open folder itself can't be changed".to_string());
         }
         Ok(path)
+    }
+}
+
+/// The folders the user let Mido open, saved across launches.
+struct GrantedFolders(Mutex<folders::Granted>);
+
+impl GrantedFolders {
+    fn contains(&self, folder: &Path) -> Result<bool, String> {
+        Ok(self.0.lock().map_err(err)?.contains(folder))
+    }
+
+    fn grant(&self, folder: &Path) -> Result<(), String> {
+        self.0.lock().map_err(err)?.grant(folder).map_err(err)
     }
 }
 
@@ -91,6 +106,16 @@ fn queue_open_requests(app: &AppHandle, paths: impl IntoIterator<Item = PathBuf>
     let requests = open_requests(paths);
     if requests.is_empty() {
         return;
+    }
+    // The user opened these from outside the webview: their folders are granted.
+    if let Some(granted) = app.try_state::<GrantedFolders>() {
+        for request in &requests {
+            let path = Path::new(&request.path);
+            let folder = if request.is_dir { Some(path) } else { path.parent() };
+            if let Some(folder) = folder {
+                let _ = granted.grant(folder);
+            }
+        }
     }
     if let Ok(mut pending) = app.state::<OpenRequests>().0.lock() {
         pending.extend(requests);
@@ -209,18 +234,59 @@ fn err<E: std::fmt::Display>(e: E) -> String {
 // Commands are `async` so they run off the main thread: a sync Tauri command
 // runs on the main thread and would freeze the window while it works.
 
+/// Asks for a folder in the native dialog and grants it. The dialog runs here
+/// rather than in the webview, so the choice is always the user's. Returns
+/// `None` if the dialog was cancelled.
+#[tauri::command]
+async fn pick_folder(app: AppHandle, granted: State<'_, GrantedFolders>) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let Some(chosen) = app.dialog().file().set_title("Open Folder").blocking_pick_folder() else {
+        return Ok(None);
+    };
+    let folder = chosen.into_path().map_err(err)?;
+    let folder = normalize(&folder).ok_or_else(|| format!("{} is not a folder", folder.display()))?;
+    granted.grant(&folder)?;
+    Ok(Some(folder.to_string_lossy().into_owned()))
+}
+
+/// Asks the user, in a native prompt the webview can't fake or skip, whether
+/// Mido may open `folder`.
+fn confirm_folder(app: &AppHandle, folder: &Path) -> bool {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
+    app.dialog()
+        .message(format!(
+            "Mido will be able to read and change the files in “{}”.",
+            folder.display()
+        ))
+        .title("Open this folder?")
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom("Open".to_string(), "Cancel".to_string()))
+        .blocking_show()
+}
+
 /// Makes `root` the open folder: file commands, the preview's images and the
-/// watcher are all limited to it. Returns its tree.
+/// watcher are all limited to it. Returns its tree. A folder the user hasn't
+/// granted yet (say, a recent folder from before grants were saved) needs
+/// their confirmation first.
 #[tauri::command]
 async fn open_folder(
     app: AppHandle,
     workspace: State<'_, Workspace>,
     watcher: State<'_, WatcherState>,
+    granted: State<'_, GrantedFolders>,
     root: String,
 ) -> Result<Vec<FileNode>, String> {
     let root = normalize(Path::new(&root))
         .filter(|r| r.is_dir())
         .ok_or_else(|| format!("{root} is not a folder"))?;
+    if !granted.contains(&root)? {
+        if !confirm_folder(&app, &root) {
+            return Err(format!("Opening {} was cancelled", root.display()));
+        }
+        granted.grant(&root)?;
+    }
     // Asset protocol scope entries can't be removed, so folders opened earlier
     // in the session stay readable as images; nothing else is.
     app.asset_protocol_scope()
@@ -585,6 +651,9 @@ pub fn run() {
         .manage(Workspace::default())
         .manage(OpenRequests::default())
         .setup(|app| {
+            // Before the open requests below, which grant their folders.
+            let granted = folders::Granted::load(app.path().app_data_dir()?.join("granted-folders.json"));
+            app.manage(GrantedFolders(Mutex::new(granted)));
             #[cfg(target_os = "macos")]
             {
                 let menu = build_menu(app.handle())?;
@@ -607,6 +676,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             open_folder,
+            pick_folder,
             take_open_requests,
             read_tree,
             search_files,

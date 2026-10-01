@@ -125,6 +125,7 @@ const desktopOnly = () => {
 };
 
 export const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
+  pick_folder: () => pickFolder(),
   async open_folder({ root }) {
     let ws = workspaces.get(root as string);
     if (!ws) {
