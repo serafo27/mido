@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -96,27 +97,88 @@ fn err<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
 }
 
+// Commands are `async` so they run off the main thread: a sync Tauri command
+// runs on the main thread and would freeze the window while it works.
+
 #[tauri::command]
-fn read_tree(root: String) -> Result<Vec<FileNode>, String> {
+async fn read_tree(root: String) -> Result<Vec<FileNode>, String> {
     let root = PathBuf::from(root);
     if !root.is_dir() {
         return Err(format!("{} is not a directory", root.display()));
     }
-    Ok(build_tree(&root, 0))
+    // Walking a large folder can take a while; keep it off the async workers too.
+    tauri::async_runtime::spawn_blocking(move || build_tree(&root, 0))
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]
-fn read_file(path: String) -> Result<String, String> {
+async fn read_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(err)
 }
 
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+enum WriteOutcome {
+    Written,
+    /// The file on disk no longer matches `expected`: someone else changed it.
+    Conflict,
+}
+
+/// Writes `content` to `path`, unless the file on disk differs from `expected`
+/// (the contents Mido last read or wrote). `expected: None` overwrites anyway.
+/// A missing file is never a conflict, so a deleted file can be saved again.
 #[tauri::command]
-fn write_file(path: String, content: String) -> Result<(), String> {
-    fs::write(&path, content).map_err(err)
+async fn write_file(
+    path: String,
+    content: String,
+    expected: Option<String>,
+) -> Result<WriteOutcome, String> {
+    write_checked(Path::new(&path), &content, expected.as_deref()).map_err(err)
+}
+
+fn write_checked(path: &Path, content: &str, expected: Option<&str>) -> io::Result<WriteOutcome> {
+    if let Some(expected) = expected {
+        match fs::read(path) {
+            Ok(disk) if disk != expected.as_bytes() => return Ok(WriteOutcome::Conflict),
+            Ok(_) => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
+    }
+    write_atomic(path, content.as_bytes())?;
+    Ok(WriteOutcome::Written)
+}
+
+/// Writes to a temporary file next to `path` and renames it over the original,
+/// so a crash or a full disk never leaves a truncated file behind.
+fn write_atomic(path: &Path, content: &[u8]) -> io::Result<()> {
+    // Write through symlinks, like a plain write would, instead of replacing them.
+    let target = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let dir = target.parent().unwrap_or(Path::new("."));
+
+    // The leading dot keeps the temporary file out of the tree and the watcher.
+    let mut tmp = match tempfile::Builder::new()
+        .prefix(".mido-")
+        .suffix(".tmp")
+        .tempfile_in(dir)
+    {
+        Ok(tmp) => tmp,
+        // A writable file in a read-only folder: fall back to writing in place.
+        Err(e) if e.kind() == io::ErrorKind::PermissionDenied => return fs::write(&target, content),
+        Err(e) => return Err(e),
+    };
+    tmp.write_all(content)?;
+    if let Ok(meta) = fs::metadata(&target) {
+        tmp.as_file().set_permissions(meta.permissions())?;
+    }
+    tmp.as_file().sync_all()?;
+    tmp.persist(&target).map_err(|e| e.error)?;
+    Ok(())
 }
 
 #[tauri::command]
-fn create_file(path: String) -> Result<(), String> {
+async fn create_file(path: String) -> Result<(), String> {
     let path = PathBuf::from(path);
     if path.exists() {
         return Err(format!("{} already exists", path.display()));
@@ -132,7 +194,7 @@ fn create_file(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn create_dir(path: String) -> Result<(), String> {
+async fn create_dir(path: String) -> Result<(), String> {
     let path = PathBuf::from(path);
     if path.exists() {
         return Err(format!("{} already exists", path.display()));
@@ -141,7 +203,7 @@ fn create_dir(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn rename_path(from: String, to: String) -> Result<(), String> {
+async fn rename_path(from: String, to: String) -> Result<(), String> {
     let to_path = PathBuf::from(&to);
     if to_path.exists() {
         return Err(format!("{} already exists", to_path.display()));
@@ -151,12 +213,16 @@ fn rename_path(from: String, to: String) -> Result<(), String> {
 
 /// Moves the path to the OS trash instead of deleting it permanently.
 #[tauri::command]
-fn trash_path(path: String) -> Result<(), String> {
+async fn trash_path(path: String) -> Result<(), String> {
     trash::delete(&path).map_err(err)
 }
 
 #[tauri::command]
-fn watch_folder(app: AppHandle, state: State<WatcherState>, root: String) -> Result<(), String> {
+async fn watch_folder(
+    app: AppHandle,
+    state: State<'_, WatcherState>,
+    root: String,
+) -> Result<(), String> {
     let handle = app.clone();
     let mut debouncer = new_debouncer(
         Duration::from_millis(250),
@@ -267,4 +333,83 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Mido");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir() -> tempfile::TempDir {
+        tempfile::tempdir().unwrap()
+    }
+
+    #[test]
+    fn writes_when_disk_matches_expected() {
+        let dir = temp_dir();
+        let path = dir.path().join("a.md");
+        fs::write(&path, "old").unwrap();
+        assert_eq!(write_checked(&path, "new", Some("old")).unwrap(), WriteOutcome::Written);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "new");
+    }
+
+    #[test]
+    fn reports_conflict_and_keeps_the_disk_version() {
+        let dir = temp_dir();
+        let path = dir.path().join("a.md");
+        fs::write(&path, "changed elsewhere").unwrap();
+        assert_eq!(write_checked(&path, "mine", Some("old")).unwrap(), WriteOutcome::Conflict);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "changed elsewhere");
+    }
+
+    #[test]
+    fn overwrites_without_expected() {
+        let dir = temp_dir();
+        let path = dir.path().join("a.md");
+        fs::write(&path, "changed elsewhere").unwrap();
+        assert_eq!(write_checked(&path, "mine", None).unwrap(), WriteOutcome::Written);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "mine");
+    }
+
+    #[test]
+    fn recreates_a_deleted_file() {
+        let dir = temp_dir();
+        let path = dir.path().join("gone.md");
+        assert_eq!(write_checked(&path, "back", Some("old")).unwrap(), WriteOutcome::Written);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "back");
+    }
+
+    #[test]
+    fn leaves_no_temporary_files() {
+        let dir = temp_dir();
+        let path = dir.path().join("a.md");
+        write_atomic(&path, b"one").unwrap();
+        write_atomic(&path, b"two").unwrap();
+        let names: Vec<_> = fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().file_name()).collect();
+        assert_eq!(names, vec!["a.md"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn keeps_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = temp_dir();
+        let path = dir.path().join("a.md");
+        fs::write(&path, "old").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
+        write_atomic(&path, b"new").unwrap();
+        assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o640);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn writes_through_symlinks() {
+        let dir = temp_dir();
+        let real = dir.path().join("real.md");
+        let link = dir.path().join("link.md");
+        fs::write(&real, "old").unwrap();
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        write_atomic(&link, b"new").unwrap();
+        assert!(fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert_eq!(fs::read_to_string(&real).unwrap(), "new");
+    }
 }

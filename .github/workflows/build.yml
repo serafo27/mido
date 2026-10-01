@@ -60,6 +60,14 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      # Once per workflow is enough: the tests don't depend on the target. The
+      # frontend is built first because compiling the app needs ../dist.
+      - name: Rust tests
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: |
+          pnpm build
+          cargo test --manifest-path src-tauri/Cargo.toml
+
       # On a version tag, the tag must match the app version and CHANGELOG.md
       # must have a section for it: that section becomes the release notes.
       - name: Release notes from CHANGELOG.md

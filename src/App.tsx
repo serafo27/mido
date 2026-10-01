@@ -7,6 +7,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { flushSync } from "react-dom";
 import { ask, message, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
@@ -44,6 +45,8 @@ interface Tab {
   saved: string;
   /** Preview tabs (opened with a single click) get replaced by the next preview. */
   preview: boolean;
+  /** Changed on disk while it had unsaved edits, and the user hasn't decided yet: autosave skips it. */
+  conflict?: boolean;
 }
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
@@ -114,22 +117,73 @@ export default function App() {
     setStoredPreviewTab(tabs.find((t) => t.preview)?.path ?? null);
   }, [tabs, setStoredTabs, setStoredPreviewTab]);
 
+  // Saves run one at a time, so two saves of the same file can't race each other.
+  const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
+
+  /**
+   * Saves the dirty tabs among `paths`. If a file was changed by another app
+   * since Mido last read it, asks whether to overwrite it or reload it.
+   * Resolves to false if any of them is still unsaved afterwards.
+   */
   const saveTabs = useCallback(
-    async (paths: string[]) => {
-      const targets = live.current.tabs.filter((t) => paths.includes(t.path) && isDirty(t));
-      if (targets.length === 0) return;
-      setSaving(true);
-      try {
-        for (const tab of targets) {
-          await api.writeFile(tab.path, tab.content);
-          // Mark exactly what was written as saved; later keystrokes stay dirty.
-          setTabs((ts) => ts.map((t) => (t.path === tab.path ? { ...t, saved: tab.content } : t)));
+    (paths: string[], { auto = false } = {}): Promise<boolean> => {
+      const markSaved = (path: string, saved: string, content?: string) =>
+        // Synchronously, so the next queued save already sees the new `saved`.
+        flushSync(() =>
+          setTabs((ts) =>
+            ts.map((t) => (t.path === path ? { ...t, saved, content: content ?? t.content, conflict: false } : t)),
+          ),
+        );
+
+      const saveTab = async (tab: Tab): Promise<boolean> => {
+        if ((await api.writeFile(tab.path, tab.content, tab.saved)) === "conflict") {
+          const choice = await message(
+            `“${basename(tab.path)}” was changed by another app while you were editing it.`,
+            {
+              title: "Mido",
+              kind: "warning",
+              buttons: { yes: "Keep My Version", no: "Discard My Changes", cancel: "Cancel" },
+            },
+          );
+          if (choice === "Discard My Changes" || choice === "No") {
+            const disk = await api.readFile(tab.path);
+            markSaved(tab.path, disk, disk);
+            return true;
+          }
+          if (choice !== "Keep My Version" && choice !== "Yes") {
+            setTabs((ts) => ts.map((t) => (t.path === tab.path ? { ...t, conflict: true } : t)));
+            return false;
+          }
+          await api.writeFile(tab.path, tab.content, null);
         }
-      } catch (e) {
-        fail(e);
-      } finally {
-        setSaving(false);
-      }
+        // Mark exactly what was written as saved; later keystrokes stay dirty.
+        markSaved(tab.path, tab.content);
+        return true;
+      };
+
+      const run = async () => {
+        const targets = live.current.tabs.filter(
+          (t) => paths.includes(t.path) && isDirty(t) && !(auto && t.conflict),
+        );
+        if (targets.length === 0) return true;
+        setSaving(true);
+        let ok = true;
+        try {
+          for (const tab of targets) {
+            if (!(await saveTab(tab))) ok = false;
+          }
+        } catch (e) {
+          fail(e);
+          ok = false;
+        } finally {
+          setSaving(false);
+        }
+        return ok;
+      };
+
+      const result = saveQueue.current.then(run);
+      saveQueue.current = result.catch(() => {});
+      return result;
     },
     [fail],
   );
@@ -205,7 +259,7 @@ export default function App() {
       if (!tab) return;
       if (isDirty(tab)) {
         if (live.current.settings.autosave) {
-          await saveTabs([path]);
+          if (!(await saveTabs([path]))) return;
         } else {
           const choice = await message(`Do you want to save the changes made to “${basename(path)}”?`, {
             title: "Mido",
@@ -213,7 +267,7 @@ export default function App() {
             buttons: { yes: "Save", no: "Don’t Save", cancel: "Cancel" },
           });
           if (choice === "Cancel") return;
-          if (choice === "Save" || choice === "Yes") await saveTabs([path]);
+          if ((choice === "Save" || choice === "Yes") && !(await saveTabs([path]))) return;
         }
       }
       removeTabs((p) => p === path);
@@ -260,7 +314,7 @@ export default function App() {
     async (path?: string) => {
       const dir = path ?? (await openDialog({ directory: true, multiple: false, title: "Open Folder" }));
       if (typeof dir !== "string") return;
-      await saveAll();
+      if (!(await saveAll())) return;
       removeTabs(() => true);
       setActivePath(null);
       setRoot(dir);
@@ -346,13 +400,13 @@ export default function App() {
   const anyDirty = tabs.some(isDirty);
   useEffect(() => {
     if (!settings.autosave || !anyDirty) return;
-    const t = setTimeout(saveAll, 700);
+    const t = setTimeout(() => saveTabs(live.current.tabs.map((t) => t.path), { auto: true }), 700);
     return () => clearTimeout(t);
-  }, [tabs, settings.autosave, anyDirty, saveAll]);
+  }, [tabs, settings.autosave, anyDirty, saveTabs]);
 
   // Never lose edits when the window closes.
   useEffect(() => {
-    const unlisten = getCurrentWindow().onCloseRequested(async () => {
+    const unlisten = getCurrentWindow().onCloseRequested(async (event) => {
       const dirtyTabs = live.current.tabs.filter(isDirty);
       if (dirtyTabs.length === 0) return;
       const shouldSave = await ask(
@@ -361,7 +415,8 @@ export default function App() {
           : `Save changes to ${dirtyTabs.length} files before closing?`,
         { title: "Mido", kind: "warning", okLabel: "Save", cancelLabel: "Don’t Save" },
       );
-      if (shouldSave) await saveAll();
+      // Keep the window open if something couldn't be saved.
+      if (shouldSave && !(await saveAll())) event.preventDefault();
     });
     return () => {
       unlisten.then((f) => f());
@@ -399,7 +454,8 @@ export default function App() {
       const to = join(dirname(path), name);
       const moved = (p: string) => (isInside(path, p) ? to + p.slice(path.length) : p);
       try {
-        await saveTabs(live.current.tabs.filter((t) => isInside(path, t.path)).map((t) => t.path));
+        const inside = live.current.tabs.filter((t) => isInside(path, t.path)).map((t) => t.path);
+        if (!(await saveTabs(inside))) return;
         await api.renamePath(path, to);
         renameEditorState(path, to);
         setTabs((ts) => ts.map((t) => ({ ...t, path: moved(t.path) })));

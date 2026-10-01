@@ -9,6 +9,13 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Fixed
+
+- Saving no longer silently overwrites changes made to the file by another app (a `git pull`, another editor, a sync service): Mido asks whether to keep your version or discard your changes.
+- Files are saved atomically, so a crash or a full disk can't leave a file empty or half-written.
+- Opening a large folder no longer freezes the window while Mido reads it.
+- A tab or window no longer closes when its file couldn't be saved.
+
 ## [0.2.0] - 2026-09-30
 
 ### Added
