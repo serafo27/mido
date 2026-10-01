@@ -9,6 +9,10 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Fixed
+
+- Scrolling with the mouse wheel or the trackpad over the minimap scrolls the document.
+
 ## [0.7.0] - 2026-10-01
 
 ### Added

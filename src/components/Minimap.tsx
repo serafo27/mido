@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type PointerEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+  type WheelEvent,
+} from "react";
 import type { ScrollMarker } from "./ScrollMarkers";
 
 export const MINIMAP_WIDTH = 96;
@@ -126,8 +134,22 @@ export default function Minimap({ scroller, scale, draw, version, children, mark
     root.addEventListener("pointerup", up);
   };
 
+  // The minimap sits beside the scroller, not in it: scrolling over it scrolls the document.
+  const onWheel = (e: WheelEvent<HTMLDivElement>) => {
+    if (!scroller) return;
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? scroller.clientHeight : 1;
+    scroller.scrollBy({ left: e.deltaX * unit, top: e.deltaY * unit });
+  };
+
   return (
-    <div className="minimap" ref={rootRef} style={{ width: MINIMAP_WIDTH }} onPointerDown={onPointerDown} aria-hidden>
+    <div
+      className="minimap"
+      ref={rootRef}
+      style={{ width: MINIMAP_WIDTH }}
+      onPointerDown={onPointerDown}
+      onWheel={onWheel}
+      aria-hidden
+    >
       {draw ? (
         <canvas ref={canvasRef} />
       ) : (
