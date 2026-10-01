@@ -304,7 +304,7 @@ export default function App() {
   const refreshTree = useCallback(async () => {
     if (!root) return;
     try {
-      setTree(await api.readTree(root));
+      setTree(await api.readTree());
     } catch (e) {
       fail(e);
     }
@@ -323,19 +323,41 @@ export default function App() {
     [saveAll, removeTabs, setActivePath, setRoot, setRecents],
   );
 
-  // Load the workspace (and start watching it) whenever the root changes.
+  // Restores the tabs from the previous session, once the folder is open
+  // (Mido can only read files inside it).
+  const tabsRestored = useRef(false);
+  const restoreTabs = useCallback(async () => {
+    if (tabsRestored.current) return;
+    tabsRestored.current = true;
+    const loaded = await Promise.all(
+      storedTabs.map((path) =>
+        api.readFile(path).then(
+          (text): Tab => ({ path, content: text, saved: text, preview: path === storedPreviewTab }),
+          () => null,
+        ),
+      ),
+    );
+    const restored = loaded.filter((t): t is Tab => t !== null);
+    setTabs(restored);
+    const current = live.current.activePath;
+    if (!restored.some((t) => t.path === current)) setActivePath(restored[0]?.path ?? null);
+    // Only the stored values from startup matter.
+  }, []);
+
+  // Open the workspace (and start watching it) whenever the root changes.
   useEffect(() => {
     if (!root) {
       setTree([]);
+      tabsRestored.current = true;
       return;
     }
     let cancelled = false;
     api
-      .readTree(root)
+      .openFolder(root)
       .then((nodes) => {
         if (cancelled) return;
         setTree(nodes);
-        return api.watchFolder(root);
+        return restoreTabs();
       })
       .catch((e) => {
         if (cancelled) return;
@@ -346,30 +368,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [root, fail, setRoot, setRecents]);
-
-  // Restore the tabs from the previous session.
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all(
-      storedTabs.map((path) =>
-        api.readFile(path).then(
-          (text): Tab => ({ path, content: text, saved: text, preview: path === storedPreviewTab }),
-          () => null,
-        ),
-      ),
-    ).then((loaded) => {
-      if (cancelled) return;
-      const restored = loaded.filter((t): t is Tab => t !== null);
-      setTabs(restored);
-      const current = live.current.activePath;
-      if (!restored.some((t) => t.path === current)) setActivePath(restored[0]?.path ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // Only on startup.
-  }, []);
+  }, [root, fail, setRoot, setRecents, restoreTabs]);
 
   // React to changes made outside the app.
   useEffect(() => {

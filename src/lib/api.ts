@@ -8,7 +8,9 @@ export interface FileNode {
 }
 
 export const api = {
-  readTree: (root: string) => invoke<FileNode[]>("read_tree", { root }),
+  /** Opens `root` as the workspace (file commands are limited to it) and returns its tree. */
+  openFolder: (root: string) => invoke<FileNode[]>("open_folder", { root }),
+  readTree: () => invoke<FileNode[]>("read_tree"),
   readFile: (path: string) => invoke<string>("read_file", { path }),
   /**
    * Writes `content` unless the file on disk no longer matches `expected` (what
@@ -20,5 +22,4 @@ export const api = {
   createDir: (path: string) => invoke<void>("create_dir", { path }),
   renamePath: (from: string, to: string) => invoke<void>("rename_path", { from, to }),
   trashPath: (path: string) => invoke<void>("trash_path", { path }),
-  watchFolder: (root: string) => invoke<void>("watch_folder", { root }),
 };

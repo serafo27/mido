@@ -1,13 +1,13 @@
 use std::fs;
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
 use notify_debouncer_mini::notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 const MARKDOWN_EXTENSIONS: &[&str] = &["md", "markdown", "mdown", "mkd", "mdx"];
 const IGNORED_DIRS: &[&str] = &["node_modules", "target", "dist", "build", "__pycache__"];
@@ -24,6 +24,63 @@ struct FileNode {
 
 #[derive(Default)]
 struct WatcherState(Mutex<Option<Debouncer<RecommendedWatcher>>>);
+
+/// The folder open in Mido. File commands only accept paths inside it, so even
+/// a compromised webview (say, a malicious Markdown file getting past the
+/// sanitizer) can't read or write the rest of the disk.
+#[derive(Default)]
+struct Workspace(Mutex<Option<PathBuf>>);
+
+impl Workspace {
+    fn root(&self) -> Result<PathBuf, String> {
+        self.0.lock().map_err(err)?.clone().ok_or_else(|| "No folder is open".to_string())
+    }
+
+    /// `path`, normalised, if it's inside the open folder.
+    fn resolve(&self, path: &str) -> Result<PathBuf, String> {
+        resolve_inside(&self.root()?, path)
+    }
+
+    /// Like `resolve`, but refuses the open folder itself.
+    fn resolve_entry(&self, path: &str) -> Result<PathBuf, String> {
+        let root = self.root()?;
+        let path = resolve_inside(&root, path)?;
+        if path == root {
+            return Err("The open folder itself can't be changed".to_string());
+        }
+        Ok(path)
+    }
+}
+
+/// Resolves `.` and `..` without touching the disk, since the path may not
+/// exist yet. Returns `None` for relative paths and for `..` above the root.
+fn normalize(path: &Path) -> Option<PathBuf> {
+    if !path.is_absolute() {
+        return None;
+    }
+    let mut out = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !out.pop() {
+                    return None;
+                }
+            }
+            other => out.push(other),
+        }
+    }
+    Some(out)
+}
+
+/// The check is on the path as written: symlinks inside the folder that point
+/// elsewhere still work, as the sidebar lists them.
+fn resolve_inside(root: &Path, path: &str) -> Result<PathBuf, String> {
+    match normalize(Path::new(path)) {
+        Some(resolved) if resolved.starts_with(root) => Ok(resolved),
+        _ => Err(format!("{path} is outside the open folder")),
+    }
+}
 
 fn is_markdown(path: &Path) -> bool {
     path.extension()
@@ -100,12 +157,36 @@ fn err<E: std::fmt::Display>(e: E) -> String {
 // Commands are `async` so they run off the main thread: a sync Tauri command
 // runs on the main thread and would freeze the window while it works.
 
+/// Makes `root` the open folder: file commands, the preview's images and the
+/// watcher are all limited to it. Returns its tree.
 #[tauri::command]
-async fn read_tree(root: String) -> Result<Vec<FileNode>, String> {
-    let root = PathBuf::from(root);
-    if !root.is_dir() {
-        return Err(format!("{} is not a directory", root.display()));
-    }
+async fn open_folder(
+    app: AppHandle,
+    workspace: State<'_, Workspace>,
+    watcher: State<'_, WatcherState>,
+    root: String,
+) -> Result<Vec<FileNode>, String> {
+    let root = normalize(Path::new(&root))
+        .filter(|r| r.is_dir())
+        .ok_or_else(|| format!("{root} is not a folder"))?;
+    // Asset protocol scope entries can't be removed, so folders opened earlier
+    // in the session stay readable as images; nothing else is.
+    app.asset_protocol_scope()
+        .allow_directory(&root, true)
+        .map_err(err)?;
+    let debouncer = watch(&app, &root)?;
+    // Replacing the previous debouncer drops it, which stops the old watch.
+    *watcher.0.lock().map_err(err)? = Some(debouncer);
+    *workspace.0.lock().map_err(err)? = Some(root.clone());
+    tree(root).await
+}
+
+#[tauri::command]
+async fn read_tree(workspace: State<'_, Workspace>) -> Result<Vec<FileNode>, String> {
+    tree(workspace.root()?).await
+}
+
+async fn tree(root: PathBuf) -> Result<Vec<FileNode>, String> {
     // Walking a large folder can take a while; keep it off the async workers too.
     tauri::async_runtime::spawn_blocking(move || build_tree(&root, 0))
         .await
@@ -113,8 +194,8 @@ async fn read_tree(root: String) -> Result<Vec<FileNode>, String> {
 }
 
 #[tauri::command]
-async fn read_file(path: String) -> Result<String, String> {
-    fs::read_to_string(&path).map_err(err)
+async fn read_file(workspace: State<'_, Workspace>, path: String) -> Result<String, String> {
+    fs::read_to_string(workspace.resolve(&path)?).map_err(err)
 }
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -130,11 +211,13 @@ enum WriteOutcome {
 /// A missing file is never a conflict, so a deleted file can be saved again.
 #[tauri::command]
 async fn write_file(
+    workspace: State<'_, Workspace>,
     path: String,
     content: String,
     expected: Option<String>,
 ) -> Result<WriteOutcome, String> {
-    write_checked(Path::new(&path), &content, expected.as_deref()).map_err(err)
+    let path = workspace.resolve(&path)?;
+    write_checked(&path, &content, expected.as_deref()).map_err(err)
 }
 
 fn write_checked(path: &Path, content: &str, expected: Option<&str>) -> io::Result<WriteOutcome> {
@@ -178,8 +261,8 @@ fn write_atomic(path: &Path, content: &[u8]) -> io::Result<()> {
 }
 
 #[tauri::command]
-async fn create_file(path: String) -> Result<(), String> {
-    let path = PathBuf::from(path);
+async fn create_file(workspace: State<'_, Workspace>, path: String) -> Result<(), String> {
+    let path = workspace.resolve_entry(&path)?;
     if path.exists() {
         return Err(format!("{} already exists", path.display()));
     }
@@ -194,8 +277,8 @@ async fn create_file(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn create_dir(path: String) -> Result<(), String> {
-    let path = PathBuf::from(path);
+async fn create_dir(workspace: State<'_, Workspace>, path: String) -> Result<(), String> {
+    let path = workspace.resolve_entry(&path)?;
     if path.exists() {
         return Err(format!("{} already exists", path.display()));
     }
@@ -203,26 +286,27 @@ async fn create_dir(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn rename_path(from: String, to: String) -> Result<(), String> {
-    let to_path = PathBuf::from(&to);
-    if to_path.exists() {
-        return Err(format!("{} already exists", to_path.display()));
+async fn rename_path(
+    workspace: State<'_, Workspace>,
+    from: String,
+    to: String,
+) -> Result<(), String> {
+    let from = workspace.resolve_entry(&from)?;
+    let to = workspace.resolve_entry(&to)?;
+    if to.exists() {
+        return Err(format!("{} already exists", to.display()));
     }
-    fs::rename(&from, &to_path).map_err(err)
+    fs::rename(&from, &to).map_err(err)
 }
 
 /// Moves the path to the OS trash instead of deleting it permanently.
 #[tauri::command]
-async fn trash_path(path: String) -> Result<(), String> {
-    trash::delete(&path).map_err(err)
+async fn trash_path(workspace: State<'_, Workspace>, path: String) -> Result<(), String> {
+    trash::delete(workspace.resolve_entry(&path)?).map_err(err)
 }
 
-#[tauri::command]
-async fn watch_folder(
-    app: AppHandle,
-    state: State<'_, WatcherState>,
-    root: String,
-) -> Result<(), String> {
+/// Emits `fs-changed` with the changed paths whenever something in `root` changes.
+fn watch(app: &AppHandle, root: &Path) -> Result<Debouncer<RecommendedWatcher>, String> {
     let handle = app.clone();
     let mut debouncer = new_debouncer(
         Duration::from_millis(250),
@@ -243,12 +327,9 @@ async fn watch_folder(
 
     debouncer
         .watcher()
-        .watch(Path::new(&root), RecursiveMode::Recursive)
+        .watch(root, RecursiveMode::Recursive)
         .map_err(err)?;
-
-    // Replacing the previous debouncer drops it, which stops the old watch.
-    *state.0.lock().map_err(err)? = Some(debouncer);
-    Ok(())
+    Ok(debouncer)
 }
 
 /// CPU architecture of this build ("aarch64" or "x86_64"), used to pick the
@@ -304,6 +385,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(WatcherState::default())
+        .manage(Workspace::default())
         .setup(|_app| {
             #[cfg(target_os = "macos")]
             {
@@ -321,6 +403,7 @@ pub fn run() {
             let _ = app.emit(name, ());
         })
         .invoke_handler(tauri::generate_handler![
+            open_folder,
             read_tree,
             read_file,
             write_file,
@@ -328,7 +411,6 @@ pub fn run() {
             create_dir,
             rename_path,
             trash_path,
-            watch_folder,
             app_arch
         ])
         .run(tauri::generate_context!())
@@ -341,6 +423,32 @@ mod tests {
 
     fn temp_dir() -> tempfile::TempDir {
         tempfile::tempdir().unwrap()
+    }
+
+    #[test]
+    fn accepts_paths_inside_the_root() {
+        let root = Path::new("/notes");
+        assert_eq!(resolve_inside(root, "/notes/a.md").unwrap(), Path::new("/notes/a.md"));
+        assert_eq!(resolve_inside(root, "/notes/sub/../b.md").unwrap(), Path::new("/notes/b.md"));
+        assert_eq!(resolve_inside(root, "/notes/./c.md").unwrap(), Path::new("/notes/c.md"));
+        assert_eq!(resolve_inside(root, "/notes").unwrap(), Path::new("/notes"));
+    }
+
+    #[test]
+    fn rejects_paths_outside_the_root() {
+        let root = Path::new("/notes");
+        for path in [
+            "/notes/../etc/passwd",
+            "/notes/sub/../../x.md",
+            "/notes-other/a.md",
+            "/etc/passwd",
+            "notes/a.md",
+            "../a.md",
+            "/..",
+            "",
+        ] {
+            assert!(resolve_inside(root, path).is_err(), "{path} should be rejected");
+        }
     }
 
     #[test]

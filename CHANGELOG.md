@@ -16,6 +16,11 @@ GitHub and on the website's changelog page.
 - Opening a large folder no longer freezes the window while Mido reads it.
 - A tab or window no longer closes when its file couldn't be saved.
 
+### Security
+
+- Mido now reads and writes only files inside the open folder, and the preview only loads local images from inside it.
+- A Content Security Policy keeps scripts in a Markdown file from running, even if one got past the HTML sanitizer.
+
 ## [0.2.0] - 2026-09-30
 
 ### Added
