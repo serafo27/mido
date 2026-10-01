@@ -17,13 +17,14 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorView } from "@codemirror/view";
 import { api, type FileNode, type OpenRequest } from "./lib/api";
 import { basename, dirname, isInside, isMarkdown, join } from "./lib/paths";
-import { isMac } from "./lib/platform";
+import { DOWNLOAD_URL, isMac, isWeb, requireDesktop, WEB_ACCESS_NEEDED } from "./lib/platform";
 import { useStoredState } from "./lib/useStoredState";
 import { DEFAULT_SETTINGS, applySettings, lightThemeVariables, type Settings } from "./lib/settings";
 import { currentMarkdownVariables, htmlDocument, renderDocument } from "./lib/exportDocument";
 import { assetName, imageMarkdown } from "./lib/images";
 import Sidebar from "./components/Sidebar";
 import QuickSearch from "./components/QuickSearch";
+import DesktopOnly from "./components/DesktopOnly";
 import Toolbar, { type ViewMode } from "./components/Toolbar";
 import Editor, {
   editorTopLine,
@@ -70,6 +71,18 @@ export default function App() {
   const [splitRatio, setSplitRatio] = useStoredState("mido.splitRatio", 0.5);
   const [outlineOpen, setOutlineOpen] = useStoredState("mido.outlineOpen", false);
 
+  /** Read · Split · Edit. The web version only reads: the other two ask for the desktop app. */
+  const changeMode = useCallback(
+    (next: ViewMode) => {
+      if (next !== "view" && requireDesktop("Editing")) return;
+      setMode(next);
+    },
+    [setMode],
+  );
+  useEffect(() => {
+    if (isWeb && mode !== "view") setMode("view");
+  }, []);
+
   const settings = useMemo<Settings>(() => ({ ...DEFAULT_SETTINGS, ...storedSettings }), [storedSettings]);
   const updateSettings = useCallback(
     (patch: Partial<Settings>) => setStoredSettings((s) => ({ ...s, ...patch })),
@@ -106,7 +119,7 @@ export default function App() {
 
   const fail = useCallback((e: unknown) => {
     console.error(e);
-    setToast(String(e));
+    setToast(e instanceof Error ? e.message : String(e));
   }, []);
 
   useEffect(() => {
@@ -449,7 +462,8 @@ export default function App() {
         fail(e);
         // Don't retry opening what's in a folder that can't be opened.
         openRequests.current = openRequests.current.filter((r) => !isInside(root, r.path));
-        setRecents((r) => r.filter((x) => x !== root));
+        // In the web version a remembered folder only needs a click to be readable again.
+        if (!(isWeb && String(e).includes(WEB_ACCESS_NEEDED))) setRecents((r) => r.filter((x) => x !== root));
         setRoot(null);
       });
     return () => {
@@ -518,6 +532,7 @@ export default function App() {
 
   const createEntry = useCallback(
     async (parent: string, name: string, kind: "file" | "folder") => {
+      if (requireDesktop(kind === "file" ? "Creating files" : "Creating folders")) return;
       const path = join(parent, kind === "file" && !isMarkdown(name) ? `${name}.md` : name);
       try {
         if (kind === "file") await api.createFile(path);
@@ -536,6 +551,7 @@ export default function App() {
 
   const renameEntry = useCallback(
     async (path: string, newName: string, isDir: boolean) => {
+      if (requireDesktop("Renaming")) return;
       const name = !isDir && !newName.includes(".") ? `${newName}.md` : newName;
       const to = join(dirname(path), name);
       const moved = (p: string) => (isInside(path, p) ? to + p.slice(path.length) : p);
@@ -557,6 +573,7 @@ export default function App() {
 
   const trashEntry = useCallback(
     async (path: string) => {
+      if (requireDesktop("Moving files to the Trash")) return;
       const confirmed = await ask(`Move “${basename(path)}” to the Trash?`, {
         title: "Mido",
         kind: "warning",
@@ -636,7 +653,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!settings.checkForUpdates) return;
+    // The web version is always the latest: it's served with the website.
+    if (isWeb || !settings.checkForUpdates) return;
     const first = window.setTimeout(() => runUpdateCheck(false), 4000);
     const periodic = window.setInterval(() => runUpdateCheck(false), CHECK_INTERVAL);
     return () => {
@@ -652,6 +670,22 @@ export default function App() {
       unlisten.then((f) => f());
     };
   }, [runUpdateCheck]);
+
+  /* ---------- web version ---------- */
+
+  // What the visitor tried that needs the desktop app, if anything.
+  const [desktopFeature, setDesktopFeature] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isWeb) return;
+    const onDesktopOnly = (e: Event) => setDesktopFeature((e as CustomEvent<string>).detail);
+    const onToast = (e: Event) => setToast((e as CustomEvent<string>).detail);
+    window.addEventListener("mido:desktop-only", onDesktopOnly);
+    window.addEventListener("mido:toast", onToast);
+    return () => {
+      window.removeEventListener("mido:desktop-only", onDesktopOnly);
+      window.removeEventListener("mido:toast", onToast);
+    };
+  }, []);
 
   /* ---------- export & print ---------- */
 
@@ -732,6 +766,12 @@ export default function App() {
         return;
       }
       const mod = isMac ? e.metaKey : e.ctrlKey;
+      // On the desktop, Print is a menu item; the web version has no menu.
+      if (isWeb && mod && e.altKey && e.code === "KeyP") {
+        e.preventDefault();
+        printDocument();
+        return;
+      }
       if (!mod || e.altKey) return;
       if (e.shiftKey) {
         if (e.code === "KeyO") {
@@ -759,9 +799,9 @@ export default function App() {
         p: () => setQuickSearchOpen((open) => !open),
         ",": () => setSettingsOpen((o) => !o),
         "\\": () => setSidebarOpen((o) => !o),
-        "1": () => setMode("view"),
-        "2": () => setMode("split"),
-        "3": () => setMode("edit"),
+        "1": () => changeMode("view"),
+        "2": () => changeMode("split"),
+        "3": () => changeMode("edit"),
       };
       const action = actions[e.key.toLowerCase()];
       if (action) {
@@ -771,7 +811,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive, openFolder, closeTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setMode, exportHtml]);
+  }, [saveActive, openFolder, closeTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, changeMode, exportHtml, printDocument]);
 
   const dragResize = (e: ReactPointerEvent<HTMLDivElement>, onMove: (ev: PointerEvent) => void) => {
     e.preventDefault();
@@ -864,6 +904,8 @@ export default function App() {
 
   const overlays = (
     <>
+      {desktopFeature && <DesktopOnly feature={desktopFeature} onClose={() => setDesktopFeature(null)} />}
+      {isWeb && <WebNarrowNotice />}
       {quickSearchOpen && root && (
         <QuickSearch
           root={root}
@@ -912,7 +954,9 @@ export default function App() {
       onCloseTab={closeTab}
       onMoveTab={moveTab}
       onToggleOutline={() => setOutlineOpen((o) => !o)}
-      onMode={setMode}
+      onMode={changeMode}
+      onExport={isWeb ? exportHtml : undefined}
+      onPrint={isWeb ? printDocument : undefined}
       onWrap={toggleWrap}
       onToggleSidebar={() => setSidebarOpen((o) => !o)}
       onToggleSettings={() => setSettingsOpen((o) => !o)}
@@ -1113,4 +1157,17 @@ function syncScroll(view: EditorView, preview: HTMLElement) {
   const nextTop = next ? top(next) : prevTop + prev.offsetHeight;
   const ratio = (progress - prevLine) / Math.max(1, nextLine - prevLine);
   preview.scrollTop = prevTop + (nextTop - prevTop) * ratio - 40;
+}
+
+/** The web version needs a desktop-sized window; on a phone, point to the app instead. */
+function WebNarrowNotice() {
+  return (
+    <div className="web-narrow-notice">
+      <h2>Mido needs a bigger screen</h2>
+      <p>Open this page on a computer to read your Markdown files, or get Mido for Mac.</p>
+      <a className="primary-button" href={DOWNLOAD_URL}>
+        Get Mido for Mac
+      </a>
+    </div>
+  );
 }

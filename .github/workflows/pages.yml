@@ -3,7 +3,16 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ["site/**", ".github/workflows/pages.yml"]
+    # The site, and the app it publishes at /app/ (the read-only web version).
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+      - "src/**"
+      - "index.html"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "vite.config.ts"
+      - "vite.web.config.ts"
   workflow_dispatch:
 
 permissions:
@@ -24,6 +33,19 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
+
+      # The read-only web version of the app, published at /app/.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Build the web version
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build:web
+          cp -R dist-web site/app
+
       # Bake the published releases into the site: download links and the
       # changelog then work without visitors calling the rate-limited GitHub API.
       - name: Release data

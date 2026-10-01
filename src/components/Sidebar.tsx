@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import type { FileNode } from "../lib/api";
 import { basename, dirname, isInside } from "../lib/paths";
-import { isMac } from "../lib/platform";
+import { isMac, macWindowInset, requireDesktop } from "../lib/platform";
 import { useStoredState } from "../lib/useStoredState";
 import SearchPanel from "./SearchPanel";
 
@@ -124,6 +124,7 @@ export default function Sidebar(props: SidebarProps) {
   const visible = useMemo(() => (query ? filterTree(tree, query) : tree), [tree, query]);
 
   const startCreate = (kind: "new-file" | "new-folder", parent: string) => {
+    if (requireDesktop(kind === "new-file" ? "Creating files" : "Creating folders")) return;
     if (parent !== root) setExpanded((s) => s.add(parent));
     setQuery("");
     setPending({ kind, parent });
@@ -239,7 +240,7 @@ export default function Sidebar(props: SidebarProps) {
 
   return (
     <aside className="sidebar" style={{ width }}>
-      <div className={`sidebar-header ${isMac ? "mac" : ""}`} data-tauri-drag-region>
+      <div className={`sidebar-header ${macWindowInset ? "mac" : ""}`} data-tauri-drag-region>
         <div className="sidebar-actions">
           <IconButton title="New file" onClick={() => startCreate("new-file", root)}>
             <FilePlus size={15} />
@@ -315,6 +316,7 @@ export default function Sidebar(props: SidebarProps) {
                 label="Rename"
                 onClick={() => {
                   setMenu(null);
+                  if (requireDesktop("Renaming")) return;
                   setPending({ kind: "rename", path: menuTarget.path, isDir: menuTarget.isDir });
                 }}
               />

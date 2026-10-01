@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { documentStats } from "../lib/markdown";
+import { isWeb, requireDesktop } from "../lib/platform";
 
 interface StatusBarProps {
   content: string;
@@ -23,8 +24,16 @@ export default function StatusBar(props: StatusBarProps) {
       <span>{stats.minutes} min read</span>
       <span className="spacer" />
       <button onClick={props.onWrap}>{props.wrap ? "Wrap" : "No wrap"}</button>
-      <button onClick={props.onAutosave}>Autosave {props.autosave ? "on" : "off"}</button>
-      <span className={`save-state ${props.dirty ? "dirty" : ""}`}>{status}</span>
+      {isWeb ? (
+        <button className="read-only-badge" onClick={() => requireDesktop("Editing")} title="Get the desktop app to edit">
+          Read-only
+        </button>
+      ) : (
+        <>
+          <button onClick={props.onAutosave}>Autosave {props.autosave ? "on" : "off"}</button>
+          <span className={`save-state ${props.dirty ? "dirty" : ""}`}>{status}</span>
+        </>
+      )}
     </footer>
   );
 }

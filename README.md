@@ -30,6 +30,8 @@ Get the latest installer from the [releases page](https://github.com/serafo27/mi
 
 Windows and Linux builds are planned but not published yet.
 
+Just want to read? [Mido for the web](https://serafo27.github.io/mido/app/) opens folders and Markdown files from your computer right in the browser, read-only. Nothing is uploaded: the files are read in the browser and never leave your computer. Chrome, Edge and other Chromium browsers can reopen recent folders and pick up changes made on disk; Safari and Firefox read a folder as it is when you open it.
+
 Mido isn't code-signed yet: the first time, right-click the app and choose **Open** (or run `xattr -cr /Applications/Mido.app`).
 
 ## Features
@@ -103,7 +105,11 @@ Requirements:
 pnpm install
 pnpm tauri dev      # run the app with hot reload
 pnpm tauri build    # production bundle (.app / .dmg)
+pnpm dev:web        # the read-only web version, in the browser
+pnpm build:web      # build it into dist-web/ (the website publishes it at /app/)
 ```
+
+The web version is the same React app built with `vite.web.config.ts`, which swaps the Tauri modules for the stand-ins in `src/web/`: they read the folders and files opened in the browser in place of the Rust commands. A test checks that every Rust command and Tauri import the app uses has a web counterpart.
 
 Open the `examples/` folder in Mido to try every rendering feature.
 

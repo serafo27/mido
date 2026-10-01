@@ -2,8 +2,10 @@ import {
   ChevronRight,
   Columns2,
   Eye,
+  FileDown,
   PanelLeft,
   PenLine,
+  Printer,
   Settings as SettingsIcon,
   TableOfContents,
   TextWrap,
@@ -11,7 +13,7 @@ import {
 import { IconButton } from "./Sidebar";
 import TabBar, { type TabInfo } from "./TabBar";
 import { basename, relative } from "../lib/paths";
-import { altKey, isMac, modKey } from "../lib/platform";
+import { altKey, macWindowInset, modKey } from "../lib/platform";
 
 export type ViewMode = "view" | "split" | "edit";
 
@@ -36,6 +38,9 @@ interface ToolbarProps {
   onWrap: () => void;
   onToggleSidebar: () => void;
   onToggleSettings: () => void;
+  /** The web version has no File menu: export and print sit in the toolbar. */
+  onExport?: () => void;
+  onPrint?: () => void;
 }
 
 const MODES: { id: ViewMode; label: string; icon: React.ReactNode; key: string }[] = [
@@ -51,7 +56,7 @@ export default function Toolbar(props: ToolbarProps) {
 
   return (
     <header
-      className={`toolbar ${isMac && !props.sidebarOpen ? "mac-inset" : ""} ${props.tabs ? "with-tabs" : ""}`}
+      className={`toolbar ${macWindowInset && !props.sidebarOpen ? "mac-inset" : ""} ${props.tabs ? "with-tabs" : ""}`}
       data-tauri-drag-region
     >
       {props.showSidebarToggle && (
@@ -109,6 +114,16 @@ export default function Toolbar(props: ToolbarProps) {
           <IconButton title={`Outline (${modKey}⇧O)`} active={props.outlineOpen} onClick={props.onToggleOutline}>
             <TableOfContents size={15} />
           </IconButton>
+          {props.onExport && (
+            <IconButton title={`Export as HTML (${modKey}⇧E)`} onClick={props.onExport}>
+              <FileDown size={15} />
+            </IconButton>
+          )}
+          {props.onPrint && (
+            <IconButton title={`Print or save as PDF (${altKey}${modKey}P)`} onClick={props.onPrint}>
+              <Printer size={15} />
+            </IconButton>
+          )}
         </>
       )}
       <span data-settings-toggle>

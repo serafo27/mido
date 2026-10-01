@@ -9,6 +9,15 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Added
+
+- Mido for the web, at <https://serafo27.github.io/mido/app/>: open folders and Markdown files from your computer and read them in the browser, with the app's rendering, themes, tabs, outline, search, export and printing. It's read-only: editing, creating, renaming and deleting point to the desktop app. Nothing is uploaded. Chromium browsers reopen recent folders and pick up changes made on disk; Safari and Firefox read a folder as it is when opened.
+
+### Fixed
+
+- The empty screen listed `⌘P` as "Filter files"; it opens quick search since 0.5.0.
+- Error messages no longer start with "Error:".
+
 ## [0.5.0] - 2026-10-01
 
 ### Added

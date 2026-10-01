@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { isWeb } from "../lib/platform";
 import { Check, Monitor, Moon, RotateCcw, Sun, X } from "lucide-react";
 import {
   ACCENTS,
@@ -135,18 +136,20 @@ export default function SettingsPanel(props: SettingsPanelProps) {
           />
         </Section>
 
-        <Section title="Editor">
-          <Slider
-            label="Font size"
-            value={settings.editorFontSize}
-            min={11}
-            max={22}
-            step={0.5}
-            format={(v) => `${v}px`}
-            onChange={(editorFontSize) => onChange({ editorFontSize })}
-          />
-          <Toggle label="Autosave" checked={settings.autosave} onChange={(autosave) => onChange({ autosave })} />
-        </Section>
+        {!isWeb && (
+          <Section title="Editor">
+            <Slider
+              label="Font size"
+              value={settings.editorFontSize}
+              min={11}
+              max={22}
+              step={0.5}
+              format={(v) => `${v}px`}
+              onChange={(editorFontSize) => onChange({ editorFontSize })}
+            />
+            <Toggle label="Autosave" checked={settings.autosave} onChange={(autosave) => onChange({ autosave })} />
+          </Section>
+        )}
 
         <Section title="Appearance">
           <Row label="Mode">
@@ -194,19 +197,21 @@ export default function SettingsPanel(props: SettingsPanelProps) {
           <ThemeSection settings={settings} systemDark={systemDark} onChange={onChange} />
         </Section>
 
-        <Section title="Updates">
-          <Toggle
-            label="Check for updates automatically"
-            checked={settings.checkForUpdates}
-            onChange={(checkForUpdates) => onChange({ checkForUpdates })}
-          />
-          <div className="settings-row">
-            <span className="settings-label muted">{version ? `Mido ${version}` : "Mido"}</span>
-            <button className="ghost-button" onClick={props.onCheckForUpdates}>
-              Check Now
-            </button>
-          </div>
-        </Section>
+        {!isWeb && (
+          <Section title="Updates">
+            <Toggle
+              label="Check for updates automatically"
+              checked={settings.checkForUpdates}
+              onChange={(checkForUpdates) => onChange({ checkForUpdates })}
+            />
+            <div className="settings-row">
+              <span className="settings-label muted">{version ? `Mido ${version}` : "Mido"}</span>
+              <button className="ghost-button" onClick={props.onCheckForUpdates}>
+                Check Now
+              </button>
+            </div>
+          </Section>
+        )}
 
         {/* Custom themes are user content, not a setting: keep them. */}
         <button

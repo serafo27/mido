@@ -1,6 +1,7 @@
-import { FolderOpen } from "lucide-react";
+import { Download, FileText, FolderOpen, Lock } from "lucide-react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { basename } from "../lib/paths";
-import { altKey, modKey } from "../lib/platform";
+import { altKey, DOWNLOAD_URL, isWeb, modKey } from "../lib/platform";
 
 export function Logo({ size = 64 }: { size?: number }) {
   return (
@@ -20,6 +21,7 @@ export function Logo({ size = 64 }: { size?: number }) {
 }
 
 export function Welcome(props: { recents: string[]; onOpen: (path?: string) => void }) {
+  if (isWeb) return <WebWelcome {...props} />;
   return (
     <div className="welcome" data-tauri-drag-region>
       <Logo size={72} />
@@ -45,11 +47,61 @@ export function Welcome(props: { recents: string[]; onOpen: (path?: string) => v
   );
 }
 
+// Chromium can read a folder again (and reopen it from the recent list);
+// Safari and Firefox only get a snapshot of what was picked.
+const canReadFolders = isWeb && "showDirectoryPicker" in window;
+
+/** The web version's start page: open a folder or files from this computer, read-only. */
+function WebWelcome(props: { recents: string[]; onOpen: (path?: string) => void }) {
+  return (
+    <div className="welcome web-welcome">
+      <Logo size={72} />
+      <h1>Mido for the web</h1>
+      <p className="tagline">Read your Markdown, right in the browser.</p>
+      <div className="web-actions">
+        <button className="primary-button" onClick={() => props.onOpen()}>
+          <FolderOpen size={16} />
+          Open Folder
+        </button>
+        <button className="ghost-button large" onClick={() => openDialog({ multiple: true })}>
+          <FileText size={16} />
+          Open Files
+        </button>
+      </div>
+      <p className="web-drop-hint">or drop a folder or Markdown files anywhere on this page</p>
+      <p className="web-privacy">
+        <Lock size={13} />
+        Your files never leave your computer: Mido reads them in this browser and uploads nothing.
+      </p>
+      {!canReadFolders && (
+        <p className="web-browser-note">
+          In this browser Mido reads a folder as it is when you open it. For live updates and recent folders, use
+          Chrome, Edge or another Chromium browser.
+        </p>
+      )}
+      {canReadFolders && props.recents.length > 0 && (
+        <div className="recents">
+          <h2>Recent</h2>
+          {props.recents.map((path) => (
+            <button key={path} className="recent" onClick={() => props.onOpen(path)} title={path.slice(1)}>
+              <span className="recent-name">{basename(path) || path}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <a className="web-download" href={DOWNLOAD_URL} target="_blank" rel="noopener">
+        <Download size={14} />
+        To edit and write, get Mido for Mac. It's free.
+      </a>
+    </div>
+  );
+}
+
 const SHORTCUTS: [string, string][] = [
   [`${modKey}1 / 2 / 3`, "Read · Split · Edit"],
   [`${altKey}Z`, "Toggle line wrap"],
   [`${modKey}S`, "Save"],
-  [`${modKey}P`, "Filter files"],
+  [`${modKey}P`, "Quick search"],
   [`${modKey}W`, "Close tab"],
   [`${modKey}⇧[ / ]`, "Previous · next tab"],
   [`${modKey}⇧O`, "Outline"],
@@ -58,12 +110,23 @@ const SHORTCUTS: [string, string][] = [
   [`${modKey}B / I / K`, "Bold · Italic · Link"],
 ];
 
+// The web version reads only, and the browser keeps some shortcuts (like closing tabs) for itself.
+const WEB_SHORTCUTS: [string, string][] = [
+  [`${modKey}P`, "Quick search"],
+  [`${modKey}⇧F`, "Search in files"],
+  [`${altKey}Z`, "Toggle line wrap"],
+  [`${modKey}⇧[ / ]`, "Previous · next tab"],
+  [`${modKey}⇧O`, "Outline"],
+  [`${modKey},`, "Settings"],
+  [`${modKey}\\`, "Toggle sidebar"],
+];
+
 export function NoFile() {
   return (
     <div className="no-file" data-tauri-drag-region>
       <p>Select a file from the sidebar</p>
       <dl className="shortcuts">
-        {SHORTCUTS.map(([keys, label]) => (
+        {(isWeb ? WEB_SHORTCUTS : SHORTCUTS).map(([keys, label]) => (
           <div key={keys}>
             <dt>
               <kbd>{keys}</kbd>
