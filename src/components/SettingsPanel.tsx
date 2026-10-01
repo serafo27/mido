@@ -177,6 +177,24 @@ export default function SettingsPanel(props: SettingsPanelProps) {
               ))}
             </div>
           </Row>
+          <Row label="Tabs">
+            <div className="segmented small">
+              {(
+                [
+                  ["classic", "Classic"],
+                  ["rounded", "Rounded"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  className={settings.tabStyle === id ? "selected" : ""}
+                  onClick={() => onChange({ tabStyle: id })}
+                >
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          </Row>
           <Row label="Accent">
             <div className="swatches">
               {[

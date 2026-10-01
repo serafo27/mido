@@ -698,6 +698,63 @@ body.resizing .resizer {
 .tab.dirty .tab-close:hover::after {
   display: none;
 }
+/*
+ * Rounded tabs: folder tabs. The active one has rounded top corners and
+ * curves out into the strip's bottom line at its feet, so it flows into
+ * the document; the others are lighter and round only on hover.
+ */
+:root[data-tabs="rounded"] .tabs {
+  gap: 2px;
+  /* Room for the active tab's outward curves at either end. */
+  padding: 6px 10px 0;
+}
+:root[data-tabs="rounded"] .tab-strip.embedded {
+  padding-top: 2px;
+}
+:root[data-tabs="rounded"] .tab {
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 9px 9px 0 0;
+}
+:root[data-tabs="rounded"] .tab:hover:not(.active) {
+  background: var(--bg-hover);
+}
+:root[data-tabs="rounded"] .tab.active {
+  z-index: 1;
+  border-color: var(--border);
+  background: var(--bg);
+}
+/* The outward curves: a quarter-circle of border, with the tab's colour
+   filling the corner outside it. */
+:root[data-tabs="rounded"] .tab.active::before,
+:root[data-tabs="rounded"] .tab.active::after {
+  content: "";
+  position: absolute;
+  top: auto;
+  bottom: 0;
+  width: 10px;
+  height: 10px;
+  background: none;
+  border: 0 solid var(--border);
+  pointer-events: none;
+}
+:root[data-tabs="rounded"] .tab.active::before {
+  left: -11px;
+  right: auto;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+  border-radius: 0 0 10px 0;
+  box-shadow: 4px 4px 0 4px var(--bg);
+  clip-path: inset(0 -1px 0 0);
+}
+:root[data-tabs="rounded"] .tab.active::after {
+  right: -11px;
+  border-left-width: 1px;
+  border-bottom-width: 1px;
+  border-radius: 0 0 0 10px;
+  box-shadow: -4px 4px 0 4px var(--bg);
+  clip-path: inset(0 0 0 -1px);
+}
 .tab.dragging {
   opacity: 0.45;
 }

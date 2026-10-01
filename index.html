@@ -11,6 +11,7 @@
         var settings = JSON.parse(localStorage.getItem("mido.settings") || "{}");
         var root = document.documentElement;
         root.dataset.style = settings.style || "mido";
+        root.dataset.tabs = settings.tabStyle || "classic";
         if (cache) {
           root.dataset.theme = cache.kind;
           for (var k in cache.vars) root.style.setProperty(k, cache.vars[k]);

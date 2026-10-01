@@ -9,6 +9,10 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Added
+
+- Rounded tabs, shaped like folder tabs, in **Settings → Appearance → Tabs**. Classic square tabs stay the default.
+
 ## [0.7.1] - 2026-10-01
 
 ### Fixed

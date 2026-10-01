@@ -5,6 +5,8 @@ export type ThemePref = "system" | "light" | "dark";
 export type Accent = "theme" | "teal" | "blue" | "violet" | "rose" | "amber";
 export type StylePreset = "mido" | "github" | "academic" | "minimal";
 export type FontRole = "body" | "heading" | "code";
+/** "classic": square tabs with dividers. "rounded": folder tabs with rounded tops. */
+export type TabStyle = "classic" | "rounded";
 
 export interface Settings {
   theme: ThemePref;
@@ -37,6 +39,7 @@ export interface Settings {
   commentAuthor: string;
   /** A minimap of the document in place of the scrollbar, in the editor and the preview. */
   minimap: boolean;
+  tabStyle: TabStyle;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -64,6 +67,7 @@ export const DEFAULT_SETTINGS: Settings = {
   checkForUpdates: true,
   commentAuthor: "",
   minimap: false,
+  tabStyle: "classic",
 };
 
 export interface FontOption {
@@ -184,6 +188,7 @@ export function applySettings(settings: Settings, systemDark: boolean) {
 
   root.dataset.theme = theme.kind;
   root.dataset.style = settings.style;
+  root.dataset.tabs = settings.tabStyle;
   for (const k of appliedThemeVars) root.style.removeProperty(k);
   for (const [k, v] of Object.entries(themeVars)) root.style.setProperty(k, v);
   appliedThemeVars = Object.keys(themeVars);
