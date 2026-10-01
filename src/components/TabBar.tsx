@@ -62,7 +62,7 @@ export default function TabBar({ tabs, activePath, onSelect, onPin, onClose, onM
               "tab",
               tab.path === activePath && "active",
               tab.dirty && "dirty",
-              tab.preview && "preview",
+              tab.preview && "transient",
               dragIndex === i && "dragging",
               dropIndex === i && dragIndex !== null && dragIndex !== i && (dragIndex < i ? "drop-after" : "drop-before"),
             ]

@@ -629,7 +629,9 @@ body.resizing .resizer {
   right: 0;
   border-radius: 2px 2px 0 0;
 }
-.tab.preview .tab-name {
+/* Preview tabs are "transient": a bare .preview would also pick up the
+   preview pane's rules (overflow: auto, text selection). */
+.tab.transient .tab-name {
   font-style: italic;
   /* Room for the slanted last glyph, which overflow: hidden would clip. */
   padding-right: 2px;

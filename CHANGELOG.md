@@ -9,6 +9,10 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preview tabs no longer show a scrollbar, and with rounded tabs their outward curve no longer appears beside the close button. Their name can no longer be selected as text.
+
 ## [0.8.0] - 2026-10-01
 
 ### Added
