@@ -36,6 +36,7 @@ Mido isn't code-signed yet: the first time, right-click the app and choose **Ope
 
 - **Folder sidebar** — a tree of the Markdown files in any folder, with a filter (`⌘P`), create / rename / move to trash from the context menu, and live refresh when files change on disk.
 - **Open from anywhere** — double-click a Markdown file in the Finder, use **Open With → Mido**, or drop it on the Dock icon: Mido opens its folder and the file in a tab. From the terminal, `open -a Mido notes.md` (or a folder); add `alias mido="open -a Mido"` to your shell profile to type `mido notes.md`.
+- **Search in files** (`⌘⇧F`) — search the text of every Markdown file in the folder, with match-case and whole-word options. Results are grouped by file; click one to jump to its line.
 - **Three modes** — Read (`⌘1`), Split with synced scrolling and a resizable divider (`⌘2`), and Edit (`⌘3`).
 - **Rendering** — GitHub Flavored Markdown (tables, task lists, footnotes, strikethrough), GitHub-style alerts, KaTeX math, syntax highlighting, frontmatter shown as a card, sanitized HTML, relative images, and relative `.md` links that open inside Mido.
 - **Wrap or scroll** (`⌥Z`) — wrap everything to the window, or keep code blocks and tables intact and scroll sideways. Applies to the editor too.
@@ -58,6 +59,7 @@ Mido isn't code-signed yet: the first time, right-click the app and choose **Ope
 | `⌘W` | Close tab |
 | `⌘⇧[` `⌘⇧]` / `Ctrl+Tab` | Previous · next tab |
 | `⌘P` | Filter files |
+| `⌘⇧F` | Search in files |
 | `⌘⇧O` | Toggle outline |
 | `⌘\` | Toggle sidebar |
 | `⌘,` | Settings |

@@ -13,10 +13,32 @@ export interface OpenRequest {
   isDir: boolean;
 }
 
+export interface SearchOptions {
+  caseSensitive: boolean;
+  wholeWord: boolean;
+}
+
+export interface LineMatch {
+  /** 1-based line number. */
+  line: number;
+  /** The line, trimmed and possibly cut ("…") around the first match. */
+  text: string;
+  /** Matches within `text`, as [start, end) string offsets. */
+  ranges: [number, number][];
+}
+
+export interface SearchResults {
+  files: { path: string; matches: LineMatch[] }[];
+  /** More matches exist than were returned. */
+  truncated: boolean;
+}
+
 export const api = {
   /** Opens `root` as the workspace (file commands are limited to it) and returns its tree. */
   openFolder: (root: string) => invoke<FileNode[]>("open_folder", { root }),
   readTree: () => invoke<FileNode[]>("read_tree"),
+  searchFiles: (query: string, options: SearchOptions) =>
+    invoke<SearchResults>("search_files", { query, options }),
   takeOpenRequests: () => invoke<OpenRequest[]>("take_open_requests"),
   readFile: (path: string) => invoke<string>("read_file", { path }),
   /**

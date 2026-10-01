@@ -1,3 +1,5 @@
+mod search;
+
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
@@ -241,6 +243,32 @@ async fn tree(root: PathBuf) -> Result<Vec<FileNode>, String> {
         .map_err(err)
 }
 
+/// The Markdown files of a tree, in display order.
+fn markdown_files(nodes: Vec<FileNode>, out: &mut Vec<PathBuf>) {
+    for node in nodes {
+        match node.children {
+            Some(children) => markdown_files(children, out),
+            None => out.push(PathBuf::from(node.path)),
+        }
+    }
+}
+
+#[tauri::command]
+async fn search_files(
+    workspace: State<'_, Workspace>,
+    query: String,
+    options: search::SearchOptions,
+) -> Result<search::SearchResults, String> {
+    let root = workspace.root()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut files = Vec::new();
+        markdown_files(build_tree(&root, 0), &mut files);
+        search::search(&files, &query, &options)
+    })
+    .await
+    .map_err(err)
+}
+
 #[tauri::command]
 async fn read_file(workspace: State<'_, Workspace>, path: String) -> Result<String, String> {
     fs::read_to_string(workspace.resolve(&path)?).map_err(err)
@@ -458,6 +486,7 @@ pub fn run() {
             open_folder,
             take_open_requests,
             read_tree,
+            search_files,
             read_file,
             write_file,
             create_file,

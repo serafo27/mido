@@ -16,6 +16,7 @@ import type { FileNode } from "../lib/api";
 import { basename, dirname, isInside } from "../lib/paths";
 import { isMac } from "../lib/platform";
 import { useStoredState } from "../lib/useStoredState";
+import SearchPanel from "./SearchPanel";
 
 type Pending =
   | { kind: "new-file" | "new-folder"; parent: string }
@@ -42,6 +43,10 @@ interface SidebarProps {
   onRename: (path: string, newName: string, isDir: boolean) => Promise<void>;
   onTrash: (path: string) => void;
   onReveal: (path: string) => void;
+  /** Shows the search panel instead of the file tree. */
+  searchOpen: boolean;
+  onSearchOpenChange: (open: boolean) => void;
+  onOpenMatch: (path: string, line: number) => void;
 }
 
 function filterTree(nodes: FileNode[], query: string): FileNode[] {
@@ -245,6 +250,13 @@ export default function Sidebar(props: SidebarProps) {
           <IconButton title="Refresh" onClick={onRefresh}>
             <RefreshCw size={14} />
           </IconButton>
+          <IconButton
+            title={`Search in files (${isMac ? "⌘⇧F" : "Ctrl+Shift+F"})`}
+            active={props.searchOpen}
+            onClick={() => props.onSearchOpenChange(!props.searchOpen)}
+          >
+            <Search size={14} />
+          </IconButton>
         </div>
       </div>
 
@@ -253,7 +265,16 @@ export default function Sidebar(props: SidebarProps) {
         <span className="name">{basename(root) || root}</span>
       </button>
 
-      <div className="filter">
+      <SearchPanel
+        visible={props.searchOpen}
+        root={root}
+        tree={tree}
+        activePath={activePath}
+        onOpenMatch={props.onOpenMatch}
+        onClose={() => props.onSearchOpenChange(false)}
+      />
+
+      <div className="filter" hidden={props.searchOpen}>
         <Search size={13} className="filter-icon" />
         <input
           ref={filterRef}
@@ -270,7 +291,7 @@ export default function Sidebar(props: SidebarProps) {
         )}
       </div>
 
-      <nav className="tree" onContextMenu={(e) => openMenu(e, null)}>
+      <nav className="tree" hidden={props.searchOpen} onContextMenu={(e) => openMenu(e, null)}>
         {renderPendingNew(root, 0)}
         {renderNodes(visible, 0)}
         {visible.length === 0 && !pending && (

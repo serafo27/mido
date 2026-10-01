@@ -2066,6 +2066,7 @@ name = "mido"
 version = "0.3.0"
 dependencies = [
  "notify-debouncer-mini",
+ "regex",
  "serde",
  "serde_json",
  "tauri",

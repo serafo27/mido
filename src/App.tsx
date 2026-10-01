@@ -75,6 +75,7 @@ export default function App() {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const active = tabs.find((t) => t.path === activePath) ?? null;
@@ -648,6 +649,12 @@ export default function App() {
         if (e.code === "KeyO") {
           e.preventDefault();
           setOutlineOpen((o) => !o);
+        } else if (e.code === "KeyF") {
+          e.preventDefault();
+          setSidebarOpen(true);
+          setSearchOpen(true);
+          // Already showing: the panel only focuses itself when it appears.
+          requestAnimationFrame(() => window.dispatchEvent(new Event("mido:focus-search")));
         } else if (e.code === "BracketRight" || e.code === "BracketLeft") {
           e.preventDefault();
           cycleTab(e.code === "BracketRight" ? 1 : -1);
@@ -658,7 +665,11 @@ export default function App() {
         s: saveActive,
         o: () => openFolder(),
         w: () => live.current.activePath && closeTab(live.current.activePath),
-        p: () => window.dispatchEvent(new Event("mido:focus-filter")),
+        p: () => {
+          setSidebarOpen(true);
+          setSearchOpen(false);
+          requestAnimationFrame(() => window.dispatchEvent(new Event("mido:focus-filter")));
+        },
         ",": () => setSettingsOpen((o) => !o),
         "\\": () => setSidebarOpen((o) => !o),
         "1": () => setMode("view"),
@@ -719,6 +730,43 @@ export default function App() {
       revealEditorLine(heading.line);
     }
   }, []);
+
+  // A search result to scroll to once its file is showing.
+  const pendingReveal = useRef<{ path: string; line: number } | null>(null);
+  const [revealRequest, setRevealRequest] = useState(0);
+
+  const openMatch = useCallback(
+    async (path: string, line: number) => {
+      pendingReveal.current = { path, line };
+      await openFile(path);
+      setRevealRequest((n) => n + 1);
+    },
+    [openFile],
+  );
+
+  useEffect(() => {
+    const target = pendingReveal.current;
+    if (!target || target.path !== activePath) return;
+    let frame = 0;
+    let attempts = 0;
+    const reveal = () => {
+      if (live.current.mode === "view") {
+        const preview = previewRef.current;
+        // The preview of a file that just opened may not have rendered yet.
+        if (!preview?.querySelector("[data-line]")) {
+          if (attempts++ < 30) frame = requestAnimationFrame(reveal);
+          return;
+        }
+        revealPreviewLine(preview, target.line);
+      } else {
+        // In split mode the preview follows the editor through scroll sync.
+        revealEditorLine(target.line);
+      }
+      pendingReveal.current = null;
+    };
+    frame = requestAnimationFrame(reveal);
+    return () => cancelAnimationFrame(frame);
+  }, [activePath, revealRequest]);
 
   /* ---------- render ---------- */
 
@@ -804,6 +852,9 @@ export default function App() {
             onRename={renameEntry}
             onTrash={trashEntry}
             onReveal={(p) => revealItemInDir(p).catch(fail)}
+            searchOpen={searchOpen}
+            onSearchOpenChange={setSearchOpen}
+            onOpenMatch={openMatch}
           />
           <div
             className="resizer sidebar-resizer"
