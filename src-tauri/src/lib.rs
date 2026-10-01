@@ -1,3 +1,4 @@
+mod assets;
 mod search;
 
 use std::fs;
@@ -375,6 +376,26 @@ async fn rename_path(
     fs::rename(&from, &to).map_err(err)
 }
 
+/// Saves an image pasted or dropped into the editor in the `assets` folder
+/// next to the document, and returns its path relative to the document.
+/// The image comes as the raw request body (no JSON encoding); the document
+/// path, file name and MIME type come as percent-encoded headers.
+#[tauri::command]
+async fn save_asset(
+    workspace: State<'_, Workspace>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<String, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("Expected the image data".to_string());
+    };
+    let header = |name: &str| {
+        let value = request.headers().get(name).and_then(|v| v.to_str().ok()).unwrap_or("");
+        percent_encoding::percent_decode_str(value).decode_utf8_lossy().into_owned()
+    };
+    let document = workspace.resolve(&header("x-document"))?;
+    assets::save(&document, &header("x-name"), &header("x-mime"), bytes).map_err(err)
+}
+
 /// Asks where to save an exported HTML page, then writes it there. The save
 /// dialog runs here rather than in the webview, so the destination outside
 /// the open folder is always one the user picked. Returns the saved path, or
@@ -535,6 +556,7 @@ pub fn run() {
             rename_path,
             trash_path,
             export_html,
+            save_asset,
             app_arch
         ])
         .build(tauri::generate_context!())

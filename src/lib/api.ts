@@ -41,6 +41,19 @@ export const api = {
     invoke<SearchResults>("search_files", { query, options }),
   /** Asks where to save, then writes the page; resolves to the saved path, or null if cancelled. */
   exportHtml: (defaultPath: string, html: string) => invoke<string | null>("export_html", { defaultPath, html }),
+  /**
+   * Saves an image in the `assets` folder next to `document` (never replacing
+   * a file) and resolves to its path relative to the document. The bytes go
+   * as the raw request body rather than JSON.
+   */
+  saveAsset: async (document: string, file: File, name: string) =>
+    invoke<string>("save_asset", new Uint8Array(await file.arrayBuffer()), {
+      headers: {
+        "x-document": encodeURIComponent(document),
+        "x-name": encodeURIComponent(name),
+        "x-mime": encodeURIComponent(file.type),
+      },
+    }),
   takeOpenRequests: () => invoke<OpenRequest[]>("take_open_requests"),
   readFile: (path: string) => invoke<string>("read_file", { path }),
   /**

@@ -21,6 +21,7 @@ import { isMac } from "./lib/platform";
 import { useStoredState } from "./lib/useStoredState";
 import { DEFAULT_SETTINGS, applySettings, lightThemeVariables, type Settings } from "./lib/settings";
 import { currentMarkdownVariables, htmlDocument, renderDocument } from "./lib/exportDocument";
+import { assetName, imageMarkdown } from "./lib/images";
 import Sidebar from "./components/Sidebar";
 import Toolbar, { type ViewMode } from "./components/Toolbar";
 import Editor, {
@@ -296,6 +297,22 @@ export default function App() {
       setActivePath(tabs[(i + delta + tabs.length) % tabs.length].path);
     },
     [setActivePath],
+  );
+
+  /** Saves images added in the editor next to the document; returns the Markdown linking them. */
+  const addImages = useCallback(
+    async (docPath: string, files: File[]) => {
+      const links: string[] = [];
+      for (const file of files) {
+        try {
+          links.push(imageMarkdown(await api.saveAsset(docPath, file, assetName(file.name))));
+        } catch (e) {
+          fail(e);
+        }
+      }
+      return links.length ? links.join("\n") : null;
+    },
+    [fail],
   );
 
   // Editing a preview tab pins it, so edits never vanish with a replaced preview.
@@ -963,6 +980,7 @@ export default function App() {
                       wrap={settings.wrap}
                       onChange={updateContent}
                       onScroll={onEditorScroll}
+                      onAddImages={addImages}
                     />
                   )}
                   {mode === "split" && (

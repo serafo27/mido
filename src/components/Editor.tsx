@@ -6,6 +6,7 @@ import { Compartment, EditorSelection, EditorState, Prec, type Extension } from 
 import { EditorView, keymap, type Command } from "@codemirror/view";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
+import { imageFiles } from "../lib/images";
 
 interface EditorProps {
   /** Identifies the document (the tab's path); each gets its own state. */
@@ -14,6 +15,8 @@ interface EditorProps {
   wrap: boolean;
   onChange: (docKey: string, value: string) => void;
   onScroll?: (view: EditorView) => void;
+  /** Saves images pasted or dropped into the document; resolves to the Markdown to insert. */
+  onAddImages?: (docKey: string, files: File[]) => Promise<string | null>;
 }
 
 // Colors come from CSS variables so the editor follows the app theme for free.
@@ -186,14 +189,29 @@ export function editorTopLine(view: EditorView): number {
   return view.state.doc.lineAt(view.lineBlockAtHeight(view.scrollDOM.scrollTop).from).number;
 }
 
-export default function Editor({ docKey, value, wrap, onChange, onScroll }: EditorProps) {
+export default function Editor({ docKey, value, wrap, onChange, onScroll, onAddImages }: EditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const keyRef = useRef(docKey);
-  const callbacks = useRef({ onChange, onScroll });
-  callbacks.current = { onChange, onScroll };
+  const callbacks = useRef({ onChange, onScroll, onAddImages });
+  callbacks.current = { onChange, onScroll, onAddImages };
   const wrapRef = useRef(wrap);
   wrapRef.current = wrap;
+
+  /** Saves `files`, then inserts their links at `at` (a drop) or over the selection (a paste). */
+  const addImages = async (view: EditorView, files: File[], at: number | null) => {
+    const key = keyRef.current;
+    const text = await callbacks.current.onAddImages?.(key, files);
+    // Another document may be showing by the time the images are saved.
+    if (!text || keyRef.current !== key || viewRef.current !== view) return;
+    if (at === null) {
+      view.dispatch(view.state.replaceSelection(text));
+    } else {
+      const pos = Math.min(at, view.state.doc.length);
+      view.dispatch({ changes: { from: pos, insert: text }, selection: { anchor: pos + text.length } });
+    }
+    view.focus();
+  };
 
   const createState = (doc: string) =>
     EditorState.create({
@@ -216,6 +234,26 @@ export default function Editor({ docKey, value, wrap, onChange, onScroll }: Edit
         EditorView.domEventObservers({
           scroll: (_e, view) => callbacks.current.onScroll?.(view),
         }),
+        // Ahead of CodeMirror's own drop handling, which would paste a dropped file's bytes as text.
+        Prec.high(
+          EditorView.domEventHandlers({
+            paste: (event, view) => {
+              const files = imageFiles(event.clipboardData);
+              // Text wins when there is some: copying from a web page often carries an image too.
+              if (files.length === 0 || event.clipboardData?.getData("text/plain")) return false;
+              event.preventDefault();
+              addImages(view, files, null);
+              return true;
+            },
+            drop: (event, view) => {
+              const files = imageFiles(event.dataTransfer);
+              if (files.length === 0) return false;
+              event.preventDefault();
+              addImages(view, files, view.posAtCoords({ x: event.clientX, y: event.clientY }));
+              return true;
+            },
+          }),
+        ),
       ] satisfies Extension[],
     });
 
