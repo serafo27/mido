@@ -9,6 +9,10 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Changed
+
+- Mido for the web shows Mido's icon and name in the top-left corner, linking back to the website.
+
 ## [0.6.0] - 2026-10-01
 
 ### Added

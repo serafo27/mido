@@ -13,7 +13,8 @@ import {
 import { IconButton } from "./Sidebar";
 import TabBar, { type TabInfo } from "./TabBar";
 import { basename, relative } from "../lib/paths";
-import { altKey, macWindowInset, modKey } from "../lib/platform";
+import { altKey, isWeb, macWindowInset, modKey } from "../lib/platform";
+import { WebBrand } from "./Welcome";
 
 export type ViewMode = "view" | "split" | "edit";
 
@@ -59,6 +60,8 @@ export default function Toolbar(props: ToolbarProps) {
       className={`toolbar ${macWindowInset && !props.sidebarOpen ? "mac-inset" : ""} ${props.tabs ? "with-tabs" : ""}`}
       data-tauri-drag-region
     >
+      {/* With the sidebar open, the brand sits in its header instead. */}
+      {isWeb && !props.sidebarOpen && <WebBrand />}
       {props.showSidebarToggle && (
         <IconButton title={`Toggle sidebar (${modKey}\\)`} onClick={props.onToggleSidebar}>
           <PanelLeft size={15} />

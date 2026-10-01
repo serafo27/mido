@@ -1,7 +1,7 @@
 import { Download, FileText, FolderOpen, Lock } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { basename } from "../lib/paths";
-import { altKey, DOWNLOAD_URL, isWeb, modKey } from "../lib/platform";
+import { altKey, DOWNLOAD_URL, HOME_URL, isWeb, modKey } from "../lib/platform";
 
 export function Logo({ size = 64 }: { size?: number }) {
   return (
@@ -17,6 +17,16 @@ export function Logo({ size = 64 }: { size?: number }) {
       <path d="M332 640V384l90 120 90-120v256" fill="none" stroke="#1f3d37" strokeWidth="44" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M632 384v252m-62-62 62 64 62-64" fill="none" stroke="#d98a3d" strokeWidth="44" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+/** The web version's top-left corner: Mido's icon and name, back to the website. */
+export function WebBrand() {
+  return (
+    <a className="web-brand" href={HOME_URL} title="Mido website">
+      <Logo size={20} />
+      <span>Mido</span>
+    </a>
   );
 }
 

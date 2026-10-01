@@ -11,6 +11,9 @@ export const macWindowInset = isMac && !isWeb;
 /** Why the web version can't open a remembered folder until it's clicked again. */
 export const WEB_ACCESS_NEEDED = "Click the folder to let Mido read it again.";
 
+/** The website's homepage, where the web version lives (at /app/). */
+export const HOME_URL = "../";
+
 /** Where the web version sends people for the desktop app. */
 export const DOWNLOAD_URL = "https://serafo27.github.io/mido/#download";
 

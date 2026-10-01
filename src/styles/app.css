@@ -2260,3 +2260,27 @@ body.web-dropping::after {
     padding: 0 18px;
   }
 }
+.web-brand {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+  padding: 4px 8px 4px 4px;
+  border-radius: 8px;
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--md-heading);
+  text-decoration: none;
+}
+.web-brand:hover {
+  background: var(--bg-hover);
+}
+.web-brand svg {
+  border-radius: 5px;
+}
+.toolbar .web-brand {
+  margin-right: 4px;
+}
