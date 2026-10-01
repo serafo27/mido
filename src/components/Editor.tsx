@@ -12,11 +12,12 @@ import {
   type Extension,
 } from "@codemirror/state";
 import { Decoration, EditorView, keymap, type Command, type DecorationSet } from "@codemirror/view";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 import { imageFiles } from "../lib/images";
 import type { SourceHighlight } from "../lib/previewComments";
 import ScrollMarkers, { sameMarkers, type ScrollMarker } from "./ScrollMarkers";
+import Minimap from "./Minimap";
 
 interface EditorProps {
   /** Identifies the document (the tab's path); each gets its own state. */
@@ -33,6 +34,8 @@ interface EditorProps {
   onSelectHighlight?: (id: string | null) => void;
   /** The mouse moved onto a highlight (its id) or off them all (null). */
   onHoverHighlight?: (id: string | null, x: number, y: number) => void;
+  /** A minimap of the document in place of the scrollbar. */
+  minimap?: boolean;
 }
 
 // Colors come from CSS variables so the editor follows the app theme for free.
@@ -170,6 +173,56 @@ function highlightMarkers(view: EditorView): ScrollMarker[] {
     markers.push({ id, top, active: !!deco.spec.active });
   });
   return markers;
+}
+
+/** Minimap pixels per line of text. */
+const MINIMAP_LINE = 2;
+
+/**
+ * Draws the part of the minimap starting `offset` pixels down: each word a
+ * small bar, headings and code in their own colours, like VS Code's.
+ */
+function drawMinimap(view: EditorView, ctx: CanvasRenderingContext2D, offset: number, width: number, height: number) {
+  const lineHeight = view.defaultLineHeight;
+  const scale = MINIMAP_LINE / lineHeight;
+  const padding = view.documentPadding.top;
+  const style = getComputedStyle(view.dom);
+  const color = (name: string) => style.getPropertyValue(name).trim() || "#888";
+  const colors = { text: color("--text-muted"), heading: color("--md-heading"), code: color("--hl-string") };
+  const charWidth = Math.min(1.2, (width - 8) / 100);
+  const columns = Math.floor((width - 8) / charWidth);
+  const { doc } = view.state;
+  const tree = syntaxTree(view.state);
+
+  let block = view.lineBlockAtHeight(Math.max(0, offset / scale - padding));
+  for (;;) {
+    const y = (block.top + padding) * scale - offset;
+    if (y > height) break;
+    const text = doc.sliceString(block.from, block.to);
+    const heading = /^#{1,6}\s/.test(text);
+    let code = false;
+    for (let node: { name: string; parent: unknown } | null = tree.resolveInner(block.from, 1); node; ) {
+      if (node.name === "FencedCode" || node.name === "CodeBlock") code = true;
+      node = node.parent as typeof node;
+    }
+    ctx.fillStyle = heading ? colors.heading : code ? colors.code : colors.text;
+    ctx.globalAlpha = heading ? 0.95 : 0.6;
+    // A wrapped line takes several rows.
+    const rows = Math.max(1, Math.round(block.height / lineHeight));
+    const perRow = Math.ceil(text.length / rows);
+    for (let r = 0; r < rows; r++) {
+      const row = text.slice(r * perRow, (r + 1) * perRow);
+      for (const word of row.matchAll(/\S+/g)) {
+        const column = word.index ?? 0;
+        if (column >= columns) break;
+        const length = Math.min(word[0].length, columns - column);
+        ctx.fillRect(4 + column * charWidth, y + r * MINIMAP_LINE, length * charWidth, heading ? 1.8 : 1.3);
+      }
+    }
+    if (block.to >= doc.length) break;
+    block = view.lineBlockAt(block.to + 1);
+  }
+  ctx.globalAlpha = 1;
 }
 
 /** Toggles `marker` around each selection (e.g. `**` for bold). */
@@ -316,6 +369,10 @@ export function editorTopLine(view: EditorView): number {
 export default function Editor(props: EditorProps) {
   const { docKey, value, wrap, onChange, onScroll, onAddImages, highlights, onSelectHighlight, onHoverHighlight } =
     props;
+  const { minimap } = props;
+  // The minimap redraws whenever the text or its layout changes.
+  const [scroller, setScroller] = useState<HTMLElement | null>(null);
+  const [minimapVersion, setMinimapVersion] = useState(0);
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const keyRef = useRef(docKey);
@@ -383,6 +440,7 @@ export default function Editor(props: EditorProps) {
           if (update.docChanged) callbacks.current.onChange(keyRef.current, update.state.doc.toString());
           const highlightsChanged = update.transactions.some((tr) => tr.effects.some((e) => e.is(setHighlights)));
           if (update.docChanged || update.geometryChanged || highlightsChanged) updateMarkers(update.view);
+          if (update.docChanged || update.geometryChanged) setMinimapVersion((v) => v + 1);
         }),
         EditorView.domEventObservers({
           scroll: (_e, view) => callbacks.current.onScroll?.(view),
@@ -447,6 +505,7 @@ export default function Editor(props: EditorProps) {
     const view = new EditorView({ parent: hostRef.current! });
     viewRef.current = view;
     currentView = view;
+    setScroller(view.scrollDOM);
     restore(view, keyRef.current, value);
     view.focus();
     return () => {
@@ -486,10 +545,22 @@ export default function Editor(props: EditorProps) {
     if (view && keyRef.current === docKey) view.dispatch({ effects: setHighlights.of(highlights ?? []) });
   }, [highlights, docKey]);
 
+  const view = viewRef.current;
   return (
-    <div className="pane">
+    <div className={`pane ${minimap ? "with-minimap" : ""}`}>
       <div className="editor" ref={hostRef} />
-      <ScrollMarkers markers={markers} onSelect={selectMarker} />
+      {minimap && view ? (
+        <Minimap
+          scroller={scroller}
+          scale={MINIMAP_LINE / view.defaultLineHeight}
+          draw={(ctx, offset, width, height) => drawMinimap(view, ctx, offset, width, height)}
+          version={`${minimapVersion}:${docKey}`}
+          markers={markers}
+          onSelectMarker={selectMarker}
+        />
+      ) : (
+        <ScrollMarkers markers={markers} onSelect={selectMarker} />
+      )}
     </div>
   );
 }

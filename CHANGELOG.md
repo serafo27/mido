@@ -11,7 +11,8 @@ GitHub and on the website's changelog page.
 
 ### Added
 
-- Comments: select text in the editor or the preview and press `⌥⌘M` to start a thread on it. A Comments panel (`⌘⇧M`) beside the outline lists the threads in document order, with replies, resolving and reopening; commented text is highlighted, and clicking it shows its thread. Comments are signed with your git user and saved in a hidden `.mido` folder inside the open folder, one file per comment, so they can be committed and pushed with the documents and never cause merge conflicts. Resolving a thread gathers its comments into a single file. Threads follow their text as the document changes, move with renamed files, and those whose text was removed are listed apart. Mido for the web shows comments but doesn't write them.
+- Comments: select text in the editor or the preview and click **Comment** over the selection, or press `⌥⌘M`, to start a thread on it. A Comments panel (`⌘⇧M`) beside the outline lists the threads in document order, with replies, resolving and reopening. Commented text has a light dotted underline; hovering it shows the first comment and its replies, clicking it opens the thread, and ticks beside the scrollbar show where the threads are. Comments are signed with your git user and saved in a hidden `.mido` folder inside the open folder, one file per comment, so they can be committed and pushed with the documents and never cause merge conflicts. Resolving a thread gathers its comments into a single file. Threads follow their text as the document changes, move with renamed files, and those whose text was removed are listed apart. Mido for the web shows comments but doesn't write them.
+- A minimap in place of the scrollbar, like VS Code's, turned on in **Settings → Reading**: the editor shows the text in small, the preview a miniature of the rendered page. Click to jump, drag the frame to scroll; comments are marked on it.
 
 ### Changed
 

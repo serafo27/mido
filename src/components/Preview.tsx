@@ -24,6 +24,7 @@ import {
   type SourceHighlight,
 } from "../lib/previewComments";
 import ScrollMarkers, { sameMarkers, type ScrollMarker } from "./ScrollMarkers";
+import Minimap, { MINIMAP_WIDTH } from "./Minimap";
 
 interface PreviewProps {
   content: string;
@@ -41,6 +42,8 @@ interface PreviewProps {
   onSelectHighlight?: (id: string | null) => void;
   /** The mouse moved onto a highlight (its id) or off them all (null). */
   onHoverHighlight?: (id: string | null, x: number, y: number) => void;
+  /** A minimap of the page in place of the scrollbar. */
+  minimap?: boolean;
 }
 
 const EXTERNAL = /^[a-z][a-z0-9+.-]*:/i;
@@ -111,7 +114,7 @@ const scrollPositions = new Map<string, number>();
 
 export default function Preview(props: PreviewProps) {
   const { content, filePath, root, wrap, justify, showFrontmatter, scrollRef, onOpenFile, onScroll } = props;
-  const { highlights, onSelectHighlight, onHoverHighlight } = props;
+  const { highlights, onSelectHighlight, onHoverHighlight, minimap } = props;
   const hoverFrame = useRef(0);
   const articleRef = useRef<HTMLElement>(null);
   const [markers, setMarkers] = useState<ScrollMarker[]>([]);
@@ -220,6 +223,35 @@ export default function Preview(props: PreviewProps) {
     };
   }, [filePath, root, onOpenFile, scrollRef]);
 
+  // The minimap shows a copy of the rendered page, made again as it changes.
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  const [page, setPage] = useState<{ html: string; width: number } | null>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    const article = articleRef.current;
+    setScroller(minimap ? el : null);
+    if (!minimap || !el || !article) return setPage(null);
+    let timer = 0;
+    const copy = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const next = { html: article.outerHTML, width: el.clientWidth };
+        setPage((prev) => (prev?.html === next.html && prev.width === next.width ? prev : next));
+      }, 150);
+    };
+    copy();
+    // Typing, Mermaid diagrams appearing, images loading, the pane resizing.
+    const mutations = new MutationObserver(copy);
+    mutations.observe(article, { subtree: true, childList: true, characterData: true, attributes: true });
+    const resizes = new ResizeObserver(copy);
+    resizes.observe(el);
+    return () => {
+      window.clearTimeout(timer);
+      mutations.disconnect();
+      resizes.disconnect();
+    };
+  }, [minimap, scrollRef]);
+
   const selectMarker = (id: string) => {
     const el = scrollRef.current;
     const marker = markers.find((m) => m.id === id);
@@ -228,7 +260,7 @@ export default function Preview(props: PreviewProps) {
   };
 
   return (
-    <div className="pane">
+    <div className={`pane ${minimap ? "with-minimap" : ""}`}>
       <div
         className="preview"
         ref={scrollRef}
@@ -268,7 +300,25 @@ export default function Preview(props: PreviewProps) {
           <RenderedMarkdown source={deferred} components={components} />
         </article>
       </div>
-      <ScrollMarkers markers={markers} onSelect={selectMarker} />
+      {minimap ? (
+        <Minimap
+          scroller={scroller}
+          scale={page ? MINIMAP_WIDTH / page.width : 0.1}
+          markers={markers}
+          onSelectMarker={selectMarker}
+        >
+          {page && (
+            <div
+              className="minimap-page"
+              style={{ width: page.width, transform: `scale(${MINIMAP_WIDTH / page.width})` }}
+              // A copy of the page above, already rendered and sanitized.
+              dangerouslySetInnerHTML={{ __html: page.html }}
+            />
+          )}
+        </Minimap>
+      ) : (
+        <ScrollMarkers markers={markers} onSelect={selectMarker} />
+      )}
     </div>
   );
 }

@@ -134,6 +134,11 @@ export default function SettingsPanel(props: SettingsPanelProps) {
             checked={settings.showPathBar}
             onChange={(showPathBar) => onChange({ showPathBar })}
           />
+          <Toggle
+            label="Minimap instead of scrollbar"
+            checked={settings.minimap}
+            onChange={(minimap) => onChange({ minimap })}
+          />
         </Section>
 
         {!isWeb && (

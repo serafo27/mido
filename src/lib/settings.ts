@@ -35,6 +35,8 @@ export interface Settings {
   checkForUpdates: boolean;
   /** Name comments are signed with when git has no user. */
   commentAuthor: string;
+  /** A minimap of the document in place of the scrollbar, in the editor and the preview. */
+  minimap: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -61,6 +63,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autosave: true,
   checkForUpdates: true,
   commentAuthor: "",
+  minimap: false,
 };
 
 export interface FontOption {

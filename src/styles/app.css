@@ -1086,6 +1086,68 @@ body.resizing .resizer {
   text-align: center;
   pointer-events: none;
 }
+/* Minimap, in place of the scrollbar. */
+.pane.with-minimap > .editor,
+.pane.with-minimap > .preview {
+  margin-right: 96px;
+}
+.pane.with-minimap > .preview::-webkit-scrollbar,
+.pane.with-minimap .cm-scroller::-webkit-scrollbar {
+  width: 0;
+}
+.minimap {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--border-soft);
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.minimap canvas {
+  display: block;
+}
+.minimap-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+.minimap-page {
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.minimap-slider {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--text);
+  opacity: 0.07;
+  transition: opacity 0.12s;
+}
+.minimap:hover .minimap-slider {
+  opacity: 0.11;
+}
+.minimap.dragging .minimap-slider {
+  opacity: 0.16;
+}
+.minimap-marker {
+  position: absolute;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--warm);
+  box-shadow: 0 0 0 1.5px var(--bg);
+  cursor: pointer;
+}
+.minimap-marker.active {
+  transform: scale(1.35);
+}
+
 .scroll-markers {
   position: absolute;
   top: 4px;

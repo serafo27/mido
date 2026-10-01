@@ -1291,6 +1291,7 @@ export default function App() {
                       highlights={highlights}
                       onSelectHighlight={showThread}
                       onHoverHighlight={hoverHighlight}
+                      minimap={settings.minimap}
                     />
                   )}
                   {mode === "split" && (
@@ -1320,6 +1321,7 @@ export default function App() {
                       highlights={highlights}
                       onSelectHighlight={showThread}
                       onHoverHighlight={hoverHighlight}
+                      minimap={settings.minimap}
                     />
                   )}
                 </div>
