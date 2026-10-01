@@ -57,6 +57,34 @@ function favicon(): Plugin {
   };
 }
 
+/** What search engines and link previews show for the page. */
+function searchMetadata(): Plugin {
+  const title = "Mido for the web — read Markdown in your browser";
+  const description =
+    "Open folders and Markdown files from your computer and read them in the browser with Mido. Nothing is uploaded: your files never leave your computer.";
+  const url = "https://serafo27.github.io/mido/app/";
+  const image = "https://serafo27.github.io/mido/assets/og-image.jpg";
+  return {
+    name: "mido-web-search-metadata",
+    transformIndexHtml: (html) =>
+      html.replace(
+        "<title>Mido</title>",
+        [
+          `<title>${title}</title>`,
+          `<meta name="description" content="${description}" />`,
+          `<meta property="og:title" content="${title}" />`,
+          `<meta property="og:description" content="${description}" />`,
+          `<meta property="og:type" content="website" />`,
+          `<meta property="og:site_name" content="Mido" />`,
+          `<meta property="og:url" content="${url}" />`,
+          `<meta property="og:image" content="${image}" />`,
+          `<meta name="twitter:card" content="summary_large_image" />`,
+          `<link rel="canonical" href="${url}" />`,
+        ].join("\n    "),
+      ),
+  };
+}
+
 export default mergeConfig(
   base,
   defineConfig({
@@ -75,7 +103,7 @@ export default mergeConfig(
         { find: /^@tauri-apps\/plugin-opener$/, replacement: web("opener.ts") },
       ],
     },
-    plugins: [contentSecurityPolicy(), favicon()],
+    plugins: [contentSecurityPolicy(), favicon(), searchMetadata()],
     build: { outDir: "dist-web", emptyOutDir: true },
   }),
 );
