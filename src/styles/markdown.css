@@ -593,68 +593,8 @@
   height: 1px;
 }
 
-/* ============================================================
-   Syntax highlighting (highlight.js classes)
-   ============================================================ */
-.hljs-keyword,
-.hljs-selector-tag,
-.hljs-built_in,
-.hljs-doctag,
-.hljs-tag .hljs-name {
-  color: var(--hl-keyword);
-}
-.hljs-string,
-.hljs-regexp,
-.hljs-addition,
-.hljs-template-tag,
-.hljs-template-variable {
-  color: var(--hl-string);
-}
-.hljs-number,
-.hljs-literal,
-.hljs-symbol,
-.hljs-bullet,
-.hljs-variable.constant_ {
-  color: var(--hl-number);
-}
-.hljs-comment,
-.hljs-quote {
-  color: var(--hl-comment);
-  font-style: italic;
-}
-.hljs-title,
-.hljs-title.function_,
-.hljs-section {
-  color: var(--hl-title);
-}
-.hljs-type,
-.hljs-title.class_,
-.hljs-class .hljs-title {
-  color: var(--hl-type);
-}
-.hljs-attr,
-.hljs-attribute,
-.hljs-property,
-.hljs-selector-attr,
-.hljs-selector-class,
-.hljs-selector-id,
-.hljs-variable {
-  color: var(--hl-attr);
-}
-.hljs-meta,
-.hljs-meta .hljs-keyword,
-.hljs-punctuation {
-  color: var(--hl-meta);
-}
-.hljs-deletion {
-  color: var(--alert-caution);
-}
-.hljs-emphasis {
-  font-style: italic;
-}
-.hljs-strong {
-  font-weight: 700;
-}
+/* Syntax highlighting: Shiki colours each token inline with the theme's
+   --hl-* variables (src/lib/shiki.ts). */
 
 /* ---------- Mermaid diagrams ---------- */
 .markdown .mermaid-diagram {

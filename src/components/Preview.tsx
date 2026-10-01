@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -25,6 +26,7 @@ import {
   textOf,
 } from "../lib/markdown";
 import { BlockRenderer } from "../lib/blockRenderer";
+import { highlightingVersion, subscribeHighlighting } from "../lib/shiki";
 import { blocksImage, type RemoteImages } from "../lib/settings";
 import { renderMermaid, useMermaidTheme } from "../lib/mermaid";
 import {
@@ -200,6 +202,8 @@ export default function Preview(props: PreviewProps) {
   const [markers, setMarkers] = useState<ScrollMarker[]>([]);
   // Keeps the blocks of the document rendered, to render again only what an edit changes.
   const [renderer] = useState(() => new BlockRenderer());
+  // Code grammars load as they're needed: render again as each arrives.
+  const highlighting = useSyncExternalStore(subscribeHighlighting, highlightingVersion);
   // Keep typing responsive in split mode: render the preview at lower priority.
   const deferred = useDeferredValue(content);
   const sourceLines = useMemo(() => deferred.split(/\r\n?|\n/).length, [deferred]);
@@ -408,7 +412,7 @@ export default function Preview(props: PreviewProps) {
             </dl>
           )}
           <RenderBoundary source={deferred}>
-            <RenderedMarkdown source={deferred} components={components} renderer={renderer} />
+            <RenderedMarkdown source={deferred} components={components} renderer={renderer} highlighting={highlighting} />
           </RenderBoundary>
         </article>
       </div>
@@ -443,6 +447,8 @@ const RenderedMarkdown = memo(function RenderedMarkdown({
   source: string;
   components: Components;
   renderer: BlockRenderer;
+  /** Changes when a code grammar has loaded, to render again. */
+  highlighting: number;
 }) {
   return <>{renderer.render(source, components)}</>;
 });

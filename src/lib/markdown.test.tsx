@@ -1,6 +1,8 @@
+// @vitest-environment happy-dom
 import { beforeAll, describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import ReactMarkdown from "react-markdown";
+import { loadLanguages } from "./shiki";
 import { documentStats, loadFrontmatterParsers, parseFrontmatter, rehypePlugins, remarkPlugins } from "./markdown";
 
 /** Renders Markdown through the preview's real pipeline. */
@@ -97,9 +99,24 @@ describe("rendering", () => {
     expect(render("$$E = mc^2$$")).toContain('class="katex');
   });
 
-  it("highlights code with a declared language only", () => {
-    expect(render("```js\nconst x = 1;\n```")).toContain("hljs-keyword");
-    expect(render("```\nconst x = 1;\n```")).not.toContain("hljs-keyword");
+  it("highlights code with a declared language once its grammar has loaded", async () => {
+    await loadLanguages(["js"]);
+    const html = render("```js\nconst x = foo(1);\n```");
+    expect(html).toContain('<code class="language-js"><span class="line"><span style="color:var(--hl-keyword)">const</span>');
+    expect(html).toContain('<span style="color:var(--hl-title)">foo</span>(');
+    expect(render("```\nconst x = 1;\n```")).not.toContain("var(--hl-");
+    expect(render("```nosuchlanguage\nconst x = 1;\n```")).not.toContain("var(--hl-");
+  });
+
+  it("leaves code plain while its grammar loads, and keeps its text either way", async () => {
+    const src = "```rust\nfn main() {}\n\n// end\n```";
+    const text = (html: string) => new DOMParser().parseFromString(html, "text/html").body.textContent;
+    const before = render(src);
+    expect(before).not.toContain("var(--hl-");
+    await loadLanguages(["rust"]);
+    const after = render(src);
+    expect(after).toContain("var(--hl-keyword)");
+    expect(text(after)).toBe(text(before));
   });
 
   it("doesn't render frontmatter as text", () => {

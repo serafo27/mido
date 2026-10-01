@@ -24,6 +24,7 @@ import { urlAttributes } from "html-url-attributes";
 import GithubSlugger from "github-slugger";
 import { defaultUrlTransform } from "react-markdown";
 import { visit } from "unist-util-visit";
+import { highlightingVersion } from "./shiki";
 import { rehypeAfterSlug, rehypeBeforeSlug, remarkPlugins, remarkPluginsAfterStart, tagNestedLines } from "./markdown";
 
 /* ---------- splitting the source ---------- */
@@ -417,9 +418,11 @@ export class BlockRenderer {
     const base = lineOf(nodes[0]) ?? 0;
     // Positions count only as lines relative to the group, which its nested
     // blocks are tagged with: moving the group doesn't change its key.
-    const key = JSON.stringify(nodes, (name, value) =>
+    const content = JSON.stringify(nodes, (name, value) =>
       name === "position" ? ((value as Position | undefined)?.start.line ?? base) - base : value,
     );
+    // Code is highlighted once its grammar has loaded: a group with code is rendered again then.
+    const key = content.includes('"language-') ? `${highlightingVersion()}\u0000${content}` : content;
     const cached = this.groups.get(key);
     if (cached) return cached;
 

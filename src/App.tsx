@@ -982,12 +982,13 @@ export default function App() {
     try {
       const { settings } = live.current;
       const dark = document.documentElement.dataset.theme === "dark";
+      const body = await renderTab(tab, { mermaid: currentMermaidTheme(), embedImages: true });
       const html = htmlDocument({
         title: basename(tab.path).replace(/\.[^.]+$/, ""),
-        body: await renderTab(tab, { mermaid: currentMermaidTheme(), embedImages: true }),
+        body,
         theme: dark ? "dark" : "light",
         style: settings.style,
-        variables: currentMarkdownVariables(),
+        variables: currentMarkdownVariables(body),
         wrap: settings.wrap,
         justify: settings.justify,
       });

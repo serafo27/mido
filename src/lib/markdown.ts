@@ -7,8 +7,8 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import rehypeKatex from "rehype-katex";
-import rehypeHighlight from "rehype-highlight";
 import { visit } from "unist-util-visit";
+import { rehypeShiki } from "./shiki";
 
 /**
  * GitHub-style alerts: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`,
@@ -119,7 +119,7 @@ export const remarkPlugins = [remarkGfm, remarkMath, [remarkFrontmatter, ["yaml"
 export const remarkPluginsAfterStart = remarkPlugins.filter((p) => !Array.isArray(p) || p[0] !== remarkFrontmatter);
 /** Steps before and after heading ids, which the preview's block renderer gives across blocks. */
 export const rehypeBeforeSlug = [rehypeRaw, rehypeClobberPrefix, [rehypeSanitize, sanitizeSchema]];
-export const rehypeAfterSlug = [rehypeKatex, [rehypeHighlight, { detect: false }]];
+export const rehypeAfterSlug = [rehypeKatex, rehypeShiki];
 export const rehypePlugins = [
   ...rehypeBeforeSlug,
   // After raw HTML is parsed, so its blocks get a line too; after sanitizing,

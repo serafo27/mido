@@ -12,6 +12,7 @@ import {
   textOf,
 } from "./markdown";
 import { renderMermaid, type MermaidTheme } from "./mermaid";
+import { codeLanguages, loadLanguages } from "./shiki";
 import { decodeLink, dirname, resolve } from "./paths";
 import { blocksImage, type RemoteImages } from "./settings";
 
@@ -74,6 +75,7 @@ export async function renderDocument(options: RenderOptions): Promise<string> {
   };
 
   if (showFrontmatter && hasFrontmatter(source)) await loadFrontmatterParsers();
+  await loadLanguages(codeLanguages(source));
   const frontmatter = showFrontmatter ? parseFrontmatter(source) : null;
   const markup = renderToStaticMarkup(
     <>
@@ -152,10 +154,13 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 ${markdownCss}
 .markdown { padding-bottom: 72px; }`;
 
-/** The CSS variables an exported page uses, with their current values. */
-export function currentMarkdownVariables(): Record<string, string> {
+/**
+ * The CSS variables an exported page uses, with their current values: its
+ * styles', and those `body` uses inline (highlighted code's colours).
+ */
+export function currentMarkdownVariables(body = ""): Record<string, string> {
   const style = getComputedStyle(document.documentElement);
-  const names = new Set([...PAGE_CSS.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]));
+  const names = new Set([...(PAGE_CSS + body).matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]));
   const vars: Record<string, string> = {};
   for (const name of [...names].sort()) {
     const value = style.getPropertyValue(name).trim();

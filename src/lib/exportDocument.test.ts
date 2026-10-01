@@ -20,7 +20,7 @@ describe("renderDocument", () => {
   it("renders like the preview: code blocks with their language, wrapped tables", async () => {
     const html = await render("```js\nconst x = 1;\n```\n\n| a |\n| - |\n| 1 |");
     expect(html).toContain('<div class="code-block has-lang"><div class="code-meta"><span class="code-lang">js</span>');
-    expect(html).toContain("hljs-keyword");
+    expect(html).toContain("color:var(--hl-keyword)");
     expect(html).toMatch(/<div class="table-wrap"><table>/);
   });
 
@@ -89,6 +89,15 @@ describe("currentMarkdownVariables", () => {
     expect(vars["--bg"]).toBe("#101010");
     expect(vars["--text"]).toBe("#efefef");
     expect(vars["--code-bg"]).toBe("#202020");
+  });
+
+  it("includes the colours highlighted code uses inline", () => {
+    vi.spyOn(window, "getComputedStyle").mockReturnValue({
+      getPropertyValue: (name: string) => (name === "--hl-keyword" ? "#c0c" : ""),
+    } as CSSStyleDeclaration);
+    const vars = currentMarkdownVariables('<span style="color:var(--hl-keyword)">const</span>');
+    vi.restoreAllMocks();
+    expect(vars["--hl-keyword"]).toBe("#c0c");
   });
 });
 
