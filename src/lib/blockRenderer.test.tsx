@@ -91,6 +91,8 @@ describe("BlockRenderer", () => {
     });
   }
 
+  // Hundreds of whole-document renders, each also through react-markdown: longer than
+  // Vitest's default 5 s timeout on CI runners.
   it("renders like react-markdown through a long run of random edits", () => {
     let seed = 7;
     const random = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
@@ -106,7 +108,7 @@ describe("BlockRenderer", () => {
       }
       expect(blocks(renderer, src), `step ${step}`).toBe(reference(src));
     }
-  });
+  }, 60_000);
 
   it("tags top-level blocks with their source line as the document changes", () => {
     const renderer = new BlockRenderer();
