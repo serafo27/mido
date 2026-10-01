@@ -158,6 +158,9 @@ export interface HtmlDocumentOptions {
   justify: boolean;
 }
 
+/** Subresource Integrity of KaTeX's stylesheet, computed at build time (vite.config.ts). */
+declare const __KATEX_CSS_INTEGRITY__: string;
+
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
@@ -168,7 +171,7 @@ export function htmlDocument(o: HtmlDocumentOptions): string {
     .join("\n");
   // KaTeX's stylesheet and fonts are too big to inline; link them only when needed.
   const katexCss = o.body.includes('class="katex')
-    ? `\n<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@${katex.version}/dist/katex.min.css">`
+    ? `\n<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@${katex.version}/dist/katex.min.css" integrity="${__KATEX_CSS_INTEGRITY__}" crossorigin="anonymous">`
     : "";
   return `<!doctype html>
 <html lang="en" data-theme="${o.theme}" data-style="${escapeHtml(o.style)}">

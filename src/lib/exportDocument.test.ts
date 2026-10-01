@@ -103,7 +103,7 @@ describe("htmlDocument", () => {
 
   it("links KaTeX's stylesheet only when the document has math", () => {
     expect(page("<p>Hi</p>")).not.toContain("katex.min.css");
-    expect(page('<span class="katex">x</span>')).toMatch(/<link rel="stylesheet" href="https:\/\/cdn\.jsdelivr\.net\/npm\/katex@[\d.]+\/dist\/katex\.min\.css">/);
+    expect(page('<span class="katex">x</span>')).toMatch(/<link rel="stylesheet" href="https:\/\/cdn\.jsdelivr\.net\/npm\/katex@[\d.]+\/dist\/katex\.min\.css" integrity="sha384-[A-Za-z0-9+/]{64}" crossorigin="anonymous">/);
   });
 
   it("applies the wrap and justify settings", () => {
