@@ -1,11 +1,22 @@
-import { memo, useDeferredValue, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  memo,
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
-import type { Element } from "hast";
+import type { Element, ElementContent } from "hast";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Check, Copy } from "lucide-react";
 import { dirname, isMarkdown, resolve } from "../lib/paths";
 import { parseFrontmatter, rehypePlugins, remarkPlugins } from "../lib/markdown";
+import { renderMermaid, useDarkTheme } from "../lib/mermaid";
 
 interface PreviewProps {
   content: string;
@@ -148,6 +159,11 @@ export default function Preview(props: PreviewProps) {
         return <img {...rest} src={source} alt={alt ?? ""} loading="lazy" />;
       },
       pre({ node, children, ...rest }) {
+        if (languageOf(node) === "mermaid") {
+          // Keep the source line, for scroll sync and the outline.
+          const line = (rest as Record<string, unknown>)["data-line"] as number | undefined;
+          return <MermaidBlock code={textOf(node)} line={line} />;
+        }
         return (
           <CodeBlock language={languageOf(node)} {...rest}>
             {children}
@@ -215,6 +231,55 @@ function languageOf(node: Element | undefined): string | undefined {
   if (!Array.isArray(classes)) return undefined;
   const lang = classes.map(String).find((c) => c.startsWith("language-"));
   return lang?.slice("language-".length);
+}
+
+/** The text content of a hast node. */
+function textOf(node: Element | ElementContent | undefined): string {
+  if (!node) return "";
+  if (node.type === "text") return node.value;
+  if (node.type === "element") return node.children.map(textOf).join("");
+  return "";
+}
+
+function MermaidBlock({ code, line }: { code: string; line?: number }) {
+  const dark = useDarkTheme();
+  const [svg, setSvg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let current = true;
+    renderMermaid(code, dark).then(
+      (result) => {
+        if (!current) return;
+        setSvg(result);
+        setError(null);
+      },
+      (e) => {
+        if (current) setError(e instanceof Error ? e.message : String(e));
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [code, dark]);
+
+  if (error) {
+    return (
+      <div className="mermaid-error" data-line={line}>
+        <div className="mermaid-error-title">Mermaid diagram error</div>
+        <pre>{error}</pre>
+      </div>
+    );
+  }
+  // Mermaid sanitizes the diagram itself (securityLevel "strict").
+  // While a new version renders, the previous one stays to avoid flicker.
+  return svg ? (
+    <div className="mermaid-diagram" data-line={line} dangerouslySetInnerHTML={{ __html: svg }} />
+  ) : (
+    <div className="mermaid-diagram loading" data-line={line}>
+      Rendering diagram…
+    </div>
+  );
 }
 
 function CodeBlock({ language, children, ...rest }: { language?: string; children: ReactNode }) {

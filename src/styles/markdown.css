@@ -655,3 +655,39 @@
 .hljs-strong {
   font-weight: 700;
 }
+
+/* ---------- Mermaid diagrams ---------- */
+.markdown .mermaid-diagram {
+  display: flex;
+  justify-content: center;
+  margin: 1.5em 0;
+  overflow-x: auto;
+}
+.markdown .mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+.markdown .mermaid-diagram.loading {
+  padding: 24px;
+  font-size: 0.85em;
+  color: var(--text-faint);
+}
+.markdown .mermaid-error {
+  margin: 1.5em 0;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--alert-caution) 40%, transparent);
+  background: color-mix(in srgb, var(--alert-caution) 7%, transparent);
+}
+.markdown .mermaid-error-title {
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--alert-caution);
+}
+.markdown .mermaid-error pre {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  font-family: var(--md-font-code, var(--font-mono));
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
