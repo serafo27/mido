@@ -1078,6 +1078,44 @@ body.resizing .resizer {
   text-align: center;
   pointer-events: none;
 }
+.selection-menu {
+  position: fixed;
+  z-index: 150;
+  transform: translate(-50%, -100%);
+  animation: selection-menu-in 0.12s ease-out;
+}
+@keyframes selection-menu-in {
+  from {
+    opacity: 0;
+  }
+}
+.selection-menu.below {
+  transform: translate(-50%, 0);
+}
+.selection-menu button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text);
+}
+.selection-menu button:hover {
+  border-color: var(--comment-underline);
+  color: var(--accent-strong);
+}
+.selection-menu kbd {
+  font-family: inherit;
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
 ::highlight(mido-comment) {
   background-color: var(--comment-highlight);
 }

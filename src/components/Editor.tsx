@@ -263,6 +263,26 @@ export function editorSelection(): { from: number; to: number } | null {
   return from < to ? { from, to } : null;
 }
 
+export interface LineRect {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** The first line of the editor's selection, in window coordinates. */
+export function editorSelectionLine(): LineRect | null {
+  const view = currentView;
+  const range = editorSelection();
+  if (!view || !range) return null;
+  const start = view.coordsAtPos(range.from, 1);
+  const end = view.coordsAtPos(range.to, -1);
+  if (!start) return null;
+  // On one line, centre over the selection; otherwise over its first line's start.
+  const right = end && Math.abs(end.top - start.top) < 2 ? end.right : start.left;
+  return { left: start.left, right, top: start.top, bottom: start.bottom };
+}
+
 /** First source line visible at the top of the editor. */
 export function editorTopLine(view: EditorView): number {
   return view.state.doc.lineAt(view.lineBlockAtHeight(view.scrollDOM.scrollTop).from).number;

@@ -38,6 +38,7 @@ import Editor, {
 import Preview, { previewTopLine, revealPreviewLine } from "./components/Preview";
 import Outline from "./components/Outline";
 import Comments, { type PlacedThread } from "./components/Comments";
+import SelectionMenu from "./components/SelectionMenu";
 import {
   buildThreads,
   createAnchor,
@@ -1292,6 +1293,7 @@ export default function App() {
                     />
                   )}
                 </div>
+                {!isWeb && <SelectionMenu containerRef={workspaceRef} onComment={startComment} />}
                 {outlineOpen && (
                   <Outline
                     headings={headings}
