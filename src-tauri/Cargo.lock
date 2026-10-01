@@ -2063,7 +2063,7 @@ dependencies = [
 
 [[package]]
 name = "mido"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "notify-debouncer-mini",
  "percent-encoding",

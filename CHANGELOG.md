@@ -9,6 +9,35 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-01
+
+### Added
+
+- In split view, scrolling the preview scrolls the editor too, as in VS Code. Both sides stay on the same line, inside long lists, tables and code blocks as well.
+- Switching between Read, Split and Edit keeps your place in the document.
+- Code is highlighted with the grammars VS Code uses, for many more languages (Rust, Zig, Dockerfile and others), in your theme's colours.
+- Mermaid diagrams take your theme's colours.
+- **Settings → Layout → Images from the web** chooses which images from the internet a document may load: all, only secure (HTTPS) ones, or none. A blocked image shows as a button that loads it.
+- TOML frontmatter is shown, and YAML frontmatter with nested values, lists of entries or text on several lines shows correctly.
+
+### Changed
+
+- Images from the web over plain HTTP are no longer loaded unless you allow them (see above): loading one tells its server you opened the document, in a way anyone on the network can see.
+- While you type, the preview only renders again what changed: long documents stay responsive (about ten times faster).
+- The outline lists headings inside quotes and lists too, as the preview shows them.
+
+### Fixed
+
+- An image whose path contains a bare `%` no longer leaves the window blank. A document that can't be rendered shows the error in the page.
+- A link to a section of another document (`notes.md#setup`) opens that document at the section, and a link to a section of the document you're reading scrolls to it.
+- Links to old-style `<a name="…">` anchors work.
+- Scroll sync no longer skips HTML blocks such as `<div align="center">`, and the editor and the preview are no longer about two lines apart.
+- The editor's minimap no longer changes as you scroll through the document.
+
+### Security
+
+- Ids and names set by HTML in a document can no longer shadow the app's own objects.
+
 ## [0.9.1] - 2026-10-01
 
 ### Security
@@ -135,7 +164,8 @@ The first release of Mido, for macOS (Apple Silicon and Intel).
 - Custom themes with a colour editor and JSON import and export.
 - Auto, light and dark modes, with an optional accent colour.
 
-[Unreleased]: https://github.com/serafo27/mido/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/serafo27/mido/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/serafo27/mido/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/serafo27/mido/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/serafo27/mido/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/serafo27/mido/compare/v0.7.1...v0.8.0
