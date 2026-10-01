@@ -20,6 +20,7 @@ import { basename, dirname, isInside, isMarkdown, join } from "./lib/paths";
 import { DOWNLOAD_URL, isMac, isWeb, requireDesktop, WEB_ACCESS_NEEDED } from "./lib/platform";
 import { useStoredState } from "./lib/useStoredState";
 import { DEFAULT_SETTINGS, applySettings, lightThemeVariables, type Settings } from "./lib/settings";
+import { currentMermaidTheme, mermaidTheme, type MermaidTheme } from "./lib/mermaid";
 import { currentMarkdownVariables, htmlDocument, renderDocument } from "./lib/exportDocument";
 import { assetName, imageMarkdown } from "./lib/images";
 import Sidebar from "./components/Sidebar";
@@ -958,7 +959,7 @@ export default function App() {
   /* ---------- export & print ---------- */
 
   const renderTab = useCallback(
-    (tab: Tab, options: { dark: boolean; embedImages: boolean }) =>
+    (tab: Tab, options: { mermaid: MermaidTheme; embedImages: boolean }) =>
       renderDocument({
         source: tab.content,
         filePath: tab.path,
@@ -980,7 +981,7 @@ export default function App() {
       const dark = document.documentElement.dataset.theme === "dark";
       const html = htmlDocument({
         title: basename(tab.path).replace(/\.[^.]+$/, ""),
-        body: await renderTab(tab, { dark, embedImages: true }),
+        body: await renderTab(tab, { mermaid: currentMermaidTheme(), embedImages: true }),
         theme: dark ? "dark" : "light",
         style: settings.style,
         variables: currentMarkdownVariables(),
@@ -1003,7 +1004,10 @@ export default function App() {
     const tab = activeTab();
     if (!tab) return;
     try {
-      const body = await renderTab(tab, { dark: false, embedImages: false });
+      // Paper is light: diagrams take the light theme's colours, like the page.
+      const light = lightThemeVariables(live.current.settings);
+      const mermaid = mermaidTheme((name) => light[name] ?? "", false);
+      const body = await renderTab(tab, { mermaid, embedImages: false });
       flushSync(() => setPrintBody(body));
       await imagesLoaded(printRef.current);
       // On macOS Tauri routes this to WebKit's native print panel, which also saves PDFs.

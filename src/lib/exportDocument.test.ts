@@ -8,7 +8,7 @@ const render = (source: string, options: Partial<RenderOptions> = {}) =>
     filePath: "/notes/sub/doc.md",
     root: "/notes",
     showFrontmatter: false,
-    dark: false,
+    mermaid: { dark: false, variables: {} },
     assetUrl: (path) => `asset://localhost${path}`,
     embedImages: false,
     ...options,

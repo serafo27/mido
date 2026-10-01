@@ -3,7 +3,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import katex from "katex";
 import markdownCss from "../styles/markdown.css?raw";
 import { languageOf, parseFrontmatter, rehypePlugins, remarkPlugins, textOf } from "./markdown";
-import { renderMermaid } from "./mermaid";
+import { renderMermaid, type MermaidTheme } from "./mermaid";
 import { decodeLink, dirname, resolve } from "./paths";
 
 const EXTERNAL = /^[a-z][a-z0-9+.-]*:/i;
@@ -13,8 +13,8 @@ export interface RenderOptions {
   filePath: string;
   root: string;
   showFrontmatter: boolean;
-  /** Mermaid theme. */
-  dark: boolean;
+  /** Colours of diagrams. */
+  mermaid: MermaidTheme;
   /** Turns a local file path into a URL the webview can load (the asset protocol). */
   assetUrl: (path: string) => string;
   /** Inline local images as data URIs, so the result stands on its own. */
@@ -88,7 +88,7 @@ export async function renderDocument(options: RenderOptions): Promise<string> {
     const code = el.dataset.mermaid ?? "";
     el.removeAttribute("data-mermaid");
     try {
-      el.innerHTML = await renderMermaid(code, options.dark);
+      el.innerHTML = await renderMermaid(code, options.mermaid);
     } catch (e) {
       el.className = "mermaid-error";
       const title = doc.createElement("div");

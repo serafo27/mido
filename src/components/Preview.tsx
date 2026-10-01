@@ -17,7 +17,7 @@ import { Check, Copy } from "lucide-react";
 import { decodeLink, dirname, isMarkdown, resolve, splitLink } from "../lib/paths";
 import { CLOBBER_PREFIX, languageOf, parseFrontmatter, textOf } from "../lib/markdown";
 import { BlockRenderer } from "../lib/blockRenderer";
-import { renderMermaid, useDarkTheme } from "../lib/mermaid";
+import { renderMermaid, useMermaidTheme } from "../lib/mermaid";
 import {
   clearHighlights,
   highlightAt,
@@ -447,13 +447,13 @@ class RenderBoundary extends Component<
 }
 
 function MermaidBlock({ code, line, offset }: { code: string; line?: number; offset?: number }) {
-  const dark = useDarkTheme();
+  const theme = useMermaidTheme();
   const [svg, setSvg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let current = true;
-    renderMermaid(code, dark).then(
+    renderMermaid(code, theme).then(
       (result) => {
         if (!current) return;
         setSvg(result);
@@ -466,7 +466,7 @@ function MermaidBlock({ code, line, offset }: { code: string; line?: number; off
     return () => {
       current = false;
     };
-  }, [code, dark]);
+  }, [code, theme]);
 
   if (error) {
     return (
