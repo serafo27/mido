@@ -37,7 +37,7 @@ import Editor, {
 } from "./components/Editor";
 import Preview, { previewTopLine, revealPreviewLine } from "./components/Preview";
 import Outline from "./components/Outline";
-import Comments, { type PlacedThread } from "./components/Comments";
+import Comments, { CommentPeek, type PlacedThread } from "./components/Comments";
 import SelectionMenu from "./components/SelectionMenu";
 import {
   buildThreads,
@@ -615,14 +615,29 @@ export default function App() {
     );
   }, [threads, activePath, activeContent]);
 
+  // The thread under the mouse: in the document (with where the mouse came onto
+  // it, for the peek card) or in the panel (without).
+  const [hover, setHover] = useState<{ id: string; x?: number; y?: number } | null>(null);
+  const hoverHighlight = useCallback((id: string | null, x?: number, y?: number) => {
+    // Only a change of thread updates the state, not every mouse move.
+    setHover((prev) => (prev?.id === id && (prev.x === undefined) === (x === undefined) ? prev : id ? { id, x, y } : null));
+  }, []);
+  useEffect(() => setHover(null), [activePath, mode]);
+
   const draftRange = draft && draft.path === activePath ? locate(activeContent, draft.anchor) : null;
   const highlights = useMemo<SourceHighlight[]>(() => {
     const list: SourceHighlight[] = placedThreads.flatMap(({ thread, range }) =>
-      range && !thread.resolved ? [{ id: thread.id, ...range, active: thread.id === activeThread && !draftRange }] : [],
+      range && !thread.resolved
+        ? [{ id: thread.id, ...range, active: thread.id === activeThread && !draftRange, hovered: thread.id === hover?.id }]
+        : [],
     );
     if (draftRange) list.push({ id: "draft", ...draftRange, active: true });
     return list;
-  }, [placedThreads, activeThread, draftRange?.from, draftRange?.to]);
+  }, [placedThreads, activeThread, hover?.id, draftRange?.from, draftRange?.to]);
+  const peekThread =
+    hover?.x !== undefined && hover.id !== activeThread
+      ? placedThreads.find((t) => t.thread.id === hover.id)?.thread
+      : undefined;
   const openThreadCount = placedThreads.filter((t) => !t.thread.resolved).length;
 
   /** Starts a comment on the text selected in the editor or the preview. */
@@ -1262,6 +1277,7 @@ export default function App() {
                       onAddImages={addImages}
                       highlights={highlights}
                       onSelectHighlight={showThread}
+                      onHoverHighlight={hoverHighlight}
                     />
                   )}
                   {mode === "split" && (
@@ -1290,9 +1306,13 @@ export default function App() {
                       onOpenFile={openFile}
                       highlights={highlights}
                       onSelectHighlight={showThread}
+                      onHoverHighlight={hoverHighlight}
                     />
                   )}
                 </div>
+                {peekThread && hover?.x !== undefined && hover.y !== undefined && (
+                  <CommentPeek thread={peekThread} x={hover.x} y={hover.y} />
+                )}
                 {!isWeb && <SelectionMenu containerRef={workspaceRef} onComment={startComment} />}
                 {outlineOpen && (
                   <Outline
@@ -1310,6 +1330,7 @@ export default function App() {
                     author={author}
                     readOnly={isWeb}
                     onSelect={selectThread}
+                    onHover={hoverHighlight}
                     onNewComment={startComment}
                     onSubmitDraft={submitDraft}
                     onCancelDraft={() => setDraft(null)}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Check, ListChecks, MessageSquarePlus, RotateCcw, Trash2, X } from "lucide-react";
+import { Check, ListChecks, MessageSquare, MessageSquarePlus, RotateCcw, Trash2, X } from "lucide-react";
 import { sameAuthor, type Author, type Range, type Thread } from "../lib/comments";
 import { altKey, modKey } from "../lib/platform";
 
@@ -20,6 +20,8 @@ interface CommentsProps {
   /** The web version only shows comments. */
   readOnly: boolean;
   onSelect: (id: string) => void;
+  /** The mouse is over a thread's card (its id), or none (null). */
+  onHover: (id: string | null) => void;
   onNewComment: () => void;
   /** `name` is given when the author had to type one. */
   onSubmitDraft: (body: string, name?: string) => void;
@@ -60,6 +62,7 @@ export default function Comments(props: CommentsProps) {
       author={author}
       readOnly={readOnly}
       onSelect={() => props.onSelect(t.thread.id)}
+      onHover={(over) => props.onHover(over ? t.thread.id : null)}
       onReply={(body, name) => props.onReply(t.thread.id, body, name)}
       onResolve={() => props.onResolve(t.thread.id)}
       onReopen={() => props.onReopen(t.thread.id)}
@@ -153,6 +156,7 @@ interface ThreadCardProps {
   author: Author | null;
   readOnly: boolean;
   onSelect: () => void;
+  onHover: (over: boolean) => void;
   onReply: (body: string, name?: string) => void;
   onResolve: () => void;
   onReopen: () => void;
@@ -165,6 +169,8 @@ function ThreadCard({ placed, active, author, readOnly, ...actions }: ThreadCard
   return (
     <div
       className={classes.filter(Boolean).join(" ")}
+      onMouseEnter={() => actions.onHover(true)}
+      onMouseLeave={() => actions.onHover(false)}
       onClick={(e) => {
         // Clicks inside the reply box or on buttons don't move the document.
         if (!(e.target as HTMLElement).closest("textarea, input, button")) actions.onSelect();
@@ -209,6 +215,34 @@ function ThreadCard({ placed, active, author, readOnly, ...actions }: ThreadCard
       {active && !readOnly && !thread.resolved && (
         <Composer placeholder="Reply…" submitLabel="Reply" author={author} onSubmit={actions.onReply} />
       )}
+    </div>
+  );
+}
+
+/** A card by the mouse over commented text: who said what, and that a click opens it. */
+export function CommentPeek({ thread, x, y }: { thread: Thread; x: number; y: number }) {
+  const first = thread.comments[0];
+  const last = thread.comments[thread.comments.length - 1];
+  if (!first) return null;
+  const replies = thread.comments.length - 1;
+  // Below the mouse, or above it near the bottom of the window.
+  const above = y > window.innerHeight - 140;
+  const left = Math.min(Math.max(x - 20, 8), window.innerWidth - 288);
+  return (
+    <div className={`comment-peek ${above ? "above" : ""}`} style={{ left, top: above ? y - 12 : y + 18 }}>
+      <div className="comment-meta">
+        <Avatar author={first.author} />
+        <span className="comment-author">{first.author.name}</span>
+        <time dateTime={first.at}>{timeAgo(first.at)}</time>
+      </div>
+      <div className="comment-peek-body">{first.body}</div>
+      <div className="comment-peek-footer">
+        <MessageSquare size={11} />
+        {replies > 0
+          ? `${replies} ${replies === 1 ? "reply" : "replies"}, last by ${last.author.name} · `
+          : ""}
+        Click to open
+      </div>
     </div>
   );
 }

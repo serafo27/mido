@@ -32,6 +32,8 @@ interface PreviewProps {
   highlights?: SourceHighlight[];
   /** A highlight was clicked. */
   onSelectHighlight?: (id: string) => void;
+  /** The mouse moved onto a highlight (its id) or off them all (null). */
+  onHoverHighlight?: (id: string | null, x: number, y: number) => void;
 }
 
 const EXTERNAL = /^[a-z][a-z0-9+.-]*:/i;
@@ -102,7 +104,8 @@ const scrollPositions = new Map<string, number>();
 
 export default function Preview(props: PreviewProps) {
   const { content, filePath, root, wrap, justify, showFrontmatter, scrollRef, onOpenFile, onScroll } = props;
-  const { highlights, onSelectHighlight } = props;
+  const { highlights, onSelectHighlight, onHoverHighlight } = props;
+  const hoverFrame = useRef(0);
   // Keep typing responsive in split mode: render the preview at lower priority.
   const deferred = useDeferredValue(content);
   const frontmatter = useMemo(
@@ -205,6 +208,19 @@ export default function Preview(props: PreviewProps) {
       onScroll={(e) => {
         scrollPositions.set(filePath, e.currentTarget.scrollTop);
         onScroll?.(e.currentTarget);
+      }}
+      onMouseMove={(e) => {
+        if (!onHoverHighlight) return;
+        const { currentTarget: el, clientX: x, clientY: y, buttons } = e;
+        cancelAnimationFrame(hoverFrame.current);
+        hoverFrame.current = requestAnimationFrame(() =>
+          // Not while selecting text.
+          onHoverHighlight(buttons ? null : highlightAt(el, x, y), x, y),
+        );
+      }}
+      onMouseLeave={(e) => {
+        cancelAnimationFrame(hoverFrame.current);
+        onHoverHighlight?.(null, e.clientX, e.clientY);
       }}
       onClick={(e) => {
         if (!onSelectHighlight || !window.getSelection()?.isCollapsed) return;

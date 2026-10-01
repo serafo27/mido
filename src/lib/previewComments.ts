@@ -6,7 +6,10 @@ import { findRenderedText, lineStarts, lineAt, visibleWordsOf, wordsPattern, typ
 
 export interface SourceHighlight extends Range {
   id: string;
+  /** The thread shown in the panel. */
   active: boolean;
+  /** Under the mouse, here or in the panel. */
+  hovered?: boolean;
 }
 
 const blockOf = (node: Node | null): HTMLElement | null =>
@@ -102,21 +105,23 @@ const painted = new WeakMap<HTMLElement, { id: string; range: globalThis.Range }
 export function paintHighlights(container: HTMLElement, source: string, highlights: SourceHighlight[]) {
   if (!supported()) return;
   const all = blocks(container);
-  const ranges: { id: string; range: globalThis.Range; active: boolean }[] = [];
+  const ranges: { id: string; range: globalThis.Range; h: SourceHighlight }[] = [];
   for (const h of highlights) {
     const range = pageRange(all, source, h);
-    if (range) ranges.push({ id: h.id, range, active: h.active });
+    if (range) ranges.push({ id: h.id, range, h });
   }
-  CSS.highlights.set("mido-comment", new Highlight(...ranges.filter((r) => !r.active).map((r) => r.range)));
-  CSS.highlights.set("mido-comment-active", new Highlight(...ranges.filter((r) => r.active).map((r) => r.range)));
+  const set = (name: string, keep: (h: SourceHighlight) => boolean) =>
+    CSS.highlights.set(name, new Highlight(...ranges.filter((r) => keep(r.h)).map((r) => r.range)));
+  set("mido-comment", () => true);
+  set("mido-comment-hover", (h) => !!h.hovered && !h.active);
+  set("mido-comment-active", (h) => h.active);
   painted.set(container, ranges);
 }
 
 export function clearHighlights(container: HTMLElement) {
   painted.delete(container);
   if (!supported()) return;
-  CSS.highlights.delete("mido-comment");
-  CSS.highlights.delete("mido-comment-active");
+  for (const name of ["mido-comment", "mido-comment-hover", "mido-comment-active"]) CSS.highlights.delete(name);
 }
 
 /** The thread whose highlight is at the point (`x`, `y`), if any. */

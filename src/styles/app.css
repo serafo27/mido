@@ -32,9 +32,10 @@
   --selection: rgba(45, 106, 95, 0.18);
   --active-line: rgba(40, 35, 25, 0.028);
   --search-match: rgba(217, 138, 61, 0.28);
-  --comment-highlight: rgba(217, 138, 61, 0.14);
-  --comment-highlight-active: rgba(217, 138, 61, 0.3);
-  --comment-underline: rgba(217, 138, 61, 0.7);
+  --comment-highlight: rgba(217, 138, 61, 0.05);
+  --comment-highlight-hover: rgba(217, 138, 61, 0.15);
+  --comment-highlight-active: rgba(217, 138, 61, 0.26);
+  --comment-underline: rgba(217, 138, 61, 0.8);
   --shadow: 0 10px 30px -10px rgba(40, 30, 10, 0.25), 0 2px 6px rgba(40, 30, 10, 0.08);
 
   --md-heading: #1d1b17;
@@ -79,9 +80,10 @@
   --selection: rgba(108, 195, 176, 0.22);
   --active-line: rgba(255, 250, 240, 0.025);
   --search-match: rgba(224, 161, 95, 0.3);
-  --comment-highlight: rgba(224, 161, 95, 0.16);
-  --comment-highlight-active: rgba(224, 161, 95, 0.34);
-  --comment-underline: rgba(224, 161, 95, 0.7);
+  --comment-highlight: rgba(224, 161, 95, 0.06);
+  --comment-highlight-hover: rgba(224, 161, 95, 0.18);
+  --comment-highlight-active: rgba(224, 161, 95, 0.3);
+  --comment-underline: rgba(224, 161, 95, 0.75);
   --shadow: 0 12px 34px -8px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.3);
 
   --md-heading: #f3efe6;
@@ -1116,11 +1118,54 @@ body.resizing .resizer {
   color: var(--text-faint);
 }
 
+/* Light while reading: a dotted underline. Hovering or opening a thread fills it in. */
 ::highlight(mido-comment) {
   background-color: var(--comment-highlight);
+  text-decoration: underline dotted var(--comment-underline);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+::highlight(mido-comment-hover) {
+  background-color: var(--comment-highlight-hover);
 }
 ::highlight(mido-comment-active) {
   background-color: var(--comment-highlight-active);
+  text-decoration: underline solid var(--comment-underline);
+}
+.comment-peek {
+  position: fixed;
+  z-index: 150;
+  width: 280px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  animation: selection-menu-in 0.12s ease-out;
+}
+.comment-peek.above {
+  transform: translateY(-100%);
+}
+.comment-peek-body {
+  margin: 4px 0 0 27px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.comment-peek-footer {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 8px 0 0 27px;
+  font-size: 11px;
+  color: var(--text-faint);
 }
 
 /* ============================================================

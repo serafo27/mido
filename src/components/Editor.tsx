@@ -30,6 +30,8 @@ interface EditorProps {
   highlights?: SourceHighlight[];
   /** A highlight was clicked. */
   onSelectHighlight?: (id: string) => void;
+  /** The mouse moved onto a highlight (its id) or off them all (null). */
+  onHoverHighlight?: (id: string | null, x: number, y: number) => void;
 }
 
 // Colors come from CSS variables so the editor follows the app theme for free.
@@ -62,10 +64,16 @@ const editorTheme = EditorView.theme({
   ".cm-searchMatch": { backgroundColor: "var(--search-match)" },
   ".cm-comment-highlight": {
     backgroundColor: "var(--comment-highlight)",
-    borderBottom: "2px solid var(--comment-underline)",
-    cursor: "pointer",
+    textDecoration: "underline dotted var(--comment-underline)",
+    textDecorationThickness: "1.5px",
+    textUnderlineOffset: "3px",
+    transition: "background-color 0.12s",
   },
-  ".cm-comment-highlight.active": { backgroundColor: "var(--comment-highlight-active)" },
+  ".cm-comment-highlight.hover": { backgroundColor: "var(--comment-highlight-hover)" },
+  ".cm-comment-highlight.active": {
+    backgroundColor: "var(--comment-highlight-active)",
+    textDecorationStyle: "solid",
+  },
   ".cm-panels": { backgroundColor: "var(--bg-sidebar)", color: "var(--text)" },
   ".cm-panels.cm-panels-bottom": { borderTop: "1px solid var(--border)" },
   ".cm-textfield": {
@@ -125,7 +133,7 @@ const highlightField = StateField.define<DecorationSet>({
         .sort((a, b) => a.from - b.from)
         .map((h) =>
           Decoration.mark({
-            class: h.active ? "cm-comment-highlight active" : "cm-comment-highlight",
+            class: `cm-comment-highlight${h.active ? " active" : h.hovered ? " hover" : ""}`,
             id: h.id,
           }).range(h.from, h.to),
         );
@@ -289,12 +297,13 @@ export function editorTopLine(view: EditorView): number {
 }
 
 export default function Editor(props: EditorProps) {
-  const { docKey, value, wrap, onChange, onScroll, onAddImages, highlights, onSelectHighlight } = props;
+  const { docKey, value, wrap, onChange, onScroll, onAddImages, highlights, onSelectHighlight, onHoverHighlight } =
+    props;
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const keyRef = useRef(docKey);
-  const callbacks = useRef({ onChange, onScroll, onAddImages, onSelectHighlight });
-  callbacks.current = { onChange, onScroll, onAddImages, onSelectHighlight };
+  const callbacks = useRef({ onChange, onScroll, onAddImages, onSelectHighlight, onHoverHighlight });
+  callbacks.current = { onChange, onScroll, onAddImages, onSelectHighlight, onHoverHighlight };
   const highlightsRef = useRef(highlights);
   highlightsRef.current = highlights;
   const wrapRef = useRef(wrap);
@@ -342,6 +351,14 @@ export default function Editor(props: EditorProps) {
             const id = pos === null ? null : highlightAtPos(view.state, pos);
             if (id) callbacks.current.onSelectHighlight?.(id);
           },
+          mousemove: (event, view) => {
+            const hover = callbacks.current.onHoverHighlight;
+            if (!hover) return;
+            // Not while selecting text.
+            const pos = event.buttons ? null : view.posAtCoords({ x: event.clientX, y: event.clientY });
+            hover(pos === null ? null : highlightAtPos(view.state, pos), event.clientX, event.clientY);
+          },
+          mouseleave: (event) => callbacks.current.onHoverHighlight?.(null, event.clientX, event.clientY),
         }),
         // Ahead of CodeMirror's own drop handling, which would paste a dropped file's bytes as text.
         Prec.high(
