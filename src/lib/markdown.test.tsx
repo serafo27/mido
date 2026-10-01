@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import ReactMarkdown from "react-markdown";
-import { documentStats, parseFrontmatter, rehypePlugins, remarkPlugins } from "./markdown";
+import { documentStats, loadFrontmatterParsers, parseFrontmatter, rehypePlugins, remarkPlugins } from "./markdown";
 
 /** Renders Markdown through the preview's real pipeline. */
 const render = (src: string) =>
@@ -110,6 +110,8 @@ describe("rendering", () => {
 });
 
 describe("parseFrontmatter", () => {
+  beforeAll(loadFrontmatterParsers);
+
   it("reads key/value pairs, unquoting values", () => {
     expect(parseFrontmatter('---\ntitle: "Hello"\nauthor: \'Me\'\ndraft: true\n---\nBody')).toEqual([
       { key: "title", value: "Hello" },
@@ -127,6 +129,28 @@ describe("parseFrontmatter", () => {
 
   it("handles Windows line endings", () => {
     expect(parseFrontmatter("---\r\ntitle: x\r\n---\r\n")).toEqual([{ key: "title", value: "x" }]);
+  });
+
+  it("reads nested YAML, multi-line strings and lists of maps", () => {
+    const src = "---\nauthor:\n  name: Ann\n  email: a@x.org\nsummary: |\n  Two\n  lines\nlinks:\n  - title: A\n    url: /a\n  - title: B\n---\n";
+    expect(parseFrontmatter(src)).toEqual([
+      { key: "author", value: "name: Ann, email: a@x.org" },
+      { key: "summary", value: "Two\nlines\n" },
+      { key: "links", value: "title: A, url: /a; title: B" },
+    ]);
+  });
+
+  it("reads TOML frontmatter, dates included", () => {
+    expect(parseFrontmatter('+++\ntitle = "Hi"\ndate = 2026-10-01\ntags = ["a", "b"]\n+++\nBody')).toEqual([
+      { key: "title", value: "Hi" },
+      { key: "date", value: "2026-10-01" },
+      { key: "tags", value: "a, b" },
+    ]);
+  });
+
+  it("returns null for frontmatter that doesn't parse", () => {
+    expect(parseFrontmatter("---\n: : bad\n  - [\n---\n")).toBeNull();
+    expect(parseFrontmatter("+++\nnot toml\n+++\n")).toBeNull();
   });
 
   it("returns null without frontmatter, or when it isn't at the very top", () => {

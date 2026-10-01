@@ -134,32 +134,62 @@ export interface FrontmatterEntry {
   value: string;
 }
 
-/** Best-effort parse of simple `key: value` YAML frontmatter for display. */
-export function parseFrontmatter(src: string): FrontmatterEntry[] | null {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---\s*(\r?\n|$)/.exec(src);
-  if (!match) return null;
+const FRONTMATTER = /^(---|\+\+\+)[ \t]*\r?\n([\s\S]*?)\r?\n\1[ \t]*(?:\r?\n|$)/;
 
-  const entries: FrontmatterEntry[] = [];
-  for (const line of match[1].split(/\r?\n/)) {
-    const kv = /^([A-Za-z0-9_][\w -]*):\s*(.*)$/.exec(line);
-    if (kv) {
-      entries.push({ key: kv[1].trim(), value: unquote(kv[2].trim()) });
-      continue;
-    }
-    const item = /^\s+-\s+(.*)$/.exec(line);
-    const last = entries[entries.length - 1];
-    if (item && last) {
-      last.value = last.value ? `${last.value}, ${unquote(item[1].trim())}` : unquote(item[1].trim());
-    }
+type Parse = (text: string) => unknown;
+let parsers: { yaml: Parse; toml: Parse } | null = null;
+let loadingParsers: Promise<void> | null = null;
+
+/** Whether `src` starts with frontmatter (which `parseFrontmatter` needs its parsers for). */
+export const hasFrontmatter = (src: string) => FRONTMATTER.test(src);
+
+/** Loads the YAML and TOML parsers, which only documents with frontmatter need. */
+export function loadFrontmatterParsers(): Promise<void> {
+  loadingParsers ??= Promise.all([import("yaml"), import("smol-toml")]).then(([yaml, toml]) => {
+    parsers = { yaml: yaml.parse, toml: toml.parse };
+  });
+  return loadingParsers;
+}
+
+export const frontmatterParsersLoaded = () => parsers !== null;
+
+/**
+ * The YAML (`---`) or TOML (`+++`) frontmatter at the top of `src`, for
+ * display: its top-level keys, with values written out on one line. Null
+ * if there's none, it doesn't parse, or the parsers aren't loaded yet
+ * (`loadFrontmatterParsers`).
+ */
+export function parseFrontmatter(src: string): FrontmatterEntry[] | null {
+  const match = FRONTMATTER.exec(src);
+  if (!match || !parsers) return null;
+  let data: unknown;
+  try {
+    data = match[1] === "---" ? parsers.yaml(match[2]) : parsers.toml(match[2]);
+  } catch {
+    return null;
   }
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const entries = Object.entries(data).map(([key, value]) => ({ key, value: frontmatterValue(value) }));
   return entries.length ? entries : null;
 }
 
-function unquote(v: string): string {
-  if (/^\[.*\]$/.test(v)) {
-    return v.slice(1, -1).split(",").map((s) => unquote(s.trim())).join(", ");
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === "object" && !Array.isArray(v) && !(v instanceof Date);
+
+/** A frontmatter value on one line: lists joined by commas, maps as `key: value`. */
+function frontmatterValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) {
+    const iso = value.toISOString();
+    return iso.endsWith("T00:00:00.000Z") ? iso.slice(0, 10) : iso.replace("T", " ").slice(0, 16);
   }
-  return v.replace(/^(['"])(.*)\1$/, "$2");
+  if (Array.isArray(value)) return value.map(frontmatterValue).join(value.some(isRecord) ? "; " : ", ");
+  if (isRecord(value)) {
+    return Object.entries(value)
+      .map(([k, v]) => `${k}: ${frontmatterValue(v)}`)
+      .join(", ");
+  }
+  return String(value);
 }
 
 export function documentStats(text: string) {

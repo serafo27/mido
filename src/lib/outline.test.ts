@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MarkdownParser } from "./blockRenderer";
 import { extractHeadings, headingAt } from "./outline";
 
 const doc = (...lines: string[]) => lines.join("\n");
@@ -49,6 +50,28 @@ describe("extractHeadings", () => {
     expect(text("# _emphasis_ and __strong__")).toBe("emphasis and strong");
     expect(text("# città_bella")).toBe("città_bella");
     expect(text("# intra*word*stars")).toBe("intrawordstars");
+  });
+
+  it("finds headings in block quotes and lists, as the preview shows them", () => {
+    expect(extractHeadings(doc("> ## Quoted", "", "- # Listed"))).toEqual([
+      { level: 2, text: "Quoted", line: 1 },
+      { level: 1, text: "Listed", line: 3 },
+    ]);
+  });
+
+  it("skips TOML frontmatter and indented code", () => {
+    expect(extractHeadings(doc("+++", "a = 1", "+++", "", "    # code", "", "# Body"))).toEqual([
+      { level: 1, text: "Body", line: 7 },
+    ]);
+  });
+
+  it("follows the text through edits with a kept parser", () => {
+    const parser = new MarkdownParser();
+    expect(extractHeadings("# A\n\ntext", parser).map((h) => h.line)).toEqual([1]);
+    expect(extractHeadings("\n\n# A\n\n## B", parser)).toEqual([
+      { level: 1, text: "A", line: 3 },
+      { level: 2, text: "B", line: 5 },
+    ]);
   });
 
   it("requires a space after the hashes", () => {

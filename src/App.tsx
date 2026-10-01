@@ -67,6 +67,7 @@ import {
 import { previewSelection, type SourceHighlight } from "./lib/previewComments";
 import TabBar from "./components/TabBar";
 import { extractHeadings, headingAt, type Heading } from "./lib/outline";
+import { MarkdownParser } from "./lib/blockRenderer";
 import StatusBar from "./components/StatusBar";
 import SettingsPanel from "./components/SettingsPanel";
 import UpdateDialog, { type UpdateState } from "./components/UpdateDialog";
@@ -151,7 +152,9 @@ export default function App() {
 
   // Outline: headings of the active document and the section being read.
   const outlineSource = useDeferredValue(outlineOpen ? (active?.content ?? "") : "");
-  const headings = useMemo(() => extractHeadings(outlineSource), [outlineSource]);
+  // Parsing a chunk at a time, so that only what an edit changed is parsed again.
+  const [outlineParser] = useState(() => new MarkdownParser());
+  const headings = useMemo(() => extractHeadings(outlineSource, outlineParser), [outlineSource, outlineParser]);
   const [currentLine, setCurrentLine] = useState(1);
   const scrollSpyPausedUntil = useRef(0);
   const trackLine = useCallback((line: number) => {

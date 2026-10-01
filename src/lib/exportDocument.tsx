@@ -2,7 +2,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ReactMarkdown, { type Components } from "react-markdown";
 import katex from "katex";
 import markdownCss from "../styles/markdown.css?raw";
-import { languageOf, parseFrontmatter, rehypePlugins, remarkPlugins, textOf } from "./markdown";
+import {
+  hasFrontmatter,
+  languageOf,
+  loadFrontmatterParsers,
+  parseFrontmatter,
+  rehypePlugins,
+  remarkPlugins,
+  textOf,
+} from "./markdown";
 import { renderMermaid, type MermaidTheme } from "./mermaid";
 import { decodeLink, dirname, resolve } from "./paths";
 import { blocksImage, type RemoteImages } from "./settings";
@@ -65,6 +73,7 @@ export async function renderDocument(options: RenderOptions): Promise<string> {
     },
   };
 
+  if (showFrontmatter && hasFrontmatter(source)) await loadFrontmatterParsers();
   const frontmatter = showFrontmatter ? parseFrontmatter(source) : null;
   const markup = renderToStaticMarkup(
     <>

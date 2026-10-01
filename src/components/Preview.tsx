@@ -15,7 +15,15 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Check, Copy, ImageOff } from "lucide-react";
 import { decodeLink, dirname, isMarkdown, resolve, splitLink } from "../lib/paths";
-import { CLOBBER_PREFIX, languageOf, parseFrontmatter, textOf } from "../lib/markdown";
+import {
+  CLOBBER_PREFIX,
+  frontmatterParsersLoaded,
+  hasFrontmatter,
+  languageOf,
+  loadFrontmatterParsers,
+  parseFrontmatter,
+  textOf,
+} from "../lib/markdown";
 import { BlockRenderer } from "../lib/blockRenderer";
 import { blocksImage, type RemoteImages } from "../lib/settings";
 import { renderMermaid, useMermaidTheme } from "../lib/mermaid";
@@ -195,9 +203,15 @@ export default function Preview(props: PreviewProps) {
   // Keep typing responsive in split mode: render the preview at lower priority.
   const deferred = useDeferredValue(content);
   const sourceLines = useMemo(() => deferred.split(/\r\n?|\n/).length, [deferred]);
+  // The YAML and TOML parsers load with the first document that has frontmatter.
+  const wantsFrontmatter = showFrontmatter && hasFrontmatter(deferred);
+  const [frontmatterReady, setFrontmatterReady] = useState(frontmatterParsersLoaded);
+  useEffect(() => {
+    if (wantsFrontmatter && !frontmatterReady) loadFrontmatterParsers().then(() => setFrontmatterReady(true));
+  }, [wantsFrontmatter, frontmatterReady]);
   const frontmatter = useMemo(
-    () => (showFrontmatter ? parseFrontmatter(deferred) : null),
-    [deferred, showFrontmatter],
+    () => (wantsFrontmatter && frontmatterReady ? parseFrontmatter(deferred) : null),
+    [deferred, wantsFrontmatter, frontmatterReady],
   );
 
   useLayoutEffect(() => {

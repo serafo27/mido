@@ -1,3 +1,7 @@
+import { toString } from "mdast-util-to-string";
+import { visit } from "unist-util-visit";
+import { MarkdownParser } from "./blockRenderer";
+
 export interface Heading {
   level: number;
   text: string;
@@ -5,60 +9,17 @@ export interface Heading {
   line: number;
 }
 
-const WORD_CHAR = /[\p{L}\p{N}]/u;
-
-/** Strips inline Markdown so headings read as plain text. */
-function plain(text: string): string {
-  return text
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/<[^>]+>/g, "")
-    // One pass, so an escaped marker (`\*`) is kept as text rather than stripped.
-    .replace(/\\([\\`*_{}[\]()#+\-.!])|\*\*|__|\*|_|~~|`/g, (marker, escaped: string | undefined, at: number, all: string) => {
-      if (escaped !== undefined) return escaped;
-      // Underscores inside a word (`snake_case`) aren't emphasis, unlike asterisks.
-      const intraword = WORD_CHAR.test(all[at - 1] ?? "") && WORD_CHAR.test(all[at + marker.length] ?? "");
-      return marker[0] === "_" && intraword ? marker : "";
-    })
-    .trim();
-}
-
-/** Extracts ATX (`# Title`) and setext (`Title\n===`) headings, skipping code and frontmatter. */
-export function extractHeadings(src: string): Heading[] {
-  const lines = src.split(/\r?\n/);
+/**
+ * The document's headings, as the preview renders them: ATX and setext,
+ * inside block quotes and lists too, never in code or frontmatter. Pass a
+ * parser kept between calls to reparse only what changed.
+ */
+export function extractHeadings(src: string, parser = new MarkdownParser()): Heading[] {
   const headings: Heading[] = [];
-  let fence: string | null = null;
-  let i = 0;
-
-  if (/^(---|\+\+\+)\s*$/.test(lines[0] ?? "")) {
-    const close = lines.findIndex((l, j) => j > 0 && /^(---|\+\+\+|\.\.\.)\s*$/.test(l));
-    if (close > 0) i = close + 1;
-  }
-
-  for (; i < lines.length; i++) {
-    const line = lines[i];
-    const fenceMatch = /^ {0,3}(`{3,}|~{3,})/.exec(line);
-    if (fenceMatch) {
-      if (!fence) fence = fenceMatch[1];
-      else if (fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) fence = null;
-      continue;
-    }
-    if (fence) continue;
-
-    const atx = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/.exec(line);
-    if (atx) {
-      const text = plain(atx[2]);
-      if (text) headings.push({ level: atx[1].length, text, line: i + 1 });
-      continue;
-    }
-    const next = lines[i + 1];
-    if (next !== undefined && line.trim() && !/^ {0,3}([>*+-]|\d+[.)])\s/.test(line)) {
-      const setext = /^ {0,3}(=+|-+)[ \t]*$/.exec(next);
-      if (setext) {
-        headings.push({ level: setext[1][0] === "=" ? 1 : 2, text: plain(line), line: i + 1 });
-        i++;
-      }
-    }
-  }
+  visit(parser.parse(src), "heading", (node) => {
+    const text = toString(node, { includeHtml: false }).trim();
+    if (text && node.position) headings.push({ level: node.depth, text, line: node.position.start.line });
+  });
   return headings;
 }
 

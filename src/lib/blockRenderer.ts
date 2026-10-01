@@ -264,23 +264,22 @@ function moveTo(parsed: ParsedChunk, chunk: Chunk) {
 
 const NO_COMPONENTS: Components = {};
 
-export class BlockRenderer {
+/**
+ * Parses Markdown with the preview's plugins, a chunk at a time: chunks
+ * unchanged since the last parse come from a cache. The tree it returns is
+ * the cache's, valid until the next parse.
+ */
+export class MarkdownParser {
   private chunks = new Generations<ParsedChunk>();
-  private groups = new Generations<Group>();
-  private nextId = 0;
 
-  /** The rendered document, as `<ReactMarkdown>` would render it with the preview's plugins. */
-  render(source: string, components: Components = NO_COMPONENTS): ReactNode[] {
-    const root = this.parse(source);
-    const hast = toHast.runSync(root) as HastRoot;
-    const nodes = this.renderGroups(hast, components);
+  /** The document's syntax tree, as the preview's plugins parse it. */
+  parse(source: string): MdastRoot {
+    const root = this.parseChunks(source);
     this.chunks.sweep();
-    this.groups.sweep();
-    return nodes;
+    return root;
   }
 
-  /** The document's syntax tree, from cached chunks where they're unchanged. */
-  private parse(source: string): MdastRoot {
+  private parseChunks(source: string): MdastRoot {
     const definitions = findDefinitions(source);
     const whole = () => firstProcessor.runSync(firstProcessor.parse(source)) as MdastRoot;
     const children: MdastContent[] = [];
@@ -353,6 +352,22 @@ export class BlockRenderer {
     if (open) parsed.openAt = open.position?.start.offset ?? 0;
     this.chunks.set(key, parsed);
     return parsed;
+  }
+
+}
+
+export class BlockRenderer {
+  private parser = new MarkdownParser();
+  private groups = new Generations<Group>();
+  private nextId = 0;
+
+  /** The rendered document, as `<ReactMarkdown>` would render it with the preview's plugins. */
+  render(source: string, components: Components = NO_COMPONENTS): ReactNode[] {
+    const root = this.parser.parse(source);
+    const hast = toHast.runSync(root) as HastRoot;
+    const nodes = this.renderGroups(hast, components);
+    this.groups.sweep();
+    return nodes;
   }
 
   private renderGroups(hast: HastRoot, components: Components): ReactNode[] {
