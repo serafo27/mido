@@ -60,7 +60,7 @@ export const sanitizeSchema = {
   clobberPrefix: "",
   attributes: {
     ...attrs,
-    "*": [...(attrs["*"] ?? []), "dataLine", "align"],
+    "*": [...(attrs["*"] ?? []), "align"],
     code: [["className", /^language-./, "math-inline", "math-display"]],
     blockquote: [["className", /^alert/]],
     p: [...(attrs.p ?? []), ["className", "alert-title"]],
@@ -71,9 +71,11 @@ export const sanitizeSchema = {
 /** The preview's rendering pipeline. */
 export const remarkPlugins = [remarkGfm, remarkMath, [remarkFrontmatter, ["yaml", "toml"]], remarkAlerts];
 export const rehypePlugins = [
-  rehypeSourceLines,
   rehypeRaw,
   [rehypeSanitize, sanitizeSchema],
+  // After raw HTML is parsed, so its blocks get a line too; after sanitizing,
+  // so a document can't set lines of its own.
+  rehypeSourceLines,
   rehypeSlug,
   rehypeKatex,
   [rehypeHighlight, { detect: false }],

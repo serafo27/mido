@@ -37,6 +37,13 @@ describe("sanitizer", () => {
     expect(html).toMatch(/width="40"/);
     expect(html).toMatch(/align="center"/);
   });
+
+  it("tags raw HTML blocks with their source line, and only with that", () => {
+    const html = render('<div align="center">\n\n<img src="a.png">\n\n</div>\n\n<p data-line="99">x</p>');
+    expect(html).toContain('<div align="center" data-line="1">');
+    expect(html).toContain('<p data-line="7">');
+    expect(html).not.toContain("99");
+  });
 });
 
 describe("rendering", () => {
