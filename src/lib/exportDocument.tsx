@@ -4,7 +4,7 @@ import katex from "katex";
 import markdownCss from "../styles/markdown.css?raw";
 import { languageOf, parseFrontmatter, rehypePlugins, remarkPlugins, textOf } from "./markdown";
 import { renderMermaid } from "./mermaid";
-import { dirname, resolve } from "./paths";
+import { decodeLink, dirname, resolve } from "./paths";
 
 const EXTERNAL = /^[a-z][a-z0-9+.-]*:/i;
 
@@ -33,7 +33,7 @@ export async function renderDocument(options: RenderOptions): Promise<string> {
   const components: Components = {
     img({ node: _node, src, alt, ...rest }) {
       if (typeof src !== "string" || !src || EXTERNAL.test(src)) return <img {...rest} src={src} alt={alt ?? ""} />;
-      const path = toLocal(decodeURI(src));
+      const path = toLocal(decodeLink(src));
       return <img {...rest} src={assetUrl(path)} alt={alt ?? ""} data-local-path={path} data-original-src={src} />;
     },
     pre({ node, children, ...rest }) {

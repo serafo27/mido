@@ -47,6 +47,10 @@ describe("renderDocument", () => {
     expect(html).not.toContain("data-local-path");
   });
 
+  it("resolves a raw HTML image whose path has a bare %", async () => {
+    expect(await render('<img src="100%.png">')).toContain('src="asset://localhost/notes/sub/100%.png"');
+  });
+
   it("embeds local images as data URIs, keeping the original link when one can't be read", async () => {
     const fetch = vi.fn(async (url: string) =>
       url.endsWith("/a.png")

@@ -672,19 +672,22 @@
   font-size: 0.85em;
   color: var(--text-faint);
 }
-.markdown .mermaid-error {
+.markdown .mermaid-error,
+.markdown .render-error {
   margin: 1.5em 0;
   padding: 12px 16px;
   border-radius: var(--radius);
   border: 1px solid color-mix(in srgb, var(--alert-caution) 40%, transparent);
   background: color-mix(in srgb, var(--alert-caution) 7%, transparent);
 }
-.markdown .mermaid-error-title {
+.markdown .mermaid-error-title,
+.markdown .render-error-title {
   font-size: 0.85em;
   font-weight: 600;
   color: var(--alert-caution);
 }
-.markdown .mermaid-error pre {
+.markdown .mermaid-error pre,
+.markdown .render-error pre {
   margin: 6px 0 0;
   white-space: pre-wrap;
   font-family: var(--md-font-code, var(--font-mono));

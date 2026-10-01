@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { basename, dirname, isInside, isMarkdown, join, relative, resolve } from "./paths";
+import { basename, decodeLink, dirname, isInside, isMarkdown, join, relative, resolve } from "./paths";
 
 describe("basename / dirname", () => {
   it("splits POSIX and Windows paths", () => {
@@ -66,5 +66,17 @@ describe("isMarkdown", () => {
     for (const name of ["a.txt", "a.md.bak", "md", "a.mdx.png"]) {
       expect(isMarkdown(name), name).toBe(false);
     }
+  });
+});
+
+describe("decodeLink", () => {
+  it("decodes percent-escapes", () => {
+    expect(decodeLink("my%20notes/a.md")).toBe("my notes/a.md");
+    expect(decodeLink("caf%C3%A9", decodeURIComponent)).toBe("café");
+  });
+
+  it("keeps a link with a malformed escape as written", () => {
+    expect(decodeLink("100%.png")).toBe("100%.png");
+    expect(decodeLink("a%zz", decodeURIComponent)).toBe("a%zz");
   });
 });

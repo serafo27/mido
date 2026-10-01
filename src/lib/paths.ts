@@ -48,3 +48,15 @@ export function isInside(parent: string, p: string): boolean {
 }
 
 export const isMarkdown = (p: string) => /\.(md|markdown|mdown|mkd|mdx)$/i.test(p);
+
+/**
+ * Decodes a link's percent-escapes. One that isn't valid (`100%.png` in raw
+ * HTML, which the Markdown parser doesn't escape) is kept as written.
+ */
+export function decodeLink(href: string, decode: (s: string) => string = decodeURI): string {
+  try {
+    return decode(href);
+  } catch {
+    return href;
+  }
+}

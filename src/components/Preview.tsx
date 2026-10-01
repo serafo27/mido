@@ -1,4 +1,5 @@
 import {
+  Component,
   memo,
   useDeferredValue,
   useEffect,
@@ -13,7 +14,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Check, Copy } from "lucide-react";
-import { dirname, isMarkdown, resolve } from "../lib/paths";
+import { decodeLink, dirname, isMarkdown, resolve } from "../lib/paths";
 import { languageOf, parseFrontmatter, rehypePlugins, remarkPlugins, textOf } from "../lib/markdown";
 import { renderMermaid, useDarkTheme } from "../lib/mermaid";
 import {
@@ -160,7 +161,7 @@ export default function Preview(props: PreviewProps) {
 
     const followLink = (href: string) => {
       if (href.startsWith("#")) {
-        const id = decodeURIComponent(href.slice(1));
+        const id = decodeLink(href.slice(1), decodeURIComponent);
         const container = scrollRef.current;
         const target = container?.querySelector<HTMLElement>(`[id="${CSS.escape(id)}"]`);
         if (container && target) {
@@ -173,7 +174,7 @@ export default function Preview(props: PreviewProps) {
         openUrl(href).catch(console.error);
         return;
       }
-      const target = toLocal(decodeURI(href.split("#")[0]));
+      const target = toLocal(decodeLink(href.split("#")[0]));
       if (isMarkdown(target)) onOpenFile(target);
       else revealItemInDir(target).catch(console.error);
     };
@@ -197,7 +198,7 @@ export default function Preview(props: PreviewProps) {
       img({ node: _node, src, alt, ...rest }) {
         const source =
           typeof src === "string" && src && !EXTERNAL.test(src)
-            ? convertFileSrc(toLocal(decodeURI(src)))
+            ? convertFileSrc(toLocal(decodeLink(src)))
             : src;
         return <img {...rest} src={source} alt={alt ?? ""} loading="lazy" />;
       },
@@ -297,7 +298,9 @@ export default function Preview(props: PreviewProps) {
               ))}
             </dl>
           )}
-          <RenderedMarkdown source={deferred} components={components} />
+          <RenderBoundary source={deferred}>
+            <RenderedMarkdown source={deferred} components={components} />
+          </RenderBoundary>
         </article>
       </div>
       {minimap ? (
@@ -341,7 +344,38 @@ const RenderedMarkdown = memo(function RenderedMarkdown({
   );
 });
 
+/**
+ * Shows a render error in the page instead of letting it unmount the app,
+ * and tries again once the source changes.
+ */
+class RenderBoundary extends Component<
+  { source: string; children: ReactNode },
+  { error: Error | null; source: string }
+> {
+  state = { error: null as Error | null, source: this.props.source };
 
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  static getDerivedStateFromProps(props: { source: string }, state: { source: string }) {
+    return props.source === state.source ? null : { error: null, source: props.source };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error(error);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="render-error">
+        <div className="render-error-title">This document couldn't be rendered</div>
+        <pre>{this.state.error.message}</pre>
+      </div>
+    );
+  }
+}
 
 function MermaidBlock({ code, line }: { code: string; line?: number }) {
   const dark = useDarkTheme();
