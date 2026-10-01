@@ -16,6 +16,7 @@ import { Check, Copy } from "lucide-react";
 import { dirname, isMarkdown, resolve } from "../lib/paths";
 import { languageOf, parseFrontmatter, rehypePlugins, remarkPlugins, textOf } from "../lib/markdown";
 import { renderMermaid, useDarkTheme } from "../lib/mermaid";
+import { clearHighlights, highlightAt, paintHighlights, type SourceHighlight } from "../lib/previewComments";
 
 interface PreviewProps {
   content: string;
@@ -27,6 +28,10 @@ interface PreviewProps {
   scrollRef: RefObject<HTMLDivElement | null>;
   onScroll?: (el: HTMLDivElement) => void;
   onOpenFile: (path: string) => void;
+  /** Commented text to highlight, as ranges of `content`. */
+  highlights?: SourceHighlight[];
+  /** A highlight was clicked. */
+  onSelectHighlight?: (id: string) => void;
 }
 
 const EXTERNAL = /^[a-z][a-z0-9+.-]*:/i;
@@ -97,6 +102,7 @@ const scrollPositions = new Map<string, number>();
 
 export default function Preview(props: PreviewProps) {
   const { content, filePath, root, wrap, justify, showFrontmatter, scrollRef, onOpenFile, onScroll } = props;
+  const { highlights, onSelectHighlight } = props;
   // Keep typing responsive in split mode: render the preview at lower priority.
   const deferred = useDeferredValue(content);
   const frontmatter = useMemo(
@@ -108,6 +114,19 @@ export default function Preview(props: PreviewProps) {
     const el = scrollRef.current;
     if (el) el.scrollTop = scrollPositions.get(filePath) ?? 0;
   }, [filePath, scrollRef]);
+
+  // Highlights are ranges of the latest content; paint them once the page shows it.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || deferred !== content) return;
+    paintHighlights(el, content, highlights ?? []);
+  }, [deferred, content, highlights, scrollRef]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    return () => {
+      if (el) clearHighlights(el);
+    };
+  }, [scrollRef]);
 
   const components = useMemo<Components>(() => {
     const baseDir = dirname(filePath);
@@ -186,6 +205,11 @@ export default function Preview(props: PreviewProps) {
       onScroll={(e) => {
         scrollPositions.set(filePath, e.currentTarget.scrollTop);
         onScroll?.(e.currentTarget);
+      }}
+      onClick={(e) => {
+        if (!onSelectHighlight || !window.getSelection()?.isCollapsed) return;
+        const id = highlightAt(e.currentTarget, e.clientX, e.clientY);
+        if (id) onSelectHighlight(id);
       }}
     >
       <article className={`markdown ${wrap ? "wrap" : "nowrap"} ${justify ? "justify" : ""}`}>

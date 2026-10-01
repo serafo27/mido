@@ -174,6 +174,9 @@ export function themeVariables(t: Theme, accentOverride?: string): Record<string
     "--selection": alpha(accent, dark ? 0.26 : 0.2),
     "--active-line": alpha(p.text, dark ? 0.03 : 0.028),
     "--search-match": alpha(p.warm, 0.3),
+    "--comment-highlight": alpha(p.warm, dark ? 0.16 : 0.14),
+    "--comment-highlight-active": alpha(p.warm, dark ? 0.34 : 0.3),
+    "--comment-underline": alpha(p.warm, 0.7),
     "--shadow": dark
       ? "0 12px 34px -8px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.3)"
       : "0 10px 30px -10px rgba(40, 30, 10, 0.25), 0 2px 6px rgba(40, 30, 10, 0.08)",

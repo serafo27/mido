@@ -159,6 +159,32 @@ export const commands: Record<string, (args: Record<string, unknown>) => unknown
     return search(docs, query as string, options as SearchOptions);
   },
 
+  /** Comments are shown, not written: only folders read from disk (Chromium) have them. */
+  async read_comments({ document: path }) {
+    const ws = workspaceOf(path as string);
+    if (ws.source.kind !== "handle") return [];
+    const parts = [".mido", "comments", ...(path as string).slice(ws.root.length + 1).split("/")];
+    let dir = ws.source.handle;
+    try {
+      for (const part of parts) dir = await dir.getDirectoryHandle(part);
+    } catch {
+      return [];
+    }
+    const files = [];
+    for await (const thread of dir.values()) {
+      if (thread.kind !== "directory" || !/^[A-Za-z0-9]+$/.test(thread.name)) continue;
+      for await (const file of thread.values()) {
+        const name = /^([A-Za-z0-9]+)\.json$/.exec(file.name)?.[1];
+        if (file.kind !== "file" || !name) continue;
+        files.push({ thread: thread.name, name, content: await (await file.getFile()).text() });
+      }
+    }
+    return files;
+  },
+
+  /** Comments can't be written here, so nobody needs to sign them. */
+  git_identity: () => null,
+
   take_open_requests() {
     const taken = openRequests;
     openRequests = [];
@@ -181,6 +207,8 @@ export const commands: Record<string, (args: Record<string, unknown>) => unknown
   rename_path: desktopOnly,
   trash_path: desktopOnly,
   save_asset: desktopOnly,
+  add_comment_file: desktopOnly,
+  compact_comment_thread: desktopOnly,
   app_arch: desktopOnly,
 };
 

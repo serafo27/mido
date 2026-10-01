@@ -33,6 +33,8 @@ export interface Settings {
   autosave: boolean;
   /** Check for new versions at launch (and periodically) and offer them. */
   checkForUpdates: boolean;
+  /** Name comments are signed with when git has no user. */
+  commentAuthor: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -58,6 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
   wrap: true,
   autosave: true,
   checkForUpdates: true,
+  commentAuthor: "",
 };
 
 export interface FontOption {

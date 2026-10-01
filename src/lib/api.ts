@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { Author, CommentFileData } from "./comments";
 
 export interface FileNode {
   name: string;
@@ -66,4 +67,14 @@ export const api = {
   createDir: (path: string) => invoke<void>("create_dir", { path }),
   renamePath: (from: string, to: string) => invoke<void>("rename_path", { from, to }),
   trashPath: (path: string) => invoke<void>("trash_path", { path }),
+  /** Every comment file of `document`, from `.mido/comments`. */
+  readComments: (document: string) => invoke<CommentFileData[]>("read_comments", { document }),
+  /** Adds a file to a thread of `document`; fails rather than replace one. */
+  addCommentFile: (document: string, thread: string, name: string, content: string) =>
+    invoke<void>("add_comment_file", { document, thread, name, content }),
+  /** Writes `name`, holding every event of the files in `replaces`, then removes those files. */
+  compactCommentThread: (document: string, thread: string, name: string, content: string, replaces: string[]) =>
+    invoke<void>("compact_comment_thread", { document, thread, name, content, replaces }),
+  /** The git user of the open folder, who comments are signed by; null without one. */
+  gitIdentity: () => invoke<Author | null>("git_identity"),
 };

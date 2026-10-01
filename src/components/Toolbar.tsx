@@ -3,6 +3,7 @@ import {
   Columns2,
   Eye,
   FileDown,
+  MessageSquare,
   PanelLeft,
   PenLine,
   Printer,
@@ -28,6 +29,9 @@ interface ToolbarProps {
   wrap: boolean;
   settingsOpen: boolean;
   outlineOpen: boolean;
+  commentsOpen: boolean;
+  /** Open comment threads in the document. */
+  commentCount: number;
   /** Tabs shown in the title bar in place of the path (when the path bar is off). */
   tabs?: TabInfo[];
   onSelectTab: (path: string) => void;
@@ -35,6 +39,7 @@ interface ToolbarProps {
   onCloseTab: (path: string) => void;
   onMoveTab: (from: number, to: number) => void;
   onToggleOutline: () => void;
+  onToggleComments: () => void;
   onMode: (mode: ViewMode) => void;
   onWrap: () => void;
   onToggleSidebar: () => void;
@@ -117,6 +122,16 @@ export default function Toolbar(props: ToolbarProps) {
           <IconButton title={`Outline (${modKey}⇧O)`} active={props.outlineOpen} onClick={props.onToggleOutline}>
             <TableOfContents size={15} />
           </IconButton>
+          <span className="comments-toggle">
+            <IconButton
+              title={`Comments (${modKey}⇧M)${props.commentCount ? ` · ${props.commentCount} open` : ""}`}
+              active={props.commentsOpen}
+              onClick={props.onToggleComments}
+            >
+              <MessageSquare size={15} />
+            </IconButton>
+            {props.commentCount > 0 && <span className="comments-badge">{props.commentCount}</span>}
+          </span>
           {props.onExport && (
             <IconButton title={`Export as HTML (${modKey}⇧E)`} onClick={props.onExport}>
               <FileDown size={15} />

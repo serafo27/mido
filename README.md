@@ -44,6 +44,7 @@ Mido isn't code-signed yet: the first time, right-click the app and choose **Ope
 - **Rendering** — GitHub Flavored Markdown (tables, task lists, footnotes, strikethrough), GitHub-style alerts, KaTeX math, Mermaid diagrams (` ```mermaid ` blocks, following light and dark themes), syntax highlighting, frontmatter shown as a card, sanitized HTML, relative images, and relative `.md` links that open inside Mido.
 - **Wrap or scroll** (`⌥Z`) — wrap everything to the window, or keep code blocks and tables intact and scroll sideways. Applies to the editor too.
 - **Tabs** — a single click opens a file in a *preview* tab (italic) that the next single click replaces; double-click a file or tab to keep it open, and editing a file keeps it open automatically. Drag to reorder, middle-click or `⌘W` to close, `⌘⇧[` / `⌘⇧]` or `Ctrl+Tab` to switch. Each tab keeps its own undo history, selection and scroll position, and open tabs are restored on launch.
+- **Comments** — select text in the editor or the preview and press `⌥⌘M` to comment on it. The Comments panel (`⌘⇧M`) lists the threads in document order, with replies, resolve and reopen, and commented text is highlighted. Comments are signed with your git user (`git config user.name`) and saved in a hidden `.mido/comments` folder inside the open folder, so committing and pushing it shares them with everyone working on the repository. Each comment is its own file, so branches merge without conflicts; resolving a thread gathers it into a single file.
 - **Outline** (`⌘⇧O`) — a panel listing the document's headings. Click to jump to a section; the current section is highlighted as you scroll.
 - **Editor** — CodeMirror 6 with Markdown and code-block highlighting, `⌘B` / `⌘I` / `⌘K` for bold, italic and links, and `⌘F` to search. Paste an image (`⌘V`, e.g. a screenshot) or drop image files into the editor: they're saved in an `assets` folder next to the document and linked where you paste or drop them.
 - **Reading styles** — Mido, GitHub, Academic and Minimal presets, plus separate fonts for body, headings and code (bundled, system, or any installed font), text size, line height, page width, justified text and frontmatter visibility.
@@ -67,6 +68,8 @@ Mido isn't code-signed yet: the first time, right-click the app and choose **Ope
 | `⌘P` | Quick search: files and text |
 | `⌘⇧F` | Search in files |
 | `⌘⇧O` | Toggle outline |
+| `⌘⇧M` | Toggle comments |
+| `⌥⌘M` | Comment on the selected text |
 | `⌘\` | Toggle sidebar |
 | `⌘,` | Settings |
 | `⌥Z` | Toggle line wrap |

@@ -2,11 +2,20 @@ import { useEffect, useRef } from "react";
 import { basicSetup } from "@uiw/react-codemirror";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
-import { Compartment, EditorSelection, EditorState, Prec, type Extension } from "@codemirror/state";
-import { EditorView, keymap, type Command } from "@codemirror/view";
+import {
+  Compartment,
+  EditorSelection,
+  EditorState,
+  Prec,
+  StateEffect,
+  StateField,
+  type Extension,
+} from "@codemirror/state";
+import { Decoration, EditorView, keymap, type Command, type DecorationSet } from "@codemirror/view";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 import { imageFiles } from "../lib/images";
+import type { SourceHighlight } from "../lib/previewComments";
 
 interface EditorProps {
   /** Identifies the document (the tab's path); each gets its own state. */
@@ -17,6 +26,10 @@ interface EditorProps {
   onScroll?: (view: EditorView) => void;
   /** Saves images pasted or dropped into the document; resolves to the Markdown to insert. */
   onAddImages?: (docKey: string, files: File[]) => Promise<string | null>;
+  /** Commented text to highlight. */
+  highlights?: SourceHighlight[];
+  /** A highlight was clicked. */
+  onSelectHighlight?: (id: string) => void;
 }
 
 // Colors come from CSS variables so the editor follows the app theme for free.
@@ -47,6 +60,12 @@ const editorTheme = EditorView.theme({
   ".cm-gutters": { display: "none" },
   ".cm-matchingBracket": { backgroundColor: "var(--accent-soft)", outline: "none" },
   ".cm-searchMatch": { backgroundColor: "var(--search-match)" },
+  ".cm-comment-highlight": {
+    backgroundColor: "var(--comment-highlight)",
+    borderBottom: "2px solid var(--comment-underline)",
+    cursor: "pointer",
+  },
+  ".cm-comment-highlight.active": { backgroundColor: "var(--comment-highlight-active)" },
   ".cm-panels": { backgroundColor: "var(--bg-sidebar)", color: "var(--text)" },
   ".cm-panels.cm-panels-bottom": { borderTop: "1px solid var(--border)" },
   ".cm-textfield": {
@@ -87,6 +106,46 @@ const highlight = HighlightStyle.define([
   { tag: [t.propertyName, t.attributeName], color: "var(--hl-attr)" },
   { tag: [t.tagName], color: "var(--hl-keyword)" },
 ]);
+
+/* ---------- comment highlights ---------- */
+
+const setHighlights = StateEffect.define<SourceHighlight[]>();
+
+const highlightField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(decorations, tr) {
+    // Follow edits until the app sends the highlights found in the new text.
+    decorations = decorations.map(tr.changes);
+    for (const effect of tr.effects) {
+      if (!effect.is(setHighlights)) continue;
+      const length = tr.state.doc.length;
+      const marks = effect.value
+        .map((h) => ({ ...h, from: Math.min(h.from, length), to: Math.min(h.to, length) }))
+        .filter((h) => h.from < h.to)
+        .sort((a, b) => a.from - b.from)
+        .map((h) =>
+          Decoration.mark({
+            class: h.active ? "cm-comment-highlight active" : "cm-comment-highlight",
+            id: h.id,
+          }).range(h.from, h.to),
+        );
+      decorations = Decoration.set(marks, true);
+    }
+    return decorations;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+/** The comment highlight at `pos`, preferring the shortest. */
+function highlightAtPos(state: EditorState, pos: number): string | null {
+  let found: { id: string; length: number } | null = null;
+  state.field(highlightField).between(pos, pos, (from, to, deco) => {
+    if (from <= pos && pos <= to && (!found || to - from < found.length)) {
+      found = { id: deco.spec.id as string, length: to - from };
+    }
+  });
+  return (found as { id: string } | null)?.id ?? null;
+}
 
 /** Toggles `marker` around each selection (e.g. `**` for bold). */
 function toggleMarker(marker: string): Command {
@@ -184,17 +243,40 @@ export function revealEditorLine(line: number) {
   });
 }
 
+/** Selects `from`–`to` and scrolls it into view. */
+export function revealEditorRange(from: number, to: number) {
+  const view = currentView;
+  if (!view) return;
+  const length = view.state.doc.length;
+  view.focus();
+  view.dispatch({
+    selection: { anchor: Math.min(from, length), head: Math.min(to, length) },
+    effects: EditorView.scrollIntoView(Math.min(from, length), { y: "center" }),
+  });
+}
+
+/** The editor's selection, if it has focus and something is selected. */
+export function editorSelection(): { from: number; to: number } | null {
+  const view = currentView;
+  if (!view || !view.hasFocus) return null;
+  const { from, to } = view.state.selection.main;
+  return from < to ? { from, to } : null;
+}
+
 /** First source line visible at the top of the editor. */
 export function editorTopLine(view: EditorView): number {
   return view.state.doc.lineAt(view.lineBlockAtHeight(view.scrollDOM.scrollTop).from).number;
 }
 
-export default function Editor({ docKey, value, wrap, onChange, onScroll, onAddImages }: EditorProps) {
+export default function Editor(props: EditorProps) {
+  const { docKey, value, wrap, onChange, onScroll, onAddImages, highlights, onSelectHighlight } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const keyRef = useRef(docKey);
-  const callbacks = useRef({ onChange, onScroll, onAddImages });
-  callbacks.current = { onChange, onScroll, onAddImages };
+  const callbacks = useRef({ onChange, onScroll, onAddImages, onSelectHighlight });
+  callbacks.current = { onChange, onScroll, onAddImages, onSelectHighlight };
+  const highlightsRef = useRef(highlights);
+  highlightsRef.current = highlights;
   const wrapRef = useRef(wrap);
   wrapRef.current = wrap;
 
@@ -227,12 +309,19 @@ export default function Editor({ docKey, value, wrap, onChange, onScroll, onAddI
         editorTheme,
         syntaxHighlighting(highlight),
         markdownKeys,
+        highlightField,
         wrapCompartment.of(wrapRef.current ? EditorView.lineWrapping : []),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) callbacks.current.onChange(keyRef.current, update.state.doc.toString());
         }),
         EditorView.domEventObservers({
           scroll: (_e, view) => callbacks.current.onScroll?.(view),
+          click: (event, view) => {
+            if (!view.state.selection.main.empty) return;
+            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+            const id = pos === null ? null : highlightAtPos(view.state, pos);
+            if (id) callbacks.current.onSelectHighlight?.(id);
+          },
         }),
         // Ahead of CodeMirror's own drop handling, which would paste a dropped file's bytes as text.
         Prec.high(
@@ -266,6 +355,7 @@ export default function Editor({ docKey, value, wrap, onChange, onScroll, onAddI
     if (cached && state.doc.toString() !== doc) {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
     }
+    view.dispatch({ effects: setHighlights.of(highlightsRef.current ?? []) });
     const top = cached?.scrollTop ?? 0;
     requestAnimationFrame(() => {
       view.scrollDOM.scrollTop = top;
@@ -312,6 +402,11 @@ export default function Editor({ docKey, value, wrap, onChange, onScroll, onAddI
       effects: wrapCompartment.reconfigure(wrap ? EditorView.lineWrapping : []),
     });
   }, [wrap]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (view && keyRef.current === docKey) view.dispatch({ effects: setHighlights.of(highlights ?? []) });
+  }, [highlights, docKey]);
 
   return <div className="editor" ref={hostRef} />;
 }

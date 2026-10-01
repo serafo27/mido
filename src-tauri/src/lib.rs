@@ -1,4 +1,5 @@
 mod assets;
+mod comments;
 mod search;
 
 use std::fs;
@@ -373,7 +374,8 @@ async fn rename_path(
     if to.exists() {
         return Err(format!("{} already exists", to.display()));
     }
-    fs::rename(&from, &to).map_err(err)
+    fs::rename(&from, &to).map_err(err)?;
+    comments::moved(&workspace.root()?, &from, &to).map_err(err)
 }
 
 /// Saves an image pasted or dropped into the editor in the `assets` folder
@@ -424,26 +426,85 @@ async fn export_html(
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
-/// Moves the path to the OS trash instead of deleting it permanently.
+/// Moves the path to the OS trash instead of deleting it permanently, with its comments.
 #[tauri::command]
 async fn trash_path(workspace: State<'_, Workspace>, path: String) -> Result<(), String> {
-    trash::delete(workspace.resolve_entry(&path)?).map_err(err)
+    let path = workspace.resolve_entry(&path)?;
+    trash::delete(&path).map_err(err)?;
+    if let Some(dir) = comments::dir_for(&workspace.root()?, &path).filter(|d| d.exists()) {
+        trash::delete(dir).map_err(err)?;
+    }
+    Ok(())
 }
 
-/// Emits `fs-changed` with the changed paths whenever something in `root` changes.
+/// The comments folder of `document`, which must be inside the open folder.
+fn comments_dir(workspace: &Workspace, document: &str) -> Result<PathBuf, String> {
+    let document = workspace.resolve_entry(document)?;
+    comments::dir_for(&workspace.root()?, &document).ok_or_else(|| "Not a document".to_string())
+}
+
+#[tauri::command]
+async fn read_comments(
+    workspace: State<'_, Workspace>,
+    document: String,
+) -> Result<Vec<comments::CommentFile>, String> {
+    comments::read(&comments_dir(&workspace, &document)?).map_err(err)
+}
+
+#[tauri::command]
+async fn add_comment_file(
+    workspace: State<'_, Workspace>,
+    document: String,
+    thread: String,
+    name: String,
+    content: String,
+) -> Result<(), String> {
+    comments::add(&comments_dir(&workspace, &document)?, &thread, &name, &content).map_err(err)
+}
+
+#[tauri::command]
+async fn compact_comment_thread(
+    workspace: State<'_, Workspace>,
+    document: String,
+    thread: String,
+    name: String,
+    content: String,
+    replaces: Vec<String>,
+) -> Result<(), String> {
+    comments::compact(&comments_dir(&workspace, &document)?, &thread, &name, &content, &replaces).map_err(err)
+}
+
+/// Who comments are signed by: the git user of the open folder, if any.
+#[tauri::command]
+async fn git_identity(workspace: State<'_, Workspace>) -> Result<Option<comments::Identity>, String> {
+    let root = workspace.root()?;
+    tauri::async_runtime::spawn_blocking(move || comments::git_identity(&root))
+        .await
+        .map_err(err)
+}
+
+/// Emits `fs-changed` with the changed paths whenever something in `root`
+/// changes, and `comments-changed` when comments do (hidden folders are
+/// otherwise ignored).
 fn watch(app: &AppHandle, root: &Path) -> Result<Debouncer<RecommendedWatcher>, String> {
     let handle = app.clone();
+    let comments_root = root.join(comments::COMMENTS_DIR);
     let mut debouncer = new_debouncer(
         Duration::from_millis(250),
         move |res: DebounceEventResult| {
             if let Ok(events) = res {
-                let paths: Vec<String> = events
+                let (comments, others): (Vec<_>, Vec<_>) =
+                    events.into_iter().map(|e| e.path).partition(|p| p.starts_with(&comments_root));
+                let paths: Vec<String> = others
                     .into_iter()
-                    .map(|e| e.path.to_string_lossy().into_owned())
+                    .map(|p| p.to_string_lossy().into_owned())
                     .filter(|p| !p.split(['/', '\\']).any(|seg| is_hidden(seg) && seg.len() > 1))
                     .collect();
                 if !paths.is_empty() {
                     let _ = handle.emit("fs-changed", paths);
+                }
+                if !comments.is_empty() {
+                    let _ = handle.emit("comments-changed", ());
                 }
             }
         },
@@ -557,6 +618,10 @@ pub fn run() {
             trash_path,
             export_html,
             save_asset,
+            read_comments,
+            add_comment_file,
+            compact_comment_thread,
+            git_identity,
             app_arch
         ])
         .build(tauri::generate_context!())

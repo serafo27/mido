@@ -27,14 +27,31 @@ import QuickSearch from "./components/QuickSearch";
 import DesktopOnly from "./components/DesktopOnly";
 import Toolbar, { type ViewMode } from "./components/Toolbar";
 import Editor, {
+  editorSelection,
   editorTopLine,
   forgetEditorState,
   renameEditorState,
   revealEditorLine,
+  revealEditorRange,
   useEditorRemeasure,
 } from "./components/Editor";
 import Preview, { previewTopLine, revealPreviewLine } from "./components/Preview";
 import Outline from "./components/Outline";
+import Comments, { type PlacedThread } from "./components/Comments";
+import {
+  buildThreads,
+  createAnchor,
+  lineAt,
+  locate,
+  serializeEvents,
+  trimRange,
+  ulid,
+  type Anchor,
+  type Author,
+  type CommentEvent,
+  type Thread,
+} from "./lib/comments";
+import { previewSelection, type SourceHighlight } from "./lib/previewComments";
 import TabBar from "./components/TabBar";
 import { extractHeadings, headingAt, type Heading } from "./lib/outline";
 import StatusBar from "./components/StatusBar";
@@ -55,6 +72,11 @@ interface Tab {
   conflict?: boolean;
 }
 
+/** The fields every comment event has. */
+const newEvent = (thread: string, by: Author) => ({ id: ulid(), thread, author: by, at: new Date().toISOString() });
+/** Resolving and reopening don't ask for a name when there's no git user yet. */
+const UNKNOWN_AUTHOR: Author = { name: "Unknown", email: "" };
+
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const isDirty = (t: Tab) => t.content !== t.saved;
 
@@ -70,6 +92,7 @@ export default function App() {
   const [sidebarWidth, setSidebarWidth] = useStoredState("mido.sidebarWidth", 268);
   const [splitRatio, setSplitRatio] = useStoredState("mido.splitRatio", 0.5);
   const [outlineOpen, setOutlineOpen] = useStoredState("mido.outlineOpen", false);
+  const [commentsOpen, setCommentsOpen] = useStoredState("mido.commentsOpen", false);
 
   /** Read · Split · Edit. The web version only reads: the other two ask for the desktop app. */
   const changeMode = useCallback(
@@ -528,6 +551,198 @@ export default function App() {
     getCurrentWindow().setTitle(title).catch(() => {});
   }, [activePath, dirty]);
 
+  /* ---------- comments ---------- */
+
+  // The threads of the active document, read from `.mido/comments`.
+  const [threads, setThreads] = useState<{ path: string | null; list: Thread[] }>({ path: null, list: [] });
+  const [activeThread, setActiveThread] = useState<string | null>(null);
+  // Text picked for a new comment, until its first message is sent.
+  const [draft, setDraft] = useState<{ path: string; anchor: Anchor } | null>(null);
+  // The git user of the open folder: undefined until known, null if there's none.
+  const [gitAuthor, setGitAuthor] = useState<Author | null | undefined>(undefined);
+  const author = useMemo<Author | null>(
+    () => gitAuthor ?? (settings.commentAuthor ? { name: settings.commentAuthor, email: "" } : null),
+    [gitAuthor, settings.commentAuthor],
+  );
+
+  const loadComments = useCallback(async () => {
+    const path = live.current.activePath;
+    if (!path) return setThreads({ path: null, list: [] });
+    let list: Thread[] = [];
+    try {
+      list = buildThreads(await api.readComments(path));
+    } catch {
+      // No folder open yet, or a file outside it: no comments.
+    }
+    if (live.current.activePath === path) setThreads({ path, list });
+  }, []);
+
+  // `tree` changes once the folder is open, which is when comments can be read.
+  useEffect(() => {
+    loadComments();
+  }, [activePath, tree, loadComments]);
+  useEffect(() => setActiveThread(null), [activePath]);
+
+  useEffect(() => {
+    const unlisten = listen("comments-changed", loadComments);
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, [loadComments]);
+
+  useEffect(() => {
+    setGitAuthor(undefined);
+    if (!root || tree.length === 0) return;
+    let cancelled = false;
+    api.gitIdentity().then(
+      (identity) => !cancelled && setGitAuthor(identity),
+      () => !cancelled && setGitAuthor(null),
+    );
+    return () => {
+      cancelled = true;
+    };
+    // Once per folder: `tree` only tells when it's open.
+  }, [root, tree.length > 0]);
+
+  const activeContent = active?.content ?? "";
+  const placedThreads = useMemo<PlacedThread[]>(() => {
+    if (threads.path !== activePath) return [];
+    const placed = threads.list.map((thread) => ({ thread, range: locate(activeContent, thread.anchor) }));
+    return placed.sort(
+      (a, b) =>
+        (a.range?.from ?? Infinity) - (b.range?.from ?? Infinity) || (a.thread.id < b.thread.id ? -1 : 1),
+    );
+  }, [threads, activePath, activeContent]);
+
+  const draftRange = draft && draft.path === activePath ? locate(activeContent, draft.anchor) : null;
+  const highlights = useMemo<SourceHighlight[]>(() => {
+    const list: SourceHighlight[] = placedThreads.flatMap(({ thread, range }) =>
+      range && !thread.resolved ? [{ id: thread.id, ...range, active: thread.id === activeThread && !draftRange }] : [],
+    );
+    if (draftRange) list.push({ id: "draft", ...draftRange, active: true });
+    return list;
+  }, [placedThreads, activeThread, draftRange?.from, draftRange?.to]);
+  const openThreadCount = placedThreads.filter((t) => !t.thread.resolved).length;
+
+  /** Starts a comment on the text selected in the editor or the preview. */
+  const startComment = useCallback(() => {
+    if (requireDesktop("Commenting")) return;
+    const tab = live.current.tabs.find((t) => t.path === live.current.activePath);
+    if (!tab) return;
+    const { mode } = live.current;
+    let range = mode !== "view" ? editorSelection() : null;
+    if (!range && mode !== "edit" && previewRef.current) range = previewSelection(previewRef.current, tab.content);
+    range = range && trimRange(tab.content, range);
+    if (!range || range.from === range.to) {
+      setToast("Select the text you want to comment on.");
+      return;
+    }
+    setCommentsOpen(true);
+    setActiveThread(null);
+    setDraft({ path: tab.path, anchor: createAnchor(tab.content, range) });
+  }, [setCommentsOpen]);
+
+  /** The author of a new comment; `name` when they had to type one, which is remembered. */
+  const signer = useCallback(
+    (name?: string): Author | null => {
+      if (!name) return author;
+      updateSettings({ commentAuthor: name });
+      return { name, email: "" };
+    },
+    [author, updateSettings],
+  );
+
+  const addEvent = useCallback(
+    async (path: string, event: CommentEvent) => {
+      try {
+        await api.addCommentFile(path, event.thread, event.id, serializeEvents([event]));
+      } catch (e) {
+        fail(e);
+      }
+      await loadComments();
+    },
+    [fail, loadComments],
+  );
+
+  const submitDraft = useCallback(
+    async (body: string, name?: string) => {
+      const by = signer(name);
+      if (!draft || !by) return;
+      const id = ulid();
+      await addEvent(draft.path, { ...newEvent(id, by), id, type: "create", body, anchor: draft.anchor });
+      setDraft(null);
+      setActiveThread(id);
+    },
+    [draft, signer, addEvent],
+  );
+
+  const replyToThread = useCallback(
+    (thread: string, body: string, name?: string) => {
+      const by = signer(name);
+      if (by && activePath) addEvent(activePath, { ...newEvent(thread, by), type: "reply", body });
+    },
+    [signer, activePath, addEvent],
+  );
+
+  const reopenThread = useCallback(
+    (thread: string) => {
+      if (activePath) addEvent(activePath, { ...newEvent(thread, author ?? UNKNOWN_AUTHOR), type: "reopen" });
+    },
+    [author, activePath, addEvent],
+  );
+
+  const deleteComment = useCallback(
+    (thread: string, target: string) => {
+      if (author && activePath) addEvent(activePath, { ...newEvent(thread, author), type: "delete", target });
+    },
+    [author, activePath, addEvent],
+  );
+
+  /** Resolving gathers the thread's events into one file, replacing the ones they were in. */
+  const resolveThread = useCallback(
+    async (id: string) => {
+      const thread = threads.list.find((t) => t.id === id);
+      const path = threads.path;
+      const by = author ?? UNKNOWN_AUTHOR;
+      if (!thread || !path) return;
+      const event: CommentEvent = { ...newEvent(id, by), type: "resolve" };
+      try {
+        await api.compactCommentThread(path, id, event.id, serializeEvents([...thread.events, event]), thread.files);
+      } catch (e) {
+        fail(e);
+      }
+      if (activeThread === id) setActiveThread(null);
+      await loadComments();
+    },
+    [threads, author, activeThread, fail, loadComments],
+  );
+
+  /** Shows a thread's text: from the panel, scrolls the document to it. */
+  const selectThread = useCallback(
+    (id: string) => {
+      setActiveThread(id);
+      setDraft(null);
+      const range = placedThreads.find((t) => t.thread.id === id)?.range;
+      if (!range) return;
+      if (live.current.mode === "view") {
+        if (previewRef.current) revealPreviewLine(previewRef.current, lineAt(activeContent, range.from));
+      } else {
+        revealEditorRange(range.from, range.to);
+      }
+    },
+    [placedThreads, activeContent],
+  );
+
+  /** A highlight was clicked in the document: show its thread. */
+  const showThread = useCallback(
+    (id: string) => {
+      if (id === "draft") return;
+      setActiveThread(id);
+      setCommentsOpen(true);
+    },
+    [setCommentsOpen],
+  );
+
   /* ---------- tree operations ---------- */
 
   const createEntry = useCallback(
@@ -772,11 +987,19 @@ export default function App() {
         printDocument();
         return;
       }
+      if (mod && e.altKey && !e.shiftKey && e.code === "KeyM") {
+        e.preventDefault();
+        startComment();
+        return;
+      }
       if (!mod || e.altKey) return;
       if (e.shiftKey) {
         if (e.code === "KeyO") {
           e.preventDefault();
           setOutlineOpen((o) => !o);
+        } else if (e.code === "KeyM") {
+          e.preventDefault();
+          setCommentsOpen((o) => !o);
         } else if (e.code === "KeyE") {
           e.preventDefault();
           exportHtml();
@@ -811,7 +1034,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive, openFolder, closeTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, changeMode, exportHtml, printDocument]);
+  }, [saveActive, openFolder, closeTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, printDocument]);
 
   const dragResize = (e: ReactPointerEvent<HTMLDivElement>, onMove: (ev: PointerEvent) => void) => {
     e.preventDefault();
@@ -948,12 +1171,15 @@ export default function App() {
       wrap={settings.wrap}
       settingsOpen={settingsOpen}
       outlineOpen={outlineOpen}
+      commentsOpen={commentsOpen}
+      commentCount={openThreadCount}
       tabs={root && !settings.showPathBar && tabs.length > 0 ? tabInfos : undefined}
       onSelectTab={setActivePath}
       onPinTab={pinTab}
       onCloseTab={closeTab}
       onMoveTab={moveTab}
       onToggleOutline={() => setOutlineOpen((o) => !o)}
+      onToggleComments={() => setCommentsOpen((o) => !o)}
       onMode={changeMode}
       onExport={isWeb ? exportHtml : undefined}
       onPrint={isWeb ? printDocument : undefined}
@@ -1033,6 +1259,8 @@ export default function App() {
                       onChange={updateContent}
                       onScroll={onEditorScroll}
                       onAddImages={addImages}
+                      highlights={highlights}
+                      onSelectHighlight={showThread}
                     />
                   )}
                   {mode === "split" && (
@@ -1059,6 +1287,8 @@ export default function App() {
                       scrollRef={previewRef}
                       onScroll={onPreviewScroll}
                       onOpenFile={openFile}
+                      highlights={highlights}
+                      onSelectHighlight={showThread}
                     />
                   )}
                 </div>
@@ -1068,6 +1298,24 @@ export default function App() {
                     activeIndex={headingAt(headings, currentLine)}
                     onSelect={goToHeading}
                     onClose={() => setOutlineOpen(false)}
+                  />
+                )}
+                {commentsOpen && (
+                  <Comments
+                    threads={placedThreads}
+                    activeId={activeThread}
+                    draft={draft && draft.path === active.path ? { quote: draft.anchor.exact } : null}
+                    author={author}
+                    readOnly={isWeb}
+                    onSelect={selectThread}
+                    onNewComment={startComment}
+                    onSubmitDraft={submitDraft}
+                    onCancelDraft={() => setDraft(null)}
+                    onReply={replyToThread}
+                    onResolve={resolveThread}
+                    onReopen={reopenThread}
+                    onDelete={deleteComment}
+                    onClose={() => setCommentsOpen(false)}
                   />
                 )}
               </div>
