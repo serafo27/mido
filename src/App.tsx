@@ -1187,8 +1187,8 @@ export default function App() {
       { title: "Pull", kind: "info", buttons: { yes: "Merge", no: "Rebase", cancel: "Cancel" } },
     );
     const mode = choice === "Merge" || choice === "Yes" ? "merge" : choice === "Rebase" || choice === "No" ? "rebase" : null;
-    if (!mode) return;
-    await gitAction(mode === "merge" ? "Pulling (merge)…" : "Pulling (rebase)…", () => api.gitPull(mode));
+    if (!mode) return false;
+    return gitAction(mode === "merge" ? "Pulling (merge)…" : "Pulling (rebase)…", () => api.gitPull(mode));
   }, [gitStatus, gitAction]);
 
   const push = useCallback(async () => {
@@ -1207,6 +1207,13 @@ export default function App() {
     });
     if (publish) await gitAction("Publishing…", () => api.gitPush(remote));
   }, [gitStatus, gitAction]);
+
+  /** Pulls what's waiting, then pushes, as VS Code's Sync Changes. */
+  const sync = useCallback(async () => {
+    if (!gitStatus) return;
+    if (gitStatus.behind > 0 && !(await pull())) return;
+    await push();
+  }, [gitStatus, pull, push]);
 
   const continueOperation = useCallback(() => gitAction("Continuing…", api.gitContinue), [gitAction]);
 
@@ -1918,6 +1925,7 @@ export default function App() {
                     onFetch={fetchRemote}
                     onPull={pull}
                     onPush={push}
+                    onSync={sync}
                     onContinue={continueOperation}
                     onAbort={abortOperation}
                     onOpenDiff={openDiff}

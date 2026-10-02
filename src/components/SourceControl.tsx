@@ -20,7 +20,7 @@ import {
   Undo2,
   X,
 } from "lucide-react";
-import { api, type GitCommit, type GitFileChange, type GitRepo } from "../lib/api";
+import { api, type CommitOptions, type GitCommit, type GitFileChange, type GitRepo } from "../lib/api";
 import { basename, dirname, tildify } from "../lib/paths";
 import { changeLetter, isDocumentPath } from "../lib/useGit";
 import { isMac } from "../lib/platform";
@@ -62,10 +62,12 @@ interface SourceControlProps {
   onShowAll: () => void;
   onUnstage: (paths: string[]) => void;
   /** Resolves to true once committed, so the message can be cleared. */
-  onCommit: (message: string) => Promise<boolean>;
+  onCommit: (message: string, options?: CommitOptions) => Promise<boolean>;
   onFetch: () => void;
   onPull: () => void;
-  onPush: () => void;
+  onPush: () => void | Promise<void>;
+  /** Pulls what's waiting, then pushes. */
+  onSync: () => void | Promise<void>;
   onContinue: () => void;
   onAbort: () => void;
   /** A single click opens a preview tab; a double click, a tab that stays. */
@@ -85,6 +87,17 @@ export default function SourceControl(props: SourceControlProps) {
   const [graphHeight, setGraphHeight] = useStoredState("mido.scm.graphHeight", 220);
   // Folded down to its title at the bottom, as VS Code's views fold.
   const [graphOpen, setGraphOpen] = useStoredState("mido.scm.graphOpen", true);
+  const [changesOpen, setChangesOpen] = useStoredState("mido.scm.changesOpen", true);
+  const [commitMenu, setCommitMenu] = useState(false);
+  const commitMenuRef = useRef<HTMLDivElement>(null);
+
+  // Clicking elsewhere closes the commit menu.
+  useEffect(() => {
+    if (!commitMenu) return;
+    const onDown = (e: MouseEvent) => !commitMenuRef.current?.contains(e.target as Node) && setCommitMenu(false);
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [commitMenu]);
   const panel = useRef<HTMLDivElement>(null);
 
   // The message box grows with what's typed, as VS Code's does.
@@ -146,10 +159,45 @@ export default function SourceControl(props: SourceControlProps) {
   const canCommit = !busy && staged.length > 0 && message.trim() !== "" && conflicts.length === 0;
   const unpublished = status.branch !== null && !status.upstream && status.remotes.length > 0;
 
-  const commit = async () => {
+  /** Commits, then (`then`) pushes or syncs, as the Commit button's menu offers. */
+  const commit = async (then?: "push" | "sync") => {
+    setCommitMenu(false);
     if (!canCommit) return;
-    if (await props.onCommit(message)) setMessage("");
+    if (!(await props.onCommit(message))) return;
+    setMessage("");
+    if (then === "push") await props.onPush();
+    if (then === "sync") await props.onSync();
   };
+  /** Amends the last commit with what's staged, keeping its message unless one is typed. */
+  const amend = async () => {
+    setCommitMenu(false);
+    if (busy || conflicts.length > 0) return;
+    let text = message;
+    if (!text.trim()) {
+      try {
+        text = await api.gitLastMessage();
+      } catch {
+        return;
+      }
+    }
+    if (await props.onCommit(text, { amend: true })) setMessage("");
+  };
+  const behind = status.upstream ? status.behind : 0;
+  const ahead = status.upstream ? status.ahead : 0;
+  // One button, as in VS Code: Commit while there's something to commit, else what the branch needs.
+  const primary =
+    staged.length > 0 || message.trim() !== ""
+      ? { label: "Commit", icon: <Check size={14} />, run: () => commit(), disabled: !canCommit }
+      : unpublished
+        ? { label: "Publish Branch", icon: <CloudUpload size={14} />, run: props.onPush, disabled: !!busy }
+        : behind > 0 || ahead > 0
+          ? {
+              label: `Sync Changes ${behind > 0 ? `${behind}↓ ` : ""}${ahead > 0 ? `${ahead}↑` : ""}`.trim(),
+              icon: <RefreshCw size={13} />,
+              run: props.onSync,
+              disabled: !!busy,
+            }
+          : { label: "Commit", icon: <Check size={14} />, run: () => commit(), disabled: true };
   const onMessageKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && (isMac ? e.metaKey : e.ctrlKey)) {
       e.preventDefault();
@@ -217,182 +265,203 @@ export default function SourceControl(props: SourceControlProps) {
         </>,
       )}
 
-      <button className="scm-branch" onClick={props.onOpenBranches} disabled={!!busy} title="Switch, create or merge branches">
-        <GitBranch size={13} />
-        <span className="scm-branch-name">{branch}</span>
-        {status.upstream && <span className="scm-branch-upstream">{status.upstream}</span>}
-        <ChevronDown size={13} className="scm-branch-chevron" />
-      </button>
-
-      <div className="scm-scroll">
-        {props.error && (
-          <div className="scm-notice error" role="alert">
-            <pre>{props.error}</pre>
-            <RowAction title="Dismiss" onClick={props.onDismissError}>
-              <X size={13} />
-            </RowAction>
-          </div>
+      {/* The panel's two views, as VS Code's: each folds to its title, and folded ones gather at the top. */}
+      <div className="scm-section-header" onClick={() => setChangesOpen(!changesOpen)} aria-expanded={changesOpen}>
+        <ChevronRight size={14} className={`chevron ${changesOpen ? "open" : ""}`} />
+        <span className="scm-group-title">Changes</span>
+        {!changesOpen && staged.length + changes.length + conflicts.length > 0 && (
+          <span className="scm-count">{staged.length + changes.length + conflicts.length}</span>
         )}
+      </div>
+      <div className={`scm-changes ${changesOpen ? "" : "closed"}`}>
+        <button className="scm-branch" onClick={props.onOpenBranches} disabled={!!busy} title="Switch, create or merge branches">
+          <GitBranch size={13} />
+          <span className="scm-branch-name">{branch}</span>
+          {status.upstream && <span className="scm-branch-upstream">{status.upstream}</span>}
+          <ChevronDown size={13} className="scm-branch-chevron" />
+        </button>
 
-        {status.operation ? (
-          <div className="scm-notice warning">
-            <TriangleAlert size={14} />
-            <div className="scm-notice-body">
-              <strong>{status.operation === "merge" ? "Merge in progress" : "Rebase in progress"}</strong>
-              <span>
-                {conflicts.length > 0
-                  ? `Resolve the conflicts in ${plural(conflicts.length, "file")}, then ${status.operation === "merge" ? "commit the merge" : "continue"}.`
-                  : `Every conflict is resolved: ${status.operation === "merge" ? "commit the merge" : "continue the rebase"}.`}
-              </span>
-              <div className="scm-notice-actions">
-                <button className="scm-button" disabled={!!busy || conflicts.length > 0} onClick={props.onContinue}>
-                  <Check size={14} />
-                  {status.operation === "merge" ? "Commit Merge" : "Continue Rebase"}
-                </button>
-                <button className="scm-button secondary" disabled={!!busy} onClick={props.onAbort}>
-                  <Undo2 size={14} />
-                  Abort
-                </button>
+        <div className="scm-scroll">
+          {props.error && (
+            <div className="scm-notice error" role="alert">
+              <pre>{props.error}</pre>
+              <RowAction title="Dismiss" onClick={props.onDismissError}>
+                <X size={13} />
+              </RowAction>
+            </div>
+          )}
+
+          {status.operation ? (
+            <div className="scm-notice warning">
+              <TriangleAlert size={14} />
+              <div className="scm-notice-body">
+                <strong>{status.operation === "merge" ? "Merge in progress" : "Rebase in progress"}</strong>
+                <span>
+                  {conflicts.length > 0
+                    ? `Resolve the conflicts in ${plural(conflicts.length, "file")}, then ${status.operation === "merge" ? "commit the merge" : "continue"}.`
+                    : `Every conflict is resolved: ${status.operation === "merge" ? "commit the merge" : "continue the rebase"}.`}
+                </span>
+                <div className="scm-notice-actions">
+                  <button className="scm-button" disabled={!!busy || conflicts.length > 0} onClick={props.onContinue}>
+                    <Check size={14} />
+                    {status.operation === "merge" ? "Commit Merge" : "Continue Rebase"}
+                  </button>
+                  <button className="scm-button secondary" disabled={!!busy} onClick={props.onAbort}>
+                    <Undo2 size={14} />
+                    Abort
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="scm-commit">
-            <textarea
-              ref={input}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={onMessageKey}
-              placeholder={`Message (${isMac ? "⌘" : "Ctrl+"}Enter to commit on “${branch}”)`}
-              rows={1}
-              spellCheck
-            />
-            <button
-              className="scm-button"
-              disabled={!canCommit}
-              onClick={commit}
-              title={staged.length === 0 ? "Stage the changes to commit first" : undefined}
-            >
-              <Check size={14} />
-              Commit
-            </button>
-            {unpublished && (
-              <button className="scm-button secondary" disabled={!!busy} onClick={props.onPush}>
-                <CloudUpload size={14} />
-                Publish Branch
-              </button>
-            )}
-            {status.upstream && (status.behind > 0 || status.ahead > 0) && (
-              <div className="scm-sync">
-                {status.behind > 0 && (
-                  <button
-                    className="scm-button secondary"
-                    disabled={!!busy}
-                    onClick={props.onPull}
-                    title={`Pull ${plural(status.behind, "commit")} from ${status.upstream}`}
-                  >
-                    <ArrowDownToLine size={14} />
-                    Pull {status.behind}
-                  </button>
-                )}
-                {status.ahead > 0 && (
-                  <button
-                    className="scm-button secondary"
-                    disabled={!!busy}
-                    onClick={props.onPush}
-                    title={`Push ${plural(status.ahead, "commit")} to ${status.upstream}`}
-                  >
-                    <ArrowUpFromLine size={14} />
-                    Push {status.ahead}
-                  </button>
+          ) : (
+            <div className="scm-commit">
+              <textarea
+                ref={input}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={onMessageKey}
+                placeholder={`Message (${isMac ? "⌘" : "Ctrl+"}Enter to commit on “${branch}”)`}
+                rows={1}
+                spellCheck
+              />
+              <div className="scm-split-button" ref={commitMenuRef}>
+                <button
+                  className="scm-button primary"
+                  disabled={primary.disabled}
+                  onClick={() => primary.run()}
+                  title={primary.label === "Commit" && staged.length === 0 ? "Stage the changes to commit first" : undefined}
+                >
+                  {primary.icon}
+                  {primary.label}
+                </button>
+                <button
+                  className="scm-button more"
+                  disabled={!!busy}
+                  onClick={() => setCommitMenu((m) => !m)}
+                  title="More Actions…"
+                  aria-label="More Actions"
+                  aria-haspopup="menu"
+                  aria-expanded={commitMenu}
+                >
+                  <ChevronDown size={14} />
+                </button>
+                {commitMenu && (
+                  <div className="context-menu scm-commit-menu" role="menu">
+                    <button className="menu-item" role="menuitem" disabled={!canCommit} onClick={() => commit()}>
+                      Commit
+                    </button>
+                    <button className="menu-item" role="menuitem" disabled={!status.hasCommits || conflicts.length > 0} onClick={amend}>
+                      Commit (Amend)
+                    </button>
+                    <div className="menu-sep" />
+                    <button
+                      className="menu-item"
+                      role="menuitem"
+                      disabled={!canCommit || status.remotes.length === 0}
+                      onClick={() => commit("push")}
+                    >
+                      Commit &amp; Push
+                    </button>
+                    <button
+                      className="menu-item"
+                      role="menuitem"
+                      disabled={!canCommit || !status.upstream}
+                      onClick={() => commit("sync")}
+                    >
+                      Commit &amp; Sync
+                    </button>
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {busy && (
-          <div className="scm-progress" role="status">
-            <span className="scm-progress-bar" />
-            <span className="scm-progress-label">{busy}</span>
-          </div>
-        )}
+          {busy && (
+            <div className="scm-progress" role="status">
+              <span className="scm-progress-bar" />
+              <span className="scm-progress-label">{busy}</span>
+            </div>
+          )}
 
-        {hidden.length > 0 && (
-          <div className="scm-hidden-note">
-            {`${plural(hidden.length, "other file")} changed`}
-            {hiddenStaged > 0 ? `, ${hiddenStaged} staged: ${hiddenStaged === 1 ? "it" : "they"}'ll be committed too.` : "."}
-            <button className="link-button" onClick={props.onShowAll}>
-              Show all files
-            </button>
-          </div>
-        )}
+          {hidden.length > 0 && (
+            <div className="scm-hidden-note">
+              {`${plural(hidden.length, "other file")} changed`}
+              {hiddenStaged > 0 ? `, ${hiddenStaged} staged: ${hiddenStaged === 1 ? "it" : "they"}'ll be committed too.` : "."}
+              <button className="link-button" onClick={props.onShowAll}>
+                Show all files
+              </button>
+            </div>
+          )}
 
-        {conflicts.length > 0 && (
-          <Group title="Merge Changes" count={conflicts.length}>
-            {conflicts.map((c) => row(c, "conflict", null))}
-          </Group>
-        )}
-        {staged.length > 0 && (
-          <Group
-            title="Staged Changes"
-            count={staged.length}
-            actions={
-              <RowAction title="Unstage All Changes" disabled={!!busy} onClick={() => props.onUnstage(staged.map((f) => f.path))}>
-                <Minus size={14} />
-              </RowAction>
-            }
-          >
-            {staged.map((c) =>
-              row(
-                c,
-                "staged",
-                <RowAction title="Unstage Changes" disabled={!!busy} onClick={() => props.onUnstage([c.path])}>
+          {conflicts.length > 0 && (
+            <Group title="Merge Changes" count={conflicts.length}>
+              {conflicts.map((c) => row(c, "conflict", null))}
+            </Group>
+          )}
+          {staged.length > 0 && (
+            <Group
+              title="Staged Changes"
+              count={staged.length}
+              actions={
+                <RowAction title="Unstage All Changes" disabled={!!busy} onClick={() => props.onUnstage(staged.map((f) => f.path))}>
                   <Minus size={14} />
-                </RowAction>,
-              ),
-            )}
-          </Group>
-        )}
-        <Group
-          title="Changes"
-          count={changes.length}
-          actions={
-            changes.length > 0 && (
-              <>
-                <RowAction title="Discard All Changes" disabled={!!busy} onClick={() => props.onDiscard(changes.map((f) => f.path))}>
-                  <Undo2 size={14} />
                 </RowAction>
-                <RowAction title="Stage All Changes" disabled={!!busy} onClick={() => props.onStage(changes.map((f) => f.path))}>
-                  <Plus size={14} />
-                </RowAction>
-              </>
-            )
-          }
-        >
-          {changes.length === 0 && staged.length === 0 && conflicts.length === 0 ? (
-            <p className="scm-empty small">{hidden.length ? "No Markdown changes." : "No changes since the last commit."}</p>
-          ) : (
-            changes.map((c) =>
-              row(
-                c,
-                "unstaged",
+              }
+            >
+              {staged.map((c) =>
+                row(
+                  c,
+                  "staged",
+                  <RowAction title="Unstage Changes" disabled={!!busy} onClick={() => props.onUnstage([c.path])}>
+                    <Minus size={14} />
+                  </RowAction>,
+                ),
+              )}
+            </Group>
+          )}
+          <Group
+            title="Changes"
+            count={changes.length}
+            actions={
+              changes.length > 0 && (
                 <>
-                  <RowAction title="Discard Changes" disabled={!!busy} onClick={() => props.onDiscard([c.path])}>
+                  <RowAction title="Discard All Changes" disabled={!!busy} onClick={() => props.onDiscard(changes.map((f) => f.path))}>
                     <Undo2 size={14} />
                   </RowAction>
-                  <RowAction title="Stage Changes" disabled={!!busy} onClick={() => props.onStage([c.path])}>
+                  <RowAction title="Stage All Changes" disabled={!!busy} onClick={() => props.onStage(changes.map((f) => f.path))}>
                     <Plus size={14} />
                   </RowAction>
-                </>,
-              ),
-            )
-          )}
-        </Group>
+                </>
+              )
+            }
+          >
+            {changes.length === 0 && staged.length === 0 && conflicts.length === 0 ? (
+              <p className="scm-empty small">{hidden.length ? "No Markdown changes." : "No changes since the last commit."}</p>
+            ) : (
+              changes.map((c) =>
+                row(
+                  c,
+                  "unstaged",
+                  <>
+                    <RowAction title="Discard Changes" disabled={!!busy} onClick={() => props.onDiscard([c.path])}>
+                      <Undo2 size={14} />
+                    </RowAction>
+                    <RowAction title="Stage Changes" disabled={!!busy} onClick={() => props.onStage([c.path])}>
+                      <Plus size={14} />
+                    </RowAction>
+                  </>,
+                ),
+              )
+            )}
+          </Group>
+        </div>
       </div>
 
-      <div className={`scm-graph-pane ${graphOpen ? "" : "closed"}`} style={graphOpen ? { height: graphHeight } : undefined}>
-        {graphOpen && <div className="scm-pane-resizer" onPointerDown={resizeGraph} />}
+      <div
+        className={`scm-graph-pane ${graphOpen ? "" : "closed"} ${graphOpen && !changesOpen ? "fill" : ""}`}
+        style={graphOpen && changesOpen ? { height: graphHeight } : undefined}
+      >
+        {graphOpen && changesOpen && <div className="scm-pane-resizer" onPointerDown={resizeGraph} />}
         <Graph
           open={graphOpen}
           onToggle={() => setGraphOpen(!graphOpen)}
@@ -406,6 +475,7 @@ export default function SourceControl(props: SourceControlProps) {
           onOpenDiff={props.onOpenDiff}
         />
       </div>
+      <div className={`scm-filler ${changesOpen || graphOpen ? "" : "on"}`} />
     </div>
   );
 }
@@ -551,7 +621,7 @@ function Graph(props: {
 
   return (
     <>
-      <div className="scm-group-header" onClick={props.onToggle} aria-expanded={props.open}>
+      <div className="scm-section-header" onClick={props.onToggle} aria-expanded={props.open}>
         <ChevronRight size={14} className={`chevron ${props.open ? "open" : ""}`} />
         <span className="scm-group-title">Graph</span>
         {props.markdownOnly && props.open && <span className="scm-group-note">Markdown</span>}

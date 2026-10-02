@@ -3293,9 +3293,32 @@ body.web-dropping::after {
 .scm-commit textarea::placeholder {
   color: var(--text-faint);
 }
-.scm-sync {
+/* VS Code's Commit button: the action, and beside it a menu of the others. */
+.scm-split-button {
+  position: relative;
   display: flex;
-  gap: 6px;
+  gap: 1px;
+}
+.scm-split-button .scm-button.primary {
+  flex: 1;
+  min-width: 0;
+  border-radius: 4px 0 0 4px;
+}
+.scm-split-button .scm-button.more {
+  flex: none;
+  width: 28px;
+  padding: 0;
+  border-radius: 0 4px 4px 0;
+}
+.context-menu.scm-commit-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 180px;
+}
+.scm-commit-menu .menu-item:disabled {
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 .scm-notice {
@@ -3378,12 +3401,10 @@ body.web-dropping::after {
   align-items: center;
   gap: 2px;
   height: 22px;
-  padding: 0 12px 0 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  padding: 0 12px 0 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text);
   cursor: default;
   user-select: none;
 }
@@ -3928,12 +3949,62 @@ body.web-dropping::after {
 .scm-pane-resizer:hover {
   background: color-mix(in srgb, var(--accent) 40%, transparent);
 }
-.scm-graph-pane > .scm-group-header {
+/* The panel's views (Changes, Graph): VS Code's view titles, folding to just that. */
+.scm-section-header {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 12px 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: default;
+  user-select: none;
 }
-/* Folded: only its title, at the bottom of the panel; the changes take the rest. */
+.scm-section-header:hover {
+  background: var(--bg-hover);
+}
+.scm-section-header .chevron {
+  flex: none;
+  color: var(--text-faint);
+  transition: transform 0.12s ease;
+}
+.scm-section-header .chevron.open {
+  transform: rotate(90deg);
+}
+.scm-changes {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: flex-grow 0.2s ease;
+}
+.scm-changes.closed {
+  flex-grow: 0;
+}
+.scm-changes > .scm-scroll {
+  min-height: 0;
+}
+/* Folded views gather at the top: this takes the space below them. */
+.scm-filler {
+  flex: 0 1 0;
+  transition: flex-grow 0.2s ease;
+}
+.scm-filler.on {
+  flex-grow: 1;
+}
 .scm-graph-pane.closed {
   min-height: 0;
+}
+/* With Changes folded, the graph takes the rest of the panel. */
+.scm-graph-pane.fill {
+  flex: 1 1 0;
+  max-height: none;
 }
 
 /* ---------- popups: branches, commit, push ---------- */
