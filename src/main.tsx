@@ -10,6 +10,9 @@ import "katex/dist/katex.min.css";
 import "./styles/app.css";
 import "./styles/markdown.css";
 import App from "./App";
+import { migrateDefaults } from "./lib/settings";
+
+migrateDefaults();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

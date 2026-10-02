@@ -15,6 +15,7 @@ GitHub and on the website's changelog page.
 
 ### Changed
 
+- New installs start with a different look: the GitHub reading style with system fonts (14.5px text, line height 1.58, 1000px page), dark mode with the amber accent, rounded tabs and no file path bar. If you already use Mido, your settings stay as they are.
 - The open folder, at the top of the sidebar, now reads as one: its name with a folder icon and a switch arrow. Clicking it lists the recent folders to switch to, **Open Folder…** and **New Window**.
 
 ## [0.10.0] - 2026-10-01

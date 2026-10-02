@@ -50,22 +50,22 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  theme: "system",
+  theme: "dark",
   lightTheme: DEFAULT_THEME.light,
   darkTheme: DEFAULT_THEME.dark,
   customThemes: [],
-  accent: "theme",
-  showPathBar: true,
-  style: "mido",
-  bodyFont: "inter",
-  headingFont: "source-serif",
-  codeFont: "jetbrains",
+  accent: "amber",
+  showPathBar: false,
+  style: "github",
+  bodyFont: "system",
+  headingFont: "system",
+  codeFont: "system-mono",
   customBodyFont: "",
   customHeadingFont: "",
   customCodeFont: "",
-  fontSize: 16,
-  lineHeight: 1.72,
-  contentWidth: 780,
+  fontSize: 14.5,
+  lineHeight: 1.58,
+  contentWidth: 1000,
   justify: false,
   showFrontmatter: true,
   editorFontSize: 14,
@@ -75,8 +75,50 @@ export const DEFAULT_SETTINGS: Settings = {
   commentAuthor: "",
   minimap: false,
   remoteImages: "secure",
+  tabStyle: "rounded",
+};
+
+/**
+ * The defaults up to 0.10, for the settings that have changed since. Only
+ * what people change is stored, so without these, earlier installs would
+ * switch to the new defaults; those are for new installs.
+ */
+const DEFAULTS_UP_TO_0_10: Partial<Settings> = {
+  theme: "system",
+  accent: "theme",
+  showPathBar: true,
+  style: "mido",
+  bodyFont: "inter",
+  headingFont: "source-serif",
+  codeFont: "jetbrains",
+  fontSize: 16,
+  lineHeight: 1.72,
+  contentWidth: 780,
   tabStyle: "classic",
 };
+
+const SETTINGS_KEY = "mido.settings";
+/** Set once the stored settings are up to date with the defaults' changes. */
+const DEFAULTS_VERSION_KEY = "mido.defaultsVersion";
+const DEFAULTS_VERSION = 1;
+
+/**
+ * Keeps the old defaults for installs from before they changed, by storing
+ * them as if chosen. Runs before the app reads its settings.
+ */
+export function migrateDefaults(storage: Storage = localStorage) {
+  try {
+    if (Number(storage.getItem(DEFAULTS_VERSION_KEY)) >= DEFAULTS_VERSION) return;
+    // Every launch caches its theme, so an earlier install has one.
+    if (storage.getItem("mido.themeCache") !== null) {
+      const stored = JSON.parse(storage.getItem(SETTINGS_KEY) || "{}") as Partial<Settings>;
+      storage.setItem(SETTINGS_KEY, JSON.stringify({ ...DEFAULTS_UP_TO_0_10, ...stored }));
+    }
+    storage.setItem(DEFAULTS_VERSION_KEY, String(DEFAULTS_VERSION));
+  } catch {
+    // Storage unavailable: nothing was stored to keep.
+  }
+}
 
 export interface FontOption {
   id: string;
