@@ -9,7 +9,7 @@ import { isWeb } from "./platform";
  * made in Terminal doesn't touch the folder's files). Only reads: every git
  * action is the user's, through `run`.
  */
-export function useGit(root: string | null, opened: unknown, enabled = true) {
+export function useGit(root: string | null, opened: unknown) {
   const [repo, setRepo] = useState<GitRepo | null>(null);
   // What's running ("Pushing…"), so the panel can show it and not start another.
   const [busy, setBusy] = useState<string | null>(null);
@@ -17,8 +17,7 @@ export function useGit(root: string | null, opened: unknown, enabled = true) {
 
   const refresh = useCallback(async () => {
     const id = ++request.current;
-    // Off (an experimental feature), the repository isn't even read.
-    if (!root || isWeb || !enabled) return setRepo(null);
+    if (!root || isWeb) return setRepo(null);
     try {
       const info = await api.gitInfo();
       if (id === request.current) setRepo(info);
@@ -26,7 +25,7 @@ export function useGit(root: string | null, opened: unknown, enabled = true) {
       // The folder isn't open in the backend yet: `opened` changing brings us back.
       if (id === request.current) setRepo(null);
     }
-  }, [root, enabled]);
+  }, [root]);
 
   useEffect(() => {
     refresh();

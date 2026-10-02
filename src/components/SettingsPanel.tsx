@@ -193,7 +193,7 @@ export default function SettingsPanel(props: SettingsPanelProps) {
           </Section>
         )}
 
-        {!isWeb && settings.experimentalGit && (
+        {!isWeb && (
           <Section title="Source Control">
             <Toggle
               label="Show all files, not only Markdown"
@@ -289,11 +289,6 @@ export default function SettingsPanel(props: SettingsPanelProps) {
             label="Terminal"
             checked={settings.experimentalTerminal}
             onChange={(experimentalTerminal) => onChange({ experimentalTerminal })}
-          />
-          <Toggle
-            label="Source control (git)"
-            checked={settings.experimentalGit}
-            onChange={(experimentalGit) => onChange({ experimentalGit })}
           />
         </Section>
 

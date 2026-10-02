@@ -133,12 +133,12 @@ const WEB_SHORTCUTS: [string, string][] = [
   [`${modKey}\\`, "Toggle sidebar"],
 ];
 
-export function NoFile({ git }: { git: boolean }) {
+export function NoFile() {
   return (
     <div className="no-file" data-tauri-drag-region>
       <p>Select a file from the sidebar</p>
       <dl className="shortcuts">
-        {(isWeb ? WEB_SHORTCUTS : SHORTCUTS.filter(([, label]) => git || !label.includes("(git)"))).map(([keys, label]) => (
+        {(isWeb ? WEB_SHORTCUTS : SHORTCUTS).map(([keys, label]) => (
           <div key={keys}>
             <dt>
               <kbd>{keys}</kbd>

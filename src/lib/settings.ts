@@ -54,8 +54,6 @@ export interface Settings {
   gitShowAllFiles: boolean;
   /** Experimental: a terminal under the document, and the Terminal menu. */
   experimentalTerminal: boolean;
-  /** Experimental: source control (git) for the open folder. */
-  experimentalGit: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -89,7 +87,6 @@ export const DEFAULT_SETTINGS: Settings = {
   tabStyle: "rounded",
   gitShowAllFiles: false,
   experimentalTerminal: false,
-  experimentalGit: false,
 };
 
 /**

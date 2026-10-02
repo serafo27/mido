@@ -962,7 +962,7 @@ export default function App() {
   /* ---------- git ---------- */
 
   // Only ever reads on its own: every git action below is a click away.
-  const git = useGit(root, tree, settings.experimentalGit);
+  const git = useGit(root, tree);
   const gitStatus = git.repo?.trusted ? git.repo.status : null;
   const [gitOpen, setGitOpenState] = useState(false);
   const gitOpenRef = useRef(gitOpen);
@@ -1522,7 +1522,7 @@ export default function App() {
         return;
       }
       // Source control: ⌃⇧G, as in VS Code.
-      if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.code === "KeyG" && isWeb && live.current.settings.experimentalGit) {
+      if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.code === "KeyG" && isWeb) {
         e.preventDefault();
         requireDesktop("Source control");
         return;
@@ -1896,7 +1896,6 @@ export default function App() {
               onSearchOpenChange={changeSearchOpen}
               onOpenMatch={openMatch}
               gitOpen={gitOpen && git.repo !== null}
-              gitOffered={settings.experimentalGit}
               onGitOpenChange={setGitOpen}
               gitChanges={gitChangeCount}
               gitBadges={gitBadges}
@@ -2053,7 +2052,7 @@ export default function App() {
               </div>
             </>
           ) : (
-            <NoFile git={settings.experimentalGit} />
+            <NoFile />
           )}
           {!isWeb && settings.experimentalTerminal && (
             <TerminalPanel
