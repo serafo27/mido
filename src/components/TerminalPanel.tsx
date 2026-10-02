@@ -175,7 +175,12 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
       register(sessionKey, {
         term,
         fit,
-        kill: () => pty !== null && void killTerminal(pty).catch(() => {}),
+        // Killed once: closing the view afterwards finds no shell left to kill.
+        kill: () => {
+          if (pty === null) return;
+          void killTerminal(pty).catch(() => {});
+          pty = null;
+        },
       });
 
       try {
@@ -270,18 +275,21 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, PanelProps>(function Termi
     setActiveKey(key);
   }, []);
 
-  const kill = useCallback(() => {
-    const { activeKey } = live.current;
-    if (activeKey === null) return;
-    views.current.get(activeKey)?.kill();
-    remove(activeKey);
-  }, [remove]);
+  /** Ends a terminal's shell and closes it: the one given, or the selected one. */
+  const kill = useCallback(
+    (key = live.current.activeKey) => {
+      if (key === null) return;
+      views.current.get(key)?.kill();
+      remove(key);
+    },
+    [remove],
+  );
 
   useImperativeHandle(
     ref,
     () => ({
       newTerminal,
-      kill,
+      kill: () => kill(),
       hasTerminals: () => live.current.sessions.length > 0,
       clear: () => {
         const { activeKey } = live.current;
@@ -323,23 +331,37 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, PanelProps>(function Termi
       <header className="terminal-header">
         <div className="terminal-tabs" role="tablist">
           {sessions.map((s) => (
-            <button
+            <div
               key={s.key}
               role="tab"
+              tabIndex={0}
               aria-selected={s.key === activeKey}
               className={`terminal-tab ${s.key === activeKey ? "selected" : ""}`}
               onClick={() => select(s.key)}
+              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && select(s.key)}
+              onAuxClick={(e) => e.button === 1 && kill(s.key)}
             >
               <SquareTerminal size={13} />
               <span>{s.title}</span>
-            </button>
+              <button
+                className="terminal-tab-close"
+                title="Kill Terminal"
+                aria-label={`Kill ${s.title}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  kill(s.key);
+                }}
+              >
+                <X size={12} />
+              </button>
+            </div>
           ))}
         </div>
         <div className="terminal-actions">
           <button className="icon-button" title="New Terminal (⌃⇧`)" aria-label="New Terminal" onClick={newTerminal}>
             <Plus size={15} />
           </button>
-          <button className="icon-button" title="Kill Terminal" aria-label="Kill Terminal" onClick={kill}>
+          <button className="icon-button" title="Kill Terminal" aria-label="Kill Terminal" onClick={() => kill()}>
             <Trash2 size={14} />
           </button>
           <button className="icon-button" title="Hide Terminal (⌃`)" aria-label="Hide Terminal" onClick={props.onHide}>
