@@ -186,7 +186,7 @@ export default function SettingsPanel(props: SettingsPanelProps) {
             />
             <Toggle label="Autosave" checked={settings.autosave} onChange={(autosave) => onChange({ autosave })} />
             <Toggle
-              label="Formatting toolbar in Edit mode"
+              label="Formatting toolbar in Edit and Split modes"
               checked={settings.formatBar}
               onChange={(formatBar) => onChange({ formatBar })}
             />

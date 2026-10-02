@@ -40,7 +40,7 @@ export interface Settings {
   editorLineHeight: number;
   wrap: boolean;
   autosave: boolean;
-  /** The writing tools over the editor in Edit mode. */
+  /** The writing tools over the editor in Edit mode and on the editor side of Split. */
   formatBar: boolean;
   /** Check for new versions at launch (and periodically) and offer them. */
   checkForUpdates: boolean;

@@ -9,6 +9,10 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Changed
+
+- The **formatting toolbar** also appears in **Split** mode, over the editor side. As that side narrows, its buttons move into the **⋯** menu instead of running over the preview.
+
 ## [0.13.0] - 2026-10-02
 
 ### Added

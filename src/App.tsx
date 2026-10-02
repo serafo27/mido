@@ -1972,19 +1972,22 @@ export default function App() {
                   style={{ gridTemplateColumns: mode === "split" ? `${splitRatio}fr 1px ${1 - splitRatio}fr` : "1fr" }}
                 >
                   {mode !== "view" && (
-                    <Editor
-                      key="editor"
-                      docKey={active.path}
-                      value={active.content}
-                      wrap={settings.wrap}
-                      onChange={updateContent}
-                      onScroll={onEditorScroll}
-                      onAddImages={addImages}
-                      highlights={highlights}
-                      onSelectHighlight={showThread}
-                      onHoverHighlight={hoverHighlight}
-                      minimap={settings.minimap}
-                    />
+                    // A column, so in Split the format bar sits over the editor side only.
+                    <div key="editor" className="editor-column">
+                      {mode === "split" && settings.formatBar && <FormatBar />}
+                      <Editor
+                        docKey={active.path}
+                        value={active.content}
+                        wrap={settings.wrap}
+                        onChange={updateContent}
+                        onScroll={onEditorScroll}
+                        onAddImages={addImages}
+                        highlights={highlights}
+                        onSelectHighlight={showThread}
+                        onHoverHighlight={hoverHighlight}
+                        minimap={settings.minimap}
+                      />
+                    </div>
                   )}
                   {mode === "split" && (
                     <div

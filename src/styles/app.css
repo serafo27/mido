@@ -955,7 +955,7 @@ body.resizing .resizer {
   min-width: 220px;
 }
 
-/* ---------- format bar (Edit mode) ---------- */
+/* ---------- format bar (Edit mode, and the editor side of Split) ---------- */
 .format-bar {
   flex: none;
   display: flex;
@@ -978,6 +978,12 @@ body.resizing .resizer {
   margin-left: 5px;
   padding-left: 6px;
   border-left: 1px solid var(--border-soft);
+}
+/* Strikethrough and code read as part of bold and italic, though they fold away on their own. */
+.format-group + .format-group.fold-marks {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
 }
 .format-bar .icon-button {
   width: 27px;
@@ -1091,17 +1097,21 @@ body.resizing .resizer {
   font-size: 12px;
   opacity: 0.6;
 }
-.more-menu .narrow-only {
+/* Tools folded into the More menu: shown there only once the bar hides them. */
+.more-menu .fold-blocks,
+.more-menu .fold-lists,
+.more-menu .fold-insert,
+.more-menu .fold-marks {
   display: none;
 }
 @container (max-width: 700px) {
-  .format-bar .wide-only {
+  .format-bar > .fold-blocks {
     display: none;
   }
-  .more-menu .narrow-only {
+  .more-menu .fold-blocks {
     display: flex;
   }
-  .more-menu .menu-sep.narrow-only {
+  .more-menu .menu-sep.fold-blocks {
     display: block;
   }
 }
@@ -1118,11 +1128,55 @@ body.resizing .resizer {
     width: 96px;
   }
 }
+/* Narrow enough only on the editor side of Split. */
+@container (max-width: 460px) {
+  .format-bar > .fold-lists {
+    display: none;
+  }
+  .more-menu .fold-lists {
+    display: flex;
+  }
+  .more-menu .menu-sep.fold-lists {
+    display: block;
+  }
+}
+@container (max-width: 370px) {
+  .format-bar > .fold-insert {
+    display: none;
+  }
+  .more-menu .fold-insert {
+    display: flex;
+  }
+  .more-menu .menu-sep.fold-insert {
+    display: block;
+  }
+}
+@container (max-width: 300px) {
+  .format-bar > .fold-marks {
+    display: none;
+  }
+  .more-menu .fold-marks {
+    display: flex;
+  }
+  .more-menu .menu-sep.fold-marks {
+    display: block;
+  }
+}
 
 /* Editor and preview, each with its comment ticks over the scrollbar. */
 .pane {
   position: relative;
   height: 100%;
+}
+
+.editor-column {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.editor-column > .pane {
+  flex: 1;
+  min-height: 0;
 }
 
 .editor {
@@ -1134,7 +1188,8 @@ body.resizing .resizer {
 .editor > div {
   height: 100%;
 }
-.mode-split .editor {
+/* In Split the editor side is tinted like the sidebar, its format bar included. */
+.mode-split .editor-column {
   --bg-editor: var(--bg-sidebar);
 }
 

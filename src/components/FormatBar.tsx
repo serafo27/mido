@@ -126,7 +126,7 @@ function MenuItem(props: { icon: ReactNode; label: string; hint?: string; classN
   );
 }
 
-/** The writing tools over the editor in Edit mode, like a word processor's. */
+/** The writing tools over the editor in Edit mode and on the editor side of Split, like a word processor's. */
 export default function FormatBar() {
   const [format, setFormat] = useState<FormatState>(EMPTY_FORMAT);
   const [popup, setPopup] = useState<Popup | null>(null);
@@ -213,6 +213,9 @@ export default function FormatBar() {
         <FormatButton title={`Italic (${modKey}I)`} active={format.italic} onClick={() => run(toggleItalic)}>
           <Italic size={15} />
         </FormatButton>
+      </div>
+
+      <div className="format-group fold-marks">
         <FormatButton
           title={`Strikethrough (${modKey}⇧X)`}
           active={format.strikethrough}
@@ -225,7 +228,8 @@ export default function FormatBar() {
         </FormatButton>
       </div>
 
-      <div className="format-group">
+      {/* The groups marked fold-… move into the More menu as the bar narrows, widest first. */}
+      <div className="format-group fold-insert">
         <FormatButton title="Link" active={format.link} onClick={() => run(insertLink)}>
           <Link size={15} />
         </FormatButton>
@@ -246,7 +250,7 @@ export default function FormatBar() {
         />
       </div>
 
-      <div className="format-group">
+      <div className="format-group fold-lists">
         <FormatButton title="Bulleted list" active={format.list === "bullet"} onClick={() => run(toggleList("bullet"))}>
           <List size={15} />
         </FormatButton>
@@ -262,8 +266,7 @@ export default function FormatBar() {
         </FormatButton>
       </div>
 
-      {/* Moved into the More menu when the bar is narrow. */}
-      <div className="format-group wide-only">
+      <div className="format-group fold-blocks">
         <FormatButton title="Quote" active={format.list === "quote"} onClick={() => run(toggleList("quote"))}>
           <TextQuote size={15} />
         </FormatButton>
@@ -289,30 +292,74 @@ export default function FormatBar() {
           {popup === "more" && (
             <div className="format-popup context-menu more-menu" role="menu">
               <MenuItem
-                className="narrow-only"
+                className="fold-marks"
+                icon={<Strikethrough size={14} />}
+                label="Strikethrough"
+                hint={`${modKey}⇧X`}
+                onClick={() => pick(toggleStrikethrough)}
+              />
+              <MenuItem
+                className="fold-marks"
+                icon={<Code size={14} />}
+                label="Inline Code"
+                onClick={() => pick(toggleInlineCode)}
+              />
+              <div className="menu-sep fold-marks" />
+              <MenuItem className="fold-insert" icon={<Link size={14} />} label="Link" onClick={() => pick(insertLink)} />
+              <MenuItem
+                className="fold-insert"
+                icon={<ImagePlus size={14} />}
+                label="Image…"
+                onClick={() => {
+                  setPopup(null);
+                  fileRef.current?.click();
+                }}
+              />
+              <div className="menu-sep fold-insert" />
+              <MenuItem
+                className="fold-lists"
+                icon={<List size={14} />}
+                label="Bulleted List"
+                onClick={() => pick(toggleList("bullet"))}
+              />
+              <MenuItem
+                className="fold-lists"
+                icon={<ListOrdered size={14} />}
+                label="Numbered List"
+                onClick={() => pick(toggleList("ordered"))}
+              />
+              <MenuItem
+                className="fold-lists"
+                icon={<ListTodo size={14} />}
+                label="Task List"
+                onClick={() => pick(toggleList("task"))}
+              />
+              <div className="menu-sep fold-lists" />
+              <MenuItem
+                className="fold-blocks"
                 icon={<TextQuote size={14} />}
                 label="Quote"
                 onClick={() => pick(toggleList("quote"))}
               />
               <MenuItem
-                className="narrow-only"
+                className="fold-blocks"
                 icon={<SquareCode size={14} />}
                 label="Code Block"
                 onClick={() => pick(insertCodeBlock())}
               />
               <MenuItem
-                className="narrow-only"
+                className="fold-blocks"
                 icon={<Table size={14} />}
                 label="Table"
                 onClick={() => pick(insertTable(2, 3))}
               />
               <MenuItem
-                className="narrow-only"
+                className="fold-blocks"
                 icon={<Minus size={14} />}
                 label="Horizontal Rule"
                 onClick={() => pick(insertRule)}
               />
-              <div className="menu-sep narrow-only" />
+              <div className="menu-sep fold-blocks" />
               <MenuItem icon={<Sigma size={14} />} label="Math Formula" onClick={() => pick(insertMath)} />
               <MenuItem icon={<Workflow size={14} />} label="Mermaid Diagram" onClick={() => pick(insertDiagram)} />
               <MenuItem icon={<Superscript size={14} />} label="Footnote" onClick={() => pick(insertFootnote)} />
