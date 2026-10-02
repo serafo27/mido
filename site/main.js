@@ -86,7 +86,6 @@
     i += 1;
     if (i === chars.length) {
       typed.classList.remove("typing");
-      setTimeout(() => typed.classList.add("caret-gone"), 2200);
       return;
     }
     // A human rhythm: a little uneven, with a breath after spaces and punctuation.
