@@ -62,32 +62,29 @@
     typed.append(span);
     return span;
   });
-  const caret = document.createElement("span");
-  caret.className = "type-caret";
-  typed.prepend(caret);
   title.replaceChildren(label, typed);
 
   const showHero = () => heroParts.concat(hero.querySelector(".hero-shot")).forEach((el) => el.classList.add("visible"));
   // The rest of the hero arrives while the last words are being typed.
-  const heroAt = Math.floor(chars.length * 0.55);
+  const heroAt = Math.floor(chars.length * 0.5);
   let i = 0;
   const typeNext = () => {
-    caret.classList.add("typing");
-    chars[i].classList.add("typed");
-    chars[i].after(caret);
+    typed.classList.add("typing");
+    chars[i - 1]?.classList.remove("caret");
+    chars[i].classList.add("typed", "caret");
     if (i === heroAt) showHero();
     i += 1;
     if (i === chars.length) {
-      caret.classList.remove("typing");
-      setTimeout(() => caret.classList.add("done"), 2600);
+      typed.classList.remove("typing");
+      setTimeout(() => typed.classList.add("caret-gone"), 2200);
       return;
     }
     // A human rhythm: a little uneven, with a breath after spaces and punctuation.
     const prev = chars[i - 1].textContent;
-    const pause = prev === " " ? 70 : /[.,]/.test(prev) ? 260 : 0;
-    setTimeout(typeNext, 38 + Math.random() * 44 + pause);
+    const pause = prev === " " ? 35 : /[.,]/.test(prev) ? 140 : 0;
+    setTimeout(typeNext, 22 + Math.random() * 26 + pause);
   };
-  setTimeout(typeNext, 450);
+  setTimeout(typeNext, 250);
 })();
 
 // Theme switcher: swaps the large screenshot.

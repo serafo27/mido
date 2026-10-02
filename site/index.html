@@ -45,6 +45,11 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
+    <script>
+      try {
+        if (localStorage.getItem("mido-site-theme") === "light") document.documentElement.dataset.theme = "light";
+      } catch {}
+    </script>
     <!-- Hide the animated parts before first paint; without JS everything shows as is. -->
     <script>
       if (!matchMedia("(prefers-reduced-motion: reduce)").matches) document.documentElement.classList.add("motion");
@@ -70,6 +75,15 @@
               />
             </svg>
           </a>
+          <button class="theme-toggle" type="button" aria-label="Switch to light theme">
+            <svg class="sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <circle cx="12" cy="12" r="4.2" />
+              <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" />
+            </svg>
+            <svg class="moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+              <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />
+            </svg>
+          </button>
         </nav>
       </div>
     </header>
@@ -411,6 +425,7 @@
       </div>
     </footer>
 
+    <script src="theme.js"></script>
     <script src="releases.js"></script>
     <script src="main.js"></script>
   </body>
