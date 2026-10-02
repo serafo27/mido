@@ -242,7 +242,6 @@ export const commands: Record<string, (args: Record<string, unknown>, options?: 
   },
 
   /** No menu bar here. */
-  set_terminal_menu: () => {},
   pty_spawn: desktopOnly,
   pty_write: desktopOnly,
   pty_resize: desktopOnly,

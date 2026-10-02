@@ -52,8 +52,6 @@ export interface Settings {
   tabStyle: TabStyle;
   /** Source control lists every changed file and commit, not only Markdown documents. */
   gitShowAllFiles: boolean;
-  /** Experimental: a terminal under the document, and the Terminal menu. */
-  experimentalTerminal: boolean;
   /** An installed font for the terminal (a Nerd Font for a fancy prompt); empty: the system's, as in Terminal. */
   terminalFont: string;
 }
@@ -88,7 +86,6 @@ export const DEFAULT_SETTINGS: Settings = {
   remoteImages: "secure",
   tabStyle: "rounded",
   gitShowAllFiles: false,
-  experimentalTerminal: false,
   terminalFont: "",
 };
 

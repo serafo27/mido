@@ -194,6 +194,21 @@ export default function SettingsPanel(props: SettingsPanelProps) {
         )}
 
         {!isWeb && (
+          <Section title="Terminal">
+            <Row label="Font">
+              <input
+                className="text-input settings-row-input"
+                placeholder="System, or an installed font"
+                title="Any installed font, such as a Nerd Font for your prompt's symbols"
+                value={settings.terminalFont}
+                spellCheck={false}
+                onChange={(e) => onChange({ terminalFont: e.target.value })}
+              />
+            </Row>
+          </Section>
+        )}
+
+        {!isWeb && (
           <Section title="Source Control">
             <Toggle
               label="Show all files, not only Markdown"
@@ -282,27 +297,6 @@ export default function SettingsPanel(props: SettingsPanelProps) {
             </div>
           </Section>
         )}
-
-        <Section title="Experimental">
-          <p className="settings-note">Features still being worked on. They may change, or not always work.</p>
-          <Toggle
-            label="Terminal"
-            checked={settings.experimentalTerminal}
-            onChange={(experimentalTerminal) => onChange({ experimentalTerminal })}
-          />
-          {settings.experimentalTerminal && (
-            <Row label="Terminal font">
-              <input
-                className="text-input settings-row-input"
-                placeholder="System, or an installed font"
-                title="Any installed font, such as a Nerd Font for your prompt's symbols"
-                value={settings.terminalFont}
-                spellCheck={false}
-                onChange={(e) => onChange({ terminalFont: e.target.value })}
-              />
-            </Row>
-          )}
-        </Section>
 
         {/* Custom themes are user content, not a setting: keep them. */}
         <button

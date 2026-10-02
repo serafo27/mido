@@ -1468,12 +1468,6 @@ export default function App() {
 
   const hideTerminal = useCallback(() => setTerminalOpen(false), []);
 
-  // The terminal is experimental: the Terminal menu is only there while it's turned on.
-  useEffect(() => {
-    if (!settings.experimentalTerminal) setTerminalOpen(false);
-    if (!isWeb) api.setTerminalMenu(settings.experimentalTerminal).catch(() => {});
-  }, [settings.experimentalTerminal]);
-
   // The Terminal menu (macOS).
   useEffect(() => {
     const unlisteners = [
@@ -1503,7 +1497,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       // Terminal: ⌃` shows or hides it, ⌃⇧` opens a new one, as in VS Code.
       const terminalKey = e.code === "Backquote" || e.code === "IntlBackslash";
-      if (live.current.settings.experimentalTerminal && e.ctrlKey && !e.metaKey && !e.altKey && terminalKey) {
+      if (!isWeb && e.ctrlKey && !e.metaKey && !e.altKey && terminalKey) {
         e.preventDefault();
         if (e.shiftKey) newTerminal();
         else toggleTerminal();
@@ -2057,7 +2051,7 @@ export default function App() {
           ) : (
             <NoFile />
           )}
-          {!isWeb && settings.experimentalTerminal && (
+          {!isWeb && (
             <TerminalPanel
               ref={terminalRef}
               visible={terminalOpen}
@@ -2077,7 +2071,7 @@ export default function App() {
               onWrap={toggleWrap}
               onAutosave={() => updateSettings({ autosave: !settings.autosave })}
               terminalOpen={terminalOpen}
-              onTerminal={settings.experimentalTerminal ? toggleTerminal : undefined}
+              onTerminal={isWeb ? undefined : toggleTerminal}
               git={
                 gitStatus && {
                   branch: gitStatus.branch,

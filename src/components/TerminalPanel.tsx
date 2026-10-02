@@ -253,7 +253,11 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, PanelProps>(function Termi
         setActiveKey(next?.key ?? null);
         if (next) requestAnimationFrame(() => views.current.get(next.key)?.term.focus());
       }
-      if (rest.length === 0) props.onEmpty();
+      if (rest.length === 0) {
+        // With no terminal left, the next one is Terminal 1 again.
+        nextKey.current = 1;
+        props.onEmpty();
+      }
     },
     [props.onEmpty],
   );

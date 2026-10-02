@@ -759,7 +759,7 @@ async fn open_new_window(app: AppHandle) -> Result<(), String> {
 /// item would grab ⌘W before the webview can use it to close a tab. Undo/redo
 /// are left out on purpose so ⌘Z reaches CodeMirror's own history.
 #[cfg(target_os = "macos")]
-fn build_menu(app: &AppHandle) -> tauri::Result<(tauri::menu::Menu<tauri::Wry>, tauri::menu::Submenu<tauri::Wry>)> {
+fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 
     let settings = MenuItemBuilder::with_id("settings", "Settings…")
@@ -825,38 +825,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<(tauri::menu::Menu<tauri::Wry>, 
         .separator()
         .item(&PredefinedMenuItem::fullscreen(app, None)?)
         .build()?;
-    // The Terminal menu is an experimental feature: it goes in when the app turns it on (`set_terminal_menu`).
-    let menu = MenuBuilder::new(app).items(&[&app_menu, &file_menu, &edit_menu, &window_menu]).build()?;
-    Ok((menu, terminal_menu))
-}
-
-/// The Terminal menu, kept while it's out of the menu bar.
-#[cfg(target_os = "macos")]
-struct TerminalMenu(Mutex<(tauri::menu::Submenu<tauri::Wry>, bool)>);
-
-/// Puts the Terminal menu in the menu bar (after Edit) or takes it out, as
-/// the experimental terminal is turned on or off.
-#[tauri::command]
-fn set_terminal_menu(app: AppHandle, visible: bool) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        let Some(state) = app.try_state::<TerminalMenu>() else { return Ok(()) };
-        let Some(menu) = app.menu() else { return Ok(()) };
-        let mut guard = state.0.lock().map_err(err)?;
-        let (submenu, shown) = &mut *guard;
-        if *shown == visible {
-            return Ok(());
-        }
-        if visible {
-            menu.insert(&*submenu, 3).map_err(err)?;
-        } else {
-            menu.remove(&*submenu).map_err(err)?;
-        }
-        *shown = visible;
-    }
-    #[cfg(not(target_os = "macos"))]
-    let _ = (app, visible);
-    Ok(())
+    MenuBuilder::new(app).items(&[&app_menu, &file_menu, &edit_menu, &terminal_menu, &window_menu]).build()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -878,9 +847,7 @@ pub fn run() {
             app.manage(git::TrustedRepos(Mutex::new(trusted)));
             #[cfg(target_os = "macos")]
             {
-                let (menu, terminal_menu) = build_menu(app.handle())?;
-                app.set_menu(menu)?;
-                app.manage(TerminalMenu(Mutex::new((terminal_menu, false))));
+                app.set_menu(build_menu(app.handle())?)?;
             }
             // `Mido.app/Contents/MacOS/mido notes/a.md`; `open -a Mido` and the
             // Finder go through `RunEvent::Opened` instead.
@@ -939,7 +906,6 @@ pub fn run() {
             export_html,
             export_word,
             save_asset,
-            set_terminal_menu,
             terminal::pty_spawn,
             terminal::pty_write,
             terminal::pty_resize,
