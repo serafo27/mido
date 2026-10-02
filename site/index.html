@@ -6,12 +6,12 @@
     <title>Mido — A quiet place to read and write Markdown</title>
     <meta
       name="description"
-      content="Mido is a free Markdown viewer and editor for macOS: beautiful reading, split editing, tabs, an outline and themes."
+      content="Mido is a free Markdown viewer and editor for macOS: beautiful reading, split editing, tabs, an outline, themes, comments and git source control."
     />
     <meta property="og:title" content="Mido — A quiet place to read and write Markdown" />
     <meta
       property="og:description"
-      content="A free Markdown viewer and editor for macOS with beautiful reading, split editing, tabs, an outline and themes."
+      content="A free Markdown viewer and editor for macOS with beautiful reading, split editing, tabs, an outline, themes, comments and git source control."
     />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Mido" />
@@ -28,7 +28,7 @@
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
         "name": "Mido",
-        "description": "A free Markdown viewer and editor for macOS: beautiful reading, split editing, tabs, an outline and themes.",
+        "description": "A free Markdown viewer and editor for macOS: beautiful reading, split editing, tabs, an outline, themes, comments and git source control.",
         "url": "https://serafo27.github.io/mido/",
         "downloadUrl": "https://github.com/serafo27/mido/releases/latest",
         "image": "https://serafo27.github.io/mido/assets/og-image.jpg",
@@ -229,6 +229,33 @@
             </div>
           </figure>
         </div>
+
+        <div class="feature-row reverse container">
+          <div class="feature-copy">
+            <p class="eyebrow">Source control</p>
+            <h2>Commit and push without leaving your docs.</h2>
+            <p>
+              In a git repository, Mido shows what changed since the last commit, as VS Code does: stage files one by one,
+              read each change side by side in calm colours, write the message and commit, then sync with one button.
+              Nothing happens on its own — Mido only does what you click.
+            </p>
+            <ul class="checks">
+              <li>Staged and unstaged changes, with the letter of each in the file tree</li>
+              <li>Side-by-side diffs that open in tabs, and conflicts you resolve in place</li>
+              <li>A commit dialog like IntelliJ's, with amend and sign-off</li>
+              <li>Branches, history graph, pull, push and sync, with your own git keys</li>
+            </ul>
+          </div>
+          <figure class="window">
+            <img
+              src="assets/screens/source-control.webp"
+              width="1440"
+              height="900"
+              loading="lazy"
+              alt="The source control panel with staged changes, changes and the history graph, beside a side-by-side diff of a document"
+            />
+          </figure>
+        </div>
       </section>
 
       <!-- Themes -->
@@ -284,6 +311,18 @@
           <article class="card">
             <h3>Custom themes</h3>
             <p>Start from any theme, edit nineteen colours with live preview, and import or export themes as JSON.</p>
+          </article>
+          <article class="card">
+            <h3>A toolbar for writing</h3>
+            <p>In Edit mode, headings, lists, tables, links, images, formulas and diagrams are a click away. Select text for bold and italic.</p>
+          </article>
+          <article class="card">
+            <h3>Export to Word</h3>
+            <p>Send a document as a .docx with real headings, footnotes and equations — and your comments as Word comments.</p>
+          </article>
+          <article class="card">
+            <h3>Read the way you like</h3>
+            <p><kbd>⌘+</kbd> and <kbd>⌘−</kbd> resize the text, <kbd>⌘⇧+</kbd> and <kbd>⌘⇧−</kbd> open up or tighten the lines.</p>
           </article>
           <article class="card">
             <h3>Small and native</h3>
