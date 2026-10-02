@@ -1,6 +1,17 @@
-import { useEffect, useState, type RefObject } from "react";
-import { MessageSquarePlus } from "lucide-react";
-import { editorSelectionLine, type LineRect } from "./Editor";
+import { useEffect, useState, type ReactNode, type RefObject } from "react";
+import type { Command } from "@codemirror/view";
+import { Bold, Code, Italic, Link, List, MessageSquarePlus, Strikethrough, TextQuote } from "lucide-react";
+import { activeEditor, editorSelectionLine, type LineRect } from "./Editor";
+import {
+  formatAt,
+  insertLink,
+  toggleBold,
+  toggleInlineCode,
+  toggleItalic,
+  toggleList,
+  toggleStrikethrough,
+  type FormatState,
+} from "../lib/formatting";
 import { altKey, modKey } from "../lib/platform";
 
 interface SelectionMenuProps {
@@ -19,13 +30,44 @@ function previewSelectionLine(container: HTMLElement): LineRect | null {
   return first ? { left: first.left, right: first.right, top: first.top, bottom: first.bottom } : null;
 }
 
+/** Where the selection is: text being written (the editor) or read (the preview). */
+type Place = { line: LineRect; in: "editor" | "preview" };
+
+/** The selection's place, if something is selected in the editor or the preview. */
+function selectionPlace(container: HTMLElement): Place | null {
+  const editor = editorSelectionLine();
+  if (editor) return { line: editor, in: "editor" };
+  const preview = previewSelectionLine(container);
+  return preview && { line: preview, in: "preview" };
+}
+
+/** Keeps the selection when a button is pressed. */
+const keepSelection = (e: React.MouseEvent) => e.preventDefault();
+
+function FormatButton(props: { title: string; active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      className={props.active ? "active" : ""}
+      title={props.title}
+      aria-label={props.title}
+      aria-pressed={props.active}
+      onMouseDown={keepSelection}
+      onClick={props.onClick}
+    >
+      {props.children}
+    </button>
+  );
+}
+
 /**
- * A small "Comment" button over text selected with the mouse, in the editor
- * or the preview. Selecting with the keyboard doesn't show it, so it stays
- * out of the way while typing.
+ * A small menu over text selected with the mouse: formatting where the
+ * document is written (the editor), "Comment" where it's read (the
+ * preview). Selecting with the keyboard doesn't show it, so it stays out of
+ * the way while typing.
  */
 export default function SelectionMenu({ containerRef, onComment }: SelectionMenuProps) {
-  const [line, setLine] = useState<LineRect | null>(null);
+  const [place, setPlace] = useState<Place | null>(null);
+  const line = place?.line ?? null;
 
   useEffect(() => {
     let frame = 0;
@@ -33,15 +75,15 @@ export default function SelectionMenu({ containerRef, onComment }: SelectionMenu
       const target = e.target as HTMLElement;
       if (target.closest?.(".selection-menu")) return;
       const container = containerRef.current;
-      if (!container?.contains(target)) return setLine(null);
+      if (!container?.contains(target)) return setPlace(null);
       // Once the selection has settled (a double-click selects on the way up).
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => setLine(editorSelectionLine() ?? previewSelectionLine(container)));
+      frame = requestAnimationFrame(() => setPlace(selectionPlace(container)));
     };
     const onSelectionChange = () => {
-      if (window.getSelection()?.isCollapsed && !editorSelectionLine()) setLine(null);
+      if (window.getSelection()?.isCollapsed && !editorSelectionLine()) setPlace(null);
     };
-    const hide = () => setLine(null);
+    const hide = () => setPlace(null);
     const onKeyDown = (e: KeyboardEvent) => {
       if (!["Shift", "Meta", "Control", "Alt"].includes(e.key)) hide();
     };
@@ -61,20 +103,74 @@ export default function SelectionMenu({ containerRef, onComment }: SelectionMenu
     };
   }, [containerRef]);
 
-  if (!line) return null;
+  if (!place || !line) return null;
   // Above the first selected line, or below it near the top of the window.
   const below = line.top < 90;
-  const x = Math.min(Math.max((line.left + line.right) / 2, 70), window.innerWidth - 70);
+  // Kept over the document (not the sidebar), by about half the menu's width.
+  const half = place.in === "editor" ? 125 : 70;
+  const bounds = containerRef.current?.getBoundingClientRect();
+  const minX = (bounds?.left ?? 0) + half;
+  const maxX = Math.max(minX, (bounds?.right ?? window.innerWidth) - half);
+  const x = Math.min(Math.max((line.left + line.right) / 2, minX), maxX);
+  const style = { left: x, top: below ? line.bottom + 8 : line.top - 8 };
+
+  if (place.in === "editor") {
+    const view = activeEditor();
+    const format: FormatState | null = view && formatAt(view.state);
+    /** Formats the selection, and keeps the menu over it (where it is now). */
+    const run = (command: Command) => {
+      const view = activeEditor();
+      if (!view) return;
+      command(view);
+      view.focus();
+      requestAnimationFrame(() => {
+        const next = editorSelectionLine();
+        setPlace(next && { line: next, in: "editor" });
+      });
+    };
+    return (
+      <div className={`selection-menu format ${below ? "below" : ""}`} style={style} role="toolbar" aria-label="Format">
+        <FormatButton title={`Bold (${modKey}B)`} active={!!format?.bold} onClick={() => run(toggleBold)}>
+          <Bold size={14} />
+        </FormatButton>
+        <FormatButton title={`Italic (${modKey}I)`} active={!!format?.italic} onClick={() => run(toggleItalic)}>
+          <Italic size={14} />
+        </FormatButton>
+        <FormatButton
+          title={`Strikethrough (${modKey}⇧X)`}
+          active={!!format?.strikethrough}
+          onClick={() => run(toggleStrikethrough)}
+        >
+          <Strikethrough size={14} />
+        </FormatButton>
+        <FormatButton title="Inline code" active={!!format?.code} onClick={() => run(toggleInlineCode)}>
+          <Code size={14} />
+        </FormatButton>
+        <span className="selection-menu-sep" />
+        <FormatButton title={`Link (${modKey}K)`} active={!!format?.link} onClick={() => run(insertLink)}>
+          <Link size={14} />
+        </FormatButton>
+        <FormatButton
+          title="Bulleted list"
+          active={format?.list === "bullet"}
+          onClick={() => run(toggleList("bullet"))}
+        >
+          <List size={14} />
+        </FormatButton>
+        <FormatButton title="Quote" active={format?.list === "quote"} onClick={() => run(toggleList("quote"))}>
+          <TextQuote size={14} />
+        </FormatButton>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={`selection-menu ${below ? "below" : ""}`}
-      style={{ left: x, top: below ? line.bottom + 8 : line.top - 8 }}
-    >
+    <div className={`selection-menu ${below ? "below" : ""}`} style={style}>
       <button
         // Keep the selection the comment is about.
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => {
-          setLine(null);
+          setPlace(null);
           onComment();
         }}
         title={`Comment (${altKey}${modKey}M)`}

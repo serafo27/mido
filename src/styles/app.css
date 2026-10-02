@@ -1573,6 +1573,42 @@ body.resizing .resizer {
   border-color: var(--comment-underline);
   color: var(--accent-strong);
 }
+/* In the editor: formatting tools in one bar. */
+.selection-menu.format {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+}
+.selection-menu.format button {
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+.selection-menu.format button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.selection-menu.format button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.selection-menu-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--border);
+}
 .selection-menu kbd {
   font-family: inherit;
   font-size: 10.5px;
