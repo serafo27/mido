@@ -9,11 +9,15 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-02
+
 ### Changed
 
-- The **terminal** (experimental) takes its colours from the theme: Nord, Dracula, Solarized, VS Code and IntelliJ keep their own terminal palettes, and the other themes, custom ones included, draw theirs from their code colours. It's drawn on the GPU, as in VS Code, for crisper, evenly spaced text; Powerline arrows and box lines join up, and colours too faint for the background are made readable.
-- The terminal uses the system's monospaced font, as Terminal does, at the editor's text size, or any installed font set in **Settings → Experimental** (a Nerd Font for a prompt's symbols). It waits for that font before measuring, so text sits on its grid; emoji and East Asian characters take their two cells, so the cursor no longer drifts after them; and its margins are even.
+- The **terminal** is no longer experimental: it's always there, with the **Terminal** menu, ⌃` to show or hide it and ⌃⇧` for a new one. Its font is in the new **Settings → Terminal**.
+- The terminal takes its colours from the theme: Nord, Dracula, Solarized, VS Code and IntelliJ keep their own terminal palettes, and the other themes, custom ones included, draw theirs from their code colours. It's drawn on the GPU, as in VS Code, for crisper, evenly spaced text; Powerline arrows and box lines join up, and colours too faint for the background are made readable.
+- The terminal uses the system's monospaced font, as Terminal does, at the editor's text size, or any installed font (a Nerd Font for a prompt's symbols). It waits for that font before measuring, so text sits on its grid; emoji and East Asian characters take their two cells, so the cursor no longer drifts after them; and its margins are even.
 - Each terminal's tab has a **×** that ends its shell and closes it, as in VS Code (a middle click does too). The × at the panel's right still only hides the panel, and the shells keep running.
+- Once every terminal is closed, the next one is **Terminal 1** again.
 
 ## [0.14.0] - 2026-10-02
 
@@ -234,7 +238,8 @@ The first release of Mido, for macOS (Apple Silicon and Intel).
 - Custom themes with a colour editor and JSON import and export.
 - Auto, light and dark modes, with an optional accent colour.
 
-[Unreleased]: https://github.com/serafo27/mido/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/serafo27/mido/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/serafo27/mido/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/serafo27/mido/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/serafo27/mido/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/serafo27/mido/compare/v0.11.0...v0.12.0
