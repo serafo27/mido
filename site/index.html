@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Mido — A quiet place to read and write Markdown</title>
+    <title>Mido: A quiet place to read and write Markdown</title>
     <meta
       name="description"
       content="Mido is a free Markdown viewer and editor for macOS: beautiful reading, split editing, tabs, an outline, themes, comments and git source control."
     />
-    <meta property="og:title" content="Mido — A quiet place to read and write Markdown" />
+    <meta property="og:title" content="Mido: A quiet place to read and write Markdown" />
     <meta
       property="og:description"
       content="A free Markdown viewer and editor for macOS with beautiful reading, split editing, tabs, an outline, themes, comments and git source control."
@@ -45,6 +45,10 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
+    <!-- Hide the animated parts before first paint; without JS everything shows as is. -->
+    <script>
+      if (!matchMedia("(prefers-reduced-motion: reduce)").matches) document.documentElement.classList.add("motion");
+    </script>
   </head>
   <body>
     <header class="nav">
@@ -74,10 +78,10 @@
       <!-- Hero -->
       <section class="hero container">
         <p class="eyebrow">Markdown viewer &amp; editor for macOS</p>
-        <h1>A quiet place to read and write Markdown.</h1>
+        <h1 id="hero-title">A quiet place to read and write Markdown.</h1>
         <p class="lede">
-          Open any folder and Mido turns your notes, docs and READMEs into beautifully typeset pages — then lets you
-          edit them side by side, with tabs, an outline and themes that feel like home.
+          Write the way you would at home, with no noise and nothing in a hurry. Mido turns any folder of notes, docs
+          and READMEs into calm, beautifully typeset pages.
         </p>
         <div class="cta">
           <a class="button primary" id="hero-download" href="#download">
@@ -156,7 +160,7 @@
             <p class="eyebrow">Typography</p>
             <h2>Make every page yours.</h2>
             <p>
-              Pick a reading style — Mido, GitHub, Academic or Minimal — then fine-tune fonts, text size, line height and
+              Pick a reading style (Mido, GitHub, Academic or Minimal), then fine-tune fonts, text size, line height and
               page width. Use the bundled fonts or any font installed on your computer.
             </p>
             <ul class="checks">
@@ -237,7 +241,7 @@
             <p>
               In a git repository, Mido shows what changed since the last commit, as VS Code does: stage files one by one,
               read each change side by side in calm colours, write the message and commit, then sync with one button.
-              Nothing happens on its own — Mido only does what you click.
+              Nothing happens on its own: Mido only does what you click.
             </p>
             <ul class="checks">
               <li>Staged and unstaged changes, with the letter of each in the file tree</li>
@@ -306,7 +310,7 @@
           </article>
           <article class="card">
             <h3>Autosave, safely</h3>
-            <p>Changes are saved as you type — or turn it off and save with <kbd>⌘S</kbd>. Nothing is lost on close.</p>
+            <p>Changes are saved as you type. Prefer to do it yourself? Turn it off and save with <kbd>⌘S</kbd>. Nothing is lost on close.</p>
           </article>
           <article class="card">
             <h3>Custom themes</h3>
@@ -318,7 +322,7 @@
           </article>
           <article class="card">
             <h3>Export to Word</h3>
-            <p>Send a document as a .docx with real headings, footnotes and equations — and your comments as Word comments.</p>
+            <p>Send a document as a .docx with real headings, footnotes and equations. Your comments come along as Word comments.</p>
           </article>
           <article class="card">
             <h3>Read the way you like</h3>

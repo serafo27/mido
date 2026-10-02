@@ -1,3 +1,95 @@
+// Motion: type the hero title, then let each section drift in as it scrolls into view.
+// The "motion" class is set in the page head, and left off for reduced motion.
+(function motion() {
+  if (!document.documentElement.classList.contains("motion")) return;
+
+  const reveal = (elements, kind, step = 0) =>
+    [...elements].forEach((el, i) => {
+      el.classList.add("reveal", kind);
+      if (step) el.style.setProperty("--reveal-delay", `${i * step}s`);
+    });
+
+  // Hero: shown by the typewriter, not by scrolling.
+  const hero = document.querySelector(".hero");
+  const heroParts = [...hero.querySelectorAll(".eyebrow, .lede, .cta, .cta-note")];
+  reveal(heroParts, "up", 0.14);
+  reveal([hero.querySelector(".hero-shot")], "settle");
+  hero.querySelector(".hero-shot").style.setProperty("--reveal-delay", `${heroParts.length * 0.14 + 0.1}s`);
+
+  // Everything else: shown as it scrolls into view.
+  const onScroll = [];
+  const track = (elements, kind, step) => {
+    reveal(elements, kind, step);
+    onScroll.push(...elements);
+  };
+  document.querySelectorAll(".feature-row").forEach((row) => {
+    const copy = row.querySelector(".feature-copy");
+    track([copy], row.classList.contains("reverse") ? "from-right" : "from-left");
+    track([row.querySelector(".window")], "settle");
+  });
+  track(document.querySelectorAll(".mode"), "up", 0.1);
+  document.querySelectorAll(".themes, .grid-section, .download").forEach((section) => {
+    track(section.querySelectorAll(":scope > .eyebrow, :scope > h2, :scope > .section-lede"), "up", 0.1);
+  });
+  track(document.querySelectorAll(".theme-tabs, .platforms, .download > .other-platforms, .unsigned-note"), "up");
+  track(document.querySelectorAll(".theme-shot"), "settle");
+  track(document.querySelectorAll(".card"), "up", 0.08);
+
+  const observer = new IntersectionObserver(
+    (entries) =>
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("visible");
+        observer.unobserve(entry.target);
+      }),
+    { rootMargin: "0px 0px -12% 0px" },
+  );
+  onScroll.forEach((el) => observer.observe(el));
+
+  // Typewriter. Every letter is laid out from the start (hidden), so the title never reflows;
+  // screen readers get the whole sentence at once.
+  const title = document.getElementById("hero-title");
+  const text = title.textContent;
+  const label = document.createElement("span");
+  label.className = "sr-only";
+  label.textContent = text;
+  const typed = document.createElement("span");
+  typed.setAttribute("aria-hidden", "true");
+  const chars = [...text].map((c) => {
+    const span = document.createElement("span");
+    span.className = "type-char";
+    span.textContent = c;
+    typed.append(span);
+    return span;
+  });
+  const caret = document.createElement("span");
+  caret.className = "type-caret";
+  typed.prepend(caret);
+  title.replaceChildren(label, typed);
+
+  const showHero = () => heroParts.concat(hero.querySelector(".hero-shot")).forEach((el) => el.classList.add("visible"));
+  // The rest of the hero arrives while the last words are being typed.
+  const heroAt = Math.floor(chars.length * 0.55);
+  let i = 0;
+  const typeNext = () => {
+    caret.classList.add("typing");
+    chars[i].classList.add("typed");
+    chars[i].after(caret);
+    if (i === heroAt) showHero();
+    i += 1;
+    if (i === chars.length) {
+      caret.classList.remove("typing");
+      setTimeout(() => caret.classList.add("done"), 2600);
+      return;
+    }
+    // A human rhythm: a little uneven, with a breath after spaces and punctuation.
+    const prev = chars[i - 1].textContent;
+    const pause = prev === " " ? 70 : /[.,]/.test(prev) ? 260 : 0;
+    setTimeout(typeNext, 38 + Math.random() * 44 + pause);
+  };
+  setTimeout(typeNext, 450);
+})();
+
 // Theme switcher: swaps the large screenshot.
 (function themes() {
   const image = document.getElementById("theme-image");
