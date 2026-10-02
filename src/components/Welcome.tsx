@@ -118,6 +118,7 @@ const SHORTCUTS: [string, string][] = [
   [`${modKey},`, "Settings"],
   [`${modKey}\\`, "Toggle sidebar"],
   [`${modKey}B / I / K`, "Bold · Italic · Link"],
+  [`${modKey}K / ${modKey}⇧K`, "Commit · Push (git)"],
 ];
 
 // The web version reads only, and the browser keeps some shortcuts (like closing tabs) for itself.

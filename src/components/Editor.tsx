@@ -291,6 +291,12 @@ function toggleMarker(marker: string): Command {
   };
 }
 
+/** In a git repository ⌘K opens the commit dialog: the link shortcut lets it through. */
+let linkShortcutYields = false;
+export function setLinkShortcutYields(yields: boolean) {
+  linkShortcutYields = yields;
+}
+
 const insertLink: Command = (view) => {
   const { state } = view;
   view.dispatch(
@@ -314,7 +320,8 @@ const markdownKeys = Prec.high(
     { key: "Mod-b", run: toggleMarker("**") },
     { key: "Mod-i", run: toggleMarker("*") },
     { key: "Mod-Shift-x", run: toggleMarker("~~") },
-    { key: "Mod-k", run: insertLink },
+    { key: "Mod-k", run: (view) => !linkShortcutYields && insertLink(view) },
+    { key: "Mod-Alt-k", run: insertLink },
   ]),
 );
 

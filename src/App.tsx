@@ -75,6 +75,11 @@ import { CHECK_INTERVAL, checkForUpdates, PREPARE_RESTART, RESTART_READY, type R
 import { NoFile, Welcome } from "./components/Welcome";
 import SourceControl, { diffKey, type DiffTarget } from "./components/SourceControl";
 import DiffView from "./components/DiffView";
+import BranchPicker from "./components/BranchPicker";
+import CommitDialog from "./components/CommitDialog";
+import PushDialog from "./components/PushDialog";
+import { setLinkShortcutYields } from "./components/Editor";
+import type { GitBranch } from "./lib/api";
 import { changeLetter, useGit } from "./lib/useGit";
 
 interface Tab {
@@ -103,14 +108,8 @@ const isDiffKey = (key: string) => key.startsWith("diff:");
 /** What a diff tab is called, as in VS Code: "a.md (Working Tree)". */
 function diffTabInfo(target: DiffTarget) {
   const name = basename(target.change.path);
-  const detail =
-    target.kind === "unstaged"
-      ? "(Working Tree)"
-      : target.kind === "staged"
-        ? "(Index)"
-        : target.kind === "commit"
-          ? `(${target.commit.short})`
-          : "(Merge Conflict)";
+  const details = { unstaged: "(Working Tree)", staged: "(Index)", working: "(HEAD ↔ Working Tree)", conflict: "(Merge Conflict)" };
+  const detail = target.kind === "commit" ? `(${target.commit.short})` : details[target.kind];
   return { name, detail, title: `${target.change.path} ${detail}` };
 }
 
@@ -955,7 +954,11 @@ export default function App() {
   const [gitOpen, setGitOpenState] = useState(false);
   const gitOpenRef = useRef(gitOpen);
   gitOpenRef.current = gitOpen;
+  const gitShortcutsRef = useRef(false);
   const [gitError, setGitError] = useState<string | null>(null);
+  // One commit message, in the panel and in the commit dialog.
+  const [commitMessage, setCommitMessage] = useState("");
+  const [gitDialog, setGitDialog] = useState<"commit" | "push" | "branches" | null>(null);
   useEffect(() => {
     setDiffTabs([]);
     setActiveDiff(null);
@@ -1074,10 +1077,87 @@ export default function App() {
 
   const commit = useCallback(
     async (message: string) => {
-      return gitAction("Committing…", () => api.gitCommit(message));
+      const done = await gitAction("Committing…", () => api.gitCommit(message));
+      if (done) setCommitMessage("");
+      return done;
     },
     [gitAction],
   );
+
+  const discard = useCallback(
+    async (paths: string[]) => {
+      const files = gitStatus?.files.filter((f) => paths.includes(f.path)) ?? [];
+      const untracked = files.filter((f) => f.unstaged === "?").length;
+      const what = paths.length === 1 ? `“${basename(paths[0])}”` : `${paths.length} files`;
+      const sure = await ask(
+        `Discard the changes in ${what}? They aren't staged, so they'll be lost.${untracked ? ` New files go to the Trash.` : ""}`,
+        { title: "Discard Changes", kind: "warning", okLabel: "Discard", cancelLabel: "Cancel" },
+      );
+      if (!sure) return;
+      if (await gitAction("Discarding…", () => api.gitDiscard(paths))) {
+        for (const tab of liveDiffs.current.diffTabs) {
+          if (tab.target.kind === "unstaged" && paths.includes(tab.target.change.path)) closeDiff(tab.key);
+        }
+      }
+    },
+    [gitStatus, gitAction, closeDiff],
+  );
+
+  const checkout = useCallback(
+    (branch: GitBranch) => gitAction(`Switching to ${branch.name}…`, () => api.gitCheckout(branch.name, branch.remote)),
+    [gitAction],
+  );
+  const createBranch = useCallback(
+    (name: string) => gitAction(`Creating ${name}…`, () => api.gitCreateBranch(name)),
+    [gitAction],
+  );
+  const mergeBranch = useCallback(
+    async (branch: GitBranch) => {
+      const into = gitStatus?.branch ?? "the current branch";
+      const sure = await ask(`Merge ${branch.name} into ${into}? If both changed the same lines, you'll resolve the conflicts here.`, {
+        title: "Merge Branch",
+        kind: "info",
+        okLabel: "Merge",
+        cancelLabel: "Cancel",
+      });
+      if (sure) await gitAction(`Merging ${branch.name}…`, () => api.gitMerge(branch.name));
+    },
+    [gitStatus, gitAction],
+  );
+  const deleteBranch = useCallback(
+    async (branch: GitBranch) => {
+      const sure = await ask(`Delete the branch ${branch.name}? Git refuses if it has commits merged nowhere else.`, {
+        title: "Delete Branch",
+        kind: "warning",
+        okLabel: "Delete",
+        cancelLabel: "Cancel",
+      });
+      if (sure) await gitAction(`Deleting ${branch.name}…`, () => api.gitDeleteBranch(branch.name));
+    },
+    [gitAction],
+  );
+
+  const pushFromDialog = useCallback(
+    (remote: string | null) => gitAction(remote ? "Publishing…" : "Pushing…", () => api.gitPush(remote)),
+    [gitAction],
+  );
+  const commitFromDialog = useCallback(
+    async (thenPush: boolean) => {
+      const done = await commit(commitMessage);
+      if (done && thenPush) setGitDialog("push");
+      return done;
+    },
+    [commit, commitMessage],
+  );
+
+  // ⌘K belongs to the commit dialog in a repository Mido may use git in, as in IntelliJ;
+  // the editor's link shortcut steps aside (⌥⌘K still inserts a link).
+  const gitShortcuts = gitStatus !== null;
+  gitShortcutsRef.current = gitShortcuts;
+  useEffect(() => {
+    setLinkShortcutYields(gitShortcuts);
+    return () => setLinkShortcutYields(false);
+  }, [gitShortcuts]);
 
   const fetchRemote = useCallback(() => gitAction("Fetching…", api.gitFetch), [gitAction]);
 
@@ -1342,6 +1422,12 @@ export default function App() {
         return;
       }
       const mod = isMac ? e.metaKey : e.ctrlKey;
+      // Commit (⌘K) and push (⌘⇧K) dialogs, as in IntelliJ.
+      if (mod && !e.altKey && e.code === "KeyK" && gitShortcutsRef.current) {
+        e.preventDefault();
+        setGitDialog(e.shiftKey ? "push" : "commit");
+        return;
+      }
       // On the desktop, Print is a menu item; the web version has no menu.
       if (isWeb && mod && e.altKey && e.code === "KeyP") {
         e.preventDefault();
@@ -1533,6 +1619,44 @@ export default function App() {
 
   const overlays = (
     <>
+      {gitDialog === "branches" && gitStatus && (
+        <BranchPicker
+          onClose={() => setGitDialog(null)}
+          onCheckout={checkout}
+          onCreate={createBranch}
+          onMerge={mergeBranch}
+          onDelete={deleteBranch}
+        />
+      )}
+      {gitDialog === "commit" && gitStatus && (
+        <CommitDialog
+          status={gitStatus}
+          busy={git.busy}
+          version={gitVersion}
+          message={commitMessage}
+          onMessageChange={setCommitMessage}
+          unsaved={unsavedPaths}
+          onStage={stage}
+          onUnstage={unstage}
+          onDiscard={discard}
+          onCommit={commitFromDialog}
+          onOpenDiff={(target, pin) => {
+            setGitDialog(null);
+            openDiff(target, pin);
+          }}
+          onOpenFile={openFile}
+          onClose={() => setGitDialog(null)}
+        />
+      )}
+      {gitDialog === "push" && gitStatus && (
+        <PushDialog
+          status={gitStatus}
+          busy={git.busy}
+          onPush={pushFromDialog}
+          onOpenDiff={openDiff}
+          onClose={() => setGitDialog(null)}
+        />
+      )}
       {desktopFeature && <DesktopOnly feature={desktopFeature} onClose={() => setDesktopFeature(null)} />}
       {isWeb && <WebNarrowNotice />}
       {quickSearchOpen && root && (
@@ -1647,6 +1771,12 @@ export default function App() {
                     error={gitError}
                     onDismissError={() => setGitError(null)}
                     onTrust={trustRepo}
+                    message={commitMessage}
+                    onMessageChange={setCommitMessage}
+                    onDiscard={discard}
+                    onOpenBranches={() => setGitDialog("branches")}
+                    onOpenCommitDialog={() => setGitDialog("commit")}
+                    onOpenPushDialog={() => setGitDialog("push")}
                     onStage={stage}
                     onUnstage={unstage}
                     onCommit={commit}
@@ -1791,10 +1921,7 @@ export default function App() {
                     ahead: gitStatus.ahead,
                     behind: gitStatus.behind,
                     changes: gitStatus.files.length,
-                    onClick: () => {
-                      setSidebarOpen(true);
-                      setGitOpen(true);
-                    },
+                    onClick: () => setGitDialog("branches"),
                   }
                 }
               />

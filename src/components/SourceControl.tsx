@@ -3,7 +3,9 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   Check,
+  ChevronDown,
   ChevronRight,
+  ListChecks,
   CloudUpload,
   FileSymlink,
   GitBranch,
@@ -19,10 +21,11 @@ import { api, type GitCommit, type GitFileChange, type GitRepo } from "../lib/ap
 import { basename, dirname, tildify } from "../lib/paths";
 import { changeLetter } from "../lib/useGit";
 import { isMac } from "../lib/platform";
+import { useStoredState } from "../lib/useStoredState";
 
 /** A file to show in a diff tab, from the changes or from a commit. */
 export type DiffTarget =
-  | { kind: "unstaged" | "staged"; change: GitFileChange }
+  | { kind: "unstaged" | "staged" | "working"; change: GitFileChange }
   | { kind: "commit"; change: GitFileChange; commit: GitCommit }
   | { kind: "conflict"; change: GitFileChange };
 
@@ -42,7 +45,15 @@ interface SourceControlProps {
   error: string | null;
   onDismissError: () => void;
   onTrust: () => void;
+  /** Shared with the commit dialog. */
+  message: string;
+  onMessageChange: (message: string) => void;
   onStage: (paths: string[]) => void;
+  /** Throws away unstaged changes, after asking. */
+  onDiscard: (paths: string[]) => void;
+  onOpenBranches: () => void;
+  onOpenCommitDialog: () => void;
+  onOpenPushDialog: () => void;
   onUnstage: (paths: string[]) => void;
   /** Resolves to true once committed, so the message can be cleared. */
   onCommit: (message: string) => Promise<boolean>;
@@ -62,8 +73,11 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 export default function SourceControl(props: SourceControlProps) {
   const { repo, busy } = props;
   const status = repo?.status ?? null;
-  const [message, setMessage] = useState("");
+  const { message, onMessageChange: setMessage } = props;
   const input = useRef<HTMLTextAreaElement>(null);
+  // The graph's share of the panel, as VS Code lets you drag it.
+  const [graphHeight, setGraphHeight] = useStoredState("mido.scm.graphHeight", 220);
+  const panel = useRef<HTMLDivElement>(null);
 
   // The message box grows with what's typed, as VS Code's does.
   useEffect(() => {
@@ -155,21 +169,48 @@ export default function SourceControl(props: SourceControlProps) {
     );
   };
 
+  const resizeGraph = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const box = panel.current?.getBoundingClientRect();
+    if (!box) return;
+    const move = (ev: PointerEvent) => setGraphHeight(Math.round(Math.min(Math.max(box.bottom - ev.clientY, 60), box.height - 160)));
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
   return (
-    <div className="scm">
+    <div className="scm" ref={panel}>
       {title(
         <>
+          <RowAction title={`Commit… (${isMac ? "⌘K" : "Ctrl+K"})`} disabled={!!busy} onClick={props.onOpenCommitDialog}>
+            <ListChecks size={15} />
+          </RowAction>
           <RowAction title="Fetch" disabled={!!busy || status.remotes.length === 0} onClick={props.onFetch}>
             <RefreshCw size={14} />
           </RowAction>
           <RowAction title="Pull" disabled={!!busy || !status.upstream} onClick={props.onPull}>
             <ArrowDownToLine size={15} />
           </RowAction>
-          <RowAction title={unpublished ? "Publish Branch" : "Push"} disabled={!!busy || status.remotes.length === 0 || !status.branch} onClick={props.onPush}>
+          <RowAction
+            title={`${unpublished ? "Publish Branch" : "Push"}… (${isMac ? "⌘⇧K" : "Ctrl+Shift+K"})`}
+            disabled={!!busy || status.remotes.length === 0 || !status.branch}
+            onClick={props.onOpenPushDialog}
+          >
             <ArrowUpFromLine size={15} />
           </RowAction>
         </>,
       )}
+
+      <button className="scm-branch" onClick={props.onOpenBranches} disabled={!!busy} title="Switch, create or merge branches">
+        <GitBranch size={13} />
+        <span className="scm-branch-name">{branch}</span>
+        {status.upstream && <span className="scm-branch-upstream">{status.upstream}</span>}
+        <ChevronDown size={13} className="scm-branch-chevron" />
+      </button>
 
       <div className="scm-scroll">
         {props.error && (
@@ -291,9 +332,14 @@ export default function SourceControl(props: SourceControlProps) {
           count={changes.length}
           actions={
             changes.length > 0 && (
-              <RowAction title="Stage All Changes" disabled={!!busy} onClick={() => props.onStage(changes.map((f) => f.path))}>
-                <Plus size={14} />
-              </RowAction>
+              <>
+                <RowAction title="Discard All Changes" disabled={!!busy} onClick={() => props.onDiscard(changes.map((f) => f.path))}>
+                  <Undo2 size={14} />
+                </RowAction>
+                <RowAction title="Stage All Changes" disabled={!!busy} onClick={() => props.onStage(changes.map((f) => f.path))}>
+                  <Plus size={14} />
+                </RowAction>
+              </>
             )
           }
         >
@@ -304,14 +350,22 @@ export default function SourceControl(props: SourceControlProps) {
               row(
                 c,
                 "unstaged",
-                <RowAction title="Stage Changes" disabled={!!busy} onClick={() => props.onStage([c.path])}>
-                  <Plus size={14} />
-                </RowAction>,
+                <>
+                  <RowAction title="Discard Changes" disabled={!!busy} onClick={() => props.onDiscard([c.path])}>
+                    <Undo2 size={14} />
+                  </RowAction>
+                  <RowAction title="Stage Changes" disabled={!!busy} onClick={() => props.onStage([c.path])}>
+                    <Plus size={14} />
+                  </RowAction>
+                </>,
               ),
             )
           )}
         </Group>
+      </div>
 
+      <div className="scm-graph-pane" style={{ height: graphHeight }}>
+        <div className="scm-pane-resizer" onPointerDown={resizeGraph} />
         <Graph
           enabled={status.hasCommits}
           branch={status.branch}
@@ -450,7 +504,10 @@ function Graph(props: {
   };
 
   return (
-    <Group title="Graph">
+    <>
+      <div className="scm-group-header static">
+        <span className="scm-group-title">Graph</span>
+      </div>
       {!props.enabled && <p className="scm-empty small">No commits yet.</p>}
       <div className="scm-graph">
         {commits.map((commit, i) => (
@@ -495,6 +552,6 @@ function Graph(props: {
           </div>
         ))}
       </div>
-    </Group>
+    </>
   );
 }

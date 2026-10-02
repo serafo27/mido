@@ -2978,9 +2978,9 @@ body.web-dropping::after {
 }
 .scm-scroll {
   flex: 1;
-  min-height: 0;
+  min-height: 100px;
   overflow-y: auto;
-  padding-bottom: 16px;
+  padding-bottom: 12px;
 }
 .scm-empty {
   margin: 4px 20px;
@@ -3613,4 +3613,472 @@ body.web-dropping::after {
 .conflict-lens button:hover {
   color: var(--accent);
   text-decoration: underline;
+}
+
+/* ---------- source control: branch, graph pane ---------- */
+
+.scm-branch {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 12px 8px 20px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12.5px;
+  text-align: left;
+}
+.scm-branch:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.scm-branch svg {
+  flex: none;
+  color: var(--text-muted);
+}
+.scm-branch-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.scm-branch-upstream {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.scm-branch-chevron {
+  margin-left: auto;
+}
+.scm-graph-pane {
+  position: relative;
+  flex: none;
+  min-height: 60px;
+  max-height: calc(100% - 160px);
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+.scm-graph-pane .scm-graph {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+.scm-pane-resizer {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: row-resize;
+  z-index: 2;
+}
+.scm-pane-resizer:hover {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.scm-group-header.static {
+  flex: none;
+  padding-left: 20px;
+}
+.scm-group-header.static:hover {
+  background: none;
+}
+
+/* ---------- popups: branches, commit, push ---------- */
+
+.modal-backdrop.top {
+  place-items: start center;
+  padding-top: 72px;
+  background: color-mix(in srgb, #000 12%, transparent);
+}
+.picker {
+  width: min(600px, 100%);
+  max-height: min(480px, 70vh);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: pop 0.12s ease-out;
+}
+.picker input {
+  flex: none;
+  margin: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+}
+.picker input:focus {
+  outline: none;
+}
+.picker-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 6px 6px;
+}
+.picker-group {
+  padding: 8px 10px 3px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 5px;
+  cursor: default;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.picker-item.selected {
+  background: var(--accent);
+  color: var(--bg);
+}
+.picker-icon {
+  flex: none;
+  color: var(--text-muted);
+}
+.picker-item.selected .picker-icon,
+.picker-item.selected .picker-detail,
+.picker-item.selected .picker-current {
+  color: inherit;
+  opacity: 0.85;
+}
+.picker-label {
+  flex: none;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.picker-current {
+  flex: none;
+  color: var(--accent);
+}
+.picker-detail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.picker-actions {
+  display: none;
+  gap: 2px;
+}
+.picker-item.selected .picker-actions {
+  display: flex;
+}
+.picker-actions button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: inherit;
+}
+.picker-actions button:hover {
+  background: color-mix(in srgb, var(--bg) 25%, transparent);
+}
+.picker-empty {
+  margin: 10px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.picker-footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.git-dialog {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: pop 0.14s ease-out;
+}
+.git-dialog:focus {
+  outline: none;
+}
+.git-dialog .spacer {
+  flex: 1;
+}
+.commit-dialog {
+  width: min(1180px, 100%);
+  height: min(760px, 100%);
+}
+.push-dialog {
+  width: min(900px, 100%);
+  height: min(560px, 100%);
+}
+.git-dialog-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 8px 0 18px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.git-dialog-title {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.git-dialog-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.git-dialog-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.git-dialog-buttons.padded {
+  flex: none;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-soft);
+}
+.git-dialog-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.git-checkbox {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.commit-dialog-main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(260px, 34%) 1fr;
+}
+.commit-files {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-soft);
+  background: var(--bg-sidebar);
+}
+.commit-files-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.commit-files-count {
+  margin-left: auto;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.commit-files-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.commit-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  padding: 0 12px;
+  cursor: default;
+  white-space: nowrap;
+  color: var(--git-modified);
+  font-size: 13px;
+}
+.commit-file:hover {
+  background: var(--bg-hover);
+}
+.commit-file.selected {
+  background: var(--bg-active);
+}
+.commit-file.tone-A {
+  color: var(--git-added);
+}
+.commit-file.tone-U,
+.commit-file.tone-R,
+.commit-file.tone-C {
+  color: var(--git-untracked);
+}
+.commit-file.tone-D {
+  color: var(--git-deleted);
+}
+.commit-file.tone-D .scm-file-name {
+  text-decoration: line-through;
+}
+.commit-file-discard {
+  display: none;
+}
+.commit-file:hover .commit-file-discard {
+  display: grid;
+}
+.commit-preview {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.commit-dialog-footer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border-soft);
+}
+.commit-dialog-footer textarea {
+  width: 100%;
+  padding: 8px 10px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.commit-dialog-footer textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.push-target {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
+}
+.push-target svg {
+  color: var(--text-muted);
+}
+.push-target select {
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.push-new {
+  margin-left: -6px;
+  font-weight: 600;
+}
+.push-badge {
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--git-untracked) 22%, transparent);
+  color: var(--text);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.push-main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.push-commits,
+.push-files {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.push-commits {
+  border-right: 1px solid var(--border-soft);
+}
+.push-commit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 14px;
+  cursor: default;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.push-commit:hover {
+  background: var(--bg-hover);
+}
+.push-commit.selected {
+  background: var(--bg-active);
+}
+.push-commit .icon {
+  flex: none;
+  color: var(--accent);
+}
+.push-commit-subject {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.push-commit-meta {
+  flex: none;
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.push-commit-meta code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.push-files-title {
+  padding: 4px 14px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.push-files .commit-file {
+  padding-left: 14px;
 }

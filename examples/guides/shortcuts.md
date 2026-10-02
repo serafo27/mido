@@ -9,6 +9,7 @@
 | `⌘P`            | Filter files              |
 | `⌘\`            | Toggle sidebar            |
 | `⌘B` `⌘I` `⌘K`  | Bold · Italic · Link      |
+| `⌘K` `⌘⇧K`      | Commit · Push (in a git repository; then `⌥⌘K` inserts a link) |
 | `⌘F`            | Find in editor            |
 
 [← Back](../README.md)

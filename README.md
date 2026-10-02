@@ -74,7 +74,10 @@ Mido isn't code-signed yet: the first time, right-click the app and choose **Ope
 | `⌘\` | Toggle sidebar |
 | `⌘,` | Settings |
 | `⌥Z` | Toggle line wrap |
-| `⌘B` `⌘I` `⌘K` | Bold · Italic · Link |
+| `⌘B` `⌘I` `⌘K` | Bold · Italic · Link (`⌥⌘K` in a git repository) |
+| `⌃⇧G` | Source control |
+| `⌘K` | Commit dialog (in a git repository) |
+| `⌘⇧K` | Push dialog (in a git repository) |
 | `⌘F` | Find in editor |
 
 ## Theme format

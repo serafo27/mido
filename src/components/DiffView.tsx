@@ -17,6 +17,8 @@ interface DiffViewProps {
   /** Changes when the repository does, to load both versions again. */
   version: string;
   busy: boolean;
+  /** Inside the commit dialog: no stage buttons, the dialog's checkboxes do that. */
+  embedded?: boolean;
   onOpenFile: (path: string) => void;
   onStage: (paths: string[]) => void;
   onUnstage: (paths: string[]) => void;
@@ -66,7 +68,8 @@ const editorExtensions = (editable: boolean, highlight: boolean): Extension[] =>
 
 /** What each side of a diff is, in git's terms. */
 function sides(target: DiffTarget, versions: FileVersions): [string, string] {
-  const left = target.kind === "commit" ? `${target.commit.short}^` : target.kind === "staged" ? "HEAD" : "Index";
+  const left =
+    target.kind === "commit" ? `${target.commit.short}^` : target.kind === "staged" || target.kind === "working" ? "HEAD" : "Index";
   const right = target.kind === "commit" ? target.commit.short : target.kind === "staged" ? "Index" : "Working Tree";
   return [versions.original === null ? `${left} (none)` : left, versions.modified === null ? `${right} (deleted)` : right];
 }
@@ -167,12 +170,12 @@ export default function DiffView(props: DiffViewProps) {
               </DiffAction>
             </>
           )}
-          {target.kind === "unstaged" && (
+          {target.kind === "unstaged" && !props.embedded && (
             <DiffAction title="Stage changes" disabled={props.busy} onClick={() => props.onStage([change.path])}>
               <Plus size={15} />
             </DiffAction>
           )}
-          {target.kind === "staged" && (
+          {target.kind === "staged" && !props.embedded && (
             <DiffAction title="Unstage changes" disabled={props.busy} onClick={() => props.onUnstage([change.path])}>
               <Minus size={15} />
             </DiffAction>
