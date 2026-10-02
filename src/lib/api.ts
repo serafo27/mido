@@ -82,8 +82,19 @@ export interface GitCommit {
   subject: string;
 }
 
+export interface GitBranch {
+  /** "main", or "origin/main" for a remote branch. */
+  name: string;
+  remote: boolean;
+  current: boolean;
+  upstream: string | null;
+  /** Its last commit's date, ISO 8601, and subject. */
+  date: string;
+  subject: string;
+}
+
 /** Which two versions a diff compares. */
-export type DiffKind = "unstaged" | "staged" | "commit";
+export type DiffKind = "unstaged" | "staged" | "commit" | "working";
 
 export interface FileVersions {
   /** Null when the file doesn't exist on that side (added or deleted). */
@@ -159,6 +170,17 @@ export const api = {
   /** Writes the resolved contents of a conflicted file and stages it. */
   gitResolve: (path: string, content: string) => invoke<void>("git_resolve", { path, content }),
   gitContinue: () => invoke<string>("git_continue"),
+  /** Throws away unstaged changes: tracked files go back to the index, untracked ones to the Trash. */
+  gitDiscard: (paths: string[]) => invoke<void>("git_discard", { paths }),
+  gitBranches: () => invoke<GitBranch[]>("git_branches"),
+  /** Switches branch; a remote one gets a local branch tracking it. */
+  gitCheckout: (name: string, remote: boolean) => invoke<string>("git_checkout", { name, remote }),
+  gitCreateBranch: (name: string) => invoke<string>("git_create_branch", { name }),
+  /** Merges `name` into the current branch. */
+  gitMerge: (name: string) => invoke<string>("git_merge", { name }),
+  gitDeleteBranch: (name: string) => invoke<string>("git_delete_branch", { name }),
+  /** The commits a push would send. */
+  gitOutgoing: () => invoke<GitCommit[]>("git_outgoing"),
   gitAbort: () => invoke<string>("git_abort"),
   /** The git user of the open folder, who comments are signed by; null without one. */
   gitIdentity: () => invoke<Author | null>("git_identity"),

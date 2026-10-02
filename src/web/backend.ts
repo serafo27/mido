@@ -198,6 +198,13 @@ export const commands: Record<string, (args: Record<string, unknown>) => unknown
   git_resolve: desktopOnly,
   git_continue: desktopOnly,
   git_abort: desktopOnly,
+  git_discard: desktopOnly,
+  git_branches: desktopOnly,
+  git_checkout: desktopOnly,
+  git_create_branch: desktopOnly,
+  git_merge: desktopOnly,
+  git_delete_branch: desktopOnly,
+  git_outgoing: desktopOnly,
 
   /** Comments can't be written here, so nobody needs to sign them. */
   git_identity: () => null,

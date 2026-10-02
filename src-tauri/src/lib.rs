@@ -873,6 +873,13 @@ pub fn run() {
             git::git_pull,
             git::git_fetch,
             git::git_resolve,
+            git::git_discard,
+            git::git_branches,
+            git::git_checkout,
+            git::git_create_branch,
+            git::git_merge,
+            git::git_delete_branch,
+            git::git_outgoing,
             git::git_continue,
             git::git_abort,
             app_arch

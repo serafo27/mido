@@ -289,8 +289,11 @@ pub fn log(repo: &Repo, limit: usize, path: Option<&str>) -> GitResult<Vec<Commi
         repo.path(path)?;
         args.extend(["--", path]);
     }
-    let out = repo.run(&args)?;
-    Ok(out
+    Ok(parse_log(&repo.run(&args)?))
+}
+
+fn parse_log(out: &str) -> Vec<Commit> {
+    out
         .split('\x1e')
         .filter_map(|record| {
             let f: Vec<&str> = record.trim_start_matches('\n').split('\x1f').collect();
@@ -304,7 +307,7 @@ pub fn log(repo: &Repo, limit: usize, path: Option<&str>) -> GitResult<Vec<Commi
                 subject: subject.to_string(),
             })
         })
-        .collect())
+        .collect()
 }
 
 /// The files a commit changed, compared with its first parent.
@@ -348,6 +351,8 @@ pub enum DiffKind {
     Staged,
     /// A commit against its first parent.
     Commit,
+    /// The working tree against HEAD: everything changed, staged or not.
+    Working,
 }
 
 #[derive(Serialize, Debug, PartialEq, Default)]
@@ -389,6 +394,10 @@ pub fn file_versions(
         DiffKind::Staged => {
             let head = if repo.has_commits() { repo.blob(&format!("HEAD:{before}")) } else { None };
             (head, repo.blob(&format!(":{path}")))
+        }
+        DiffKind::Working => {
+            let head = if repo.has_commits() { repo.blob(&format!("HEAD:{before}")) } else { None };
+            (head, fs::read(&disk).ok())
         }
         DiffKind::Commit => {
             let hash = commit.ok_or("No commit given")?;
@@ -466,6 +475,131 @@ pub fn pull(repo: &Repo, mode: PullMode) -> GitResult<String> {
 
 pub fn fetch(repo: &Repo) -> GitResult<String> {
     repo.run(&["fetch"])
+}
+
+/// Throws away the changes not staged yet: tracked files go back to their
+/// staged (or committed) contents, untracked ones go to the Trash, so even
+/// this can be undone from the Finder.
+pub fn discard(repo: &Repo, paths: &[String]) -> GitResult<()> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let status = status(repo)?;
+    let (untracked, tracked): (Vec<String>, Vec<String>) = paths.iter().cloned().partition(|path| {
+        status.files.iter().any(|f| &f.path == path && f.unstaged.as_deref() == Some("?"))
+    });
+    if !tracked.is_empty() {
+        repo.run(&with_paths(repo, &["restore", "--worktree"], &tracked)?)?;
+    }
+    for path in &untracked {
+        let disk = repo.path(path)?;
+        // Trashing a symlink moves the link: its folder must be inside.
+        writable_inside(&repo.root, disk.parent().unwrap_or(&repo.root))?;
+        trash::delete(&disk).map_err(err)?;
+    }
+    Ok(())
+}
+
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Branch {
+    /// "main", or "origin/main" for a remote branch.
+    pub name: String,
+    pub remote: bool,
+    pub current: bool,
+    /// The remote branch a local one tracks.
+    pub upstream: Option<String>,
+    /// When its last commit was made, ISO 8601.
+    pub date: String,
+    pub subject: String,
+}
+
+/// Branch names come from the user or the list, but end up in git's arguments.
+fn check_branch(name: &str) -> GitResult<()> {
+    let valid = !name.is_empty() && !name.starts_with('-') && run_in(Path::new("/"), &["check-ref-format", "--allow-onelevel", &format!("refs/heads/{name}")], None).is_ok();
+    if valid {
+        Ok(())
+    } else {
+        Err(format!("“{name}” isn't a valid branch name"))
+    }
+}
+
+/// Local branches, then remote ones; the most recently committed to first.
+pub fn branches(repo: &Repo) -> GitResult<Vec<Branch>> {
+    let out = repo.run(&[
+        "for-each-ref",
+        "--sort=-committerdate",
+        "--format=%(refname)%1f%(refname:short)%1f%(HEAD)%1f%(upstream:short)%1f%(committerdate:iso8601-strict)%1f%(contents:subject)",
+        "refs/heads",
+        "refs/remotes",
+    ])?;
+    let mut list: Vec<Branch> = out
+        .lines()
+        .filter_map(|line| {
+            let f: Vec<&str> = line.split('\x1f').collect();
+            let [refname, name, head, upstream, date, subject] = f.as_slice() else { return None };
+            // "origin/HEAD" only points at another remote branch.
+            if refname.ends_with("/HEAD") && refname.starts_with("refs/remotes/") {
+                return None;
+            }
+            Some(Branch {
+                name: name.to_string(),
+                remote: refname.starts_with("refs/remotes/"),
+                current: *head == "*",
+                upstream: (!upstream.is_empty()).then(|| upstream.to_string()),
+                date: date.to_string(),
+                subject: subject.to_string(),
+            })
+        })
+        .collect();
+    list.sort_by_key(|b| b.remote);
+    Ok(list)
+}
+
+/// Switches to `name`. A remote branch ("origin/feature") gets a local branch
+/// that tracks it, or switches to the local one already tracking it.
+pub fn checkout(repo: &Repo, name: &str, remote: bool) -> GitResult<String> {
+    check_branch(name)?;
+    if !remote {
+        return repo.run(&["switch", name]);
+    }
+    let local = name.split_once('/').map(|(_, rest)| rest).unwrap_or(name);
+    let existing = branches(repo)?.into_iter().find(|b| !b.remote && b.name == local);
+    match existing {
+        Some(_) => repo.run(&["switch", local]),
+        None => repo.run(&["switch", "--track", name]),
+    }
+}
+
+/// Creates `name` from the current commit and switches to it.
+pub fn create_branch(repo: &Repo, name: &str) -> GitResult<String> {
+    check_branch(name)?;
+    repo.run(&["switch", "-c", name])
+}
+
+/// Merges `name` into the current branch; conflicts stop it for the user to resolve.
+pub fn merge_branch(repo: &Repo, name: &str) -> GitResult<String> {
+    check_branch(name)?;
+    repo.run(&["merge", "--no-edit", name])
+}
+
+/// Deletes a local branch, unless it has commits merged nowhere else.
+pub fn delete_branch(repo: &Repo, name: &str) -> GitResult<String> {
+    check_branch(name)?;
+    repo.run(&["branch", "-d", name])
+}
+
+/// The commits a push would send: those not on the upstream, or on no remote
+/// at all for a branch that hasn't been published.
+pub fn outgoing(repo: &Repo) -> GitResult<Vec<Commit>> {
+    if !repo.has_commits() {
+        return Ok(Vec::new());
+    }
+    let has_upstream = repo.run(&["rev-parse", "--verify", "--quiet", "@{upstream}"]).is_ok();
+    let range: &[&str] = if has_upstream { &["@{upstream}..HEAD"] } else { &["HEAD", "--not", "--remotes"] };
+    let mut args = vec!["log", "-n500", "--format=%H%x1f%h%x1f%an%x1f%ae%x1f%aI%x1f%s%x1e"];
+    args.extend_from_slice(range);
+    Ok(parse_log(&repo.run(&args)?))
 }
 
 /// Writes the resolved contents of a conflicted file and marks it resolved.
@@ -688,6 +822,75 @@ pub async fn git_fetch(
     locks: State<'_, RepoLocks>,
 ) -> GitResult<String> {
     with_repo(workspace, trusted, locks, fetch).await
+}
+
+#[tauri::command]
+pub async fn git_discard(
+    workspace: Workspace,
+    trusted: State<'_, TrustedRepos>,
+    locks: State<'_, RepoLocks>,
+    paths: Vec<String>,
+) -> GitResult<()> {
+    with_repo(workspace, trusted, locks, move |r| discard(r, &paths)).await
+}
+
+#[tauri::command]
+pub async fn git_branches(
+    workspace: Workspace,
+    trusted: State<'_, TrustedRepos>,
+    locks: State<'_, RepoLocks>,
+) -> GitResult<Vec<Branch>> {
+    with_repo(workspace, trusted, locks, branches).await
+}
+
+#[tauri::command]
+pub async fn git_checkout(
+    workspace: Workspace,
+    trusted: State<'_, TrustedRepos>,
+    locks: State<'_, RepoLocks>,
+    name: String,
+    remote: bool,
+) -> GitResult<String> {
+    with_repo(workspace, trusted, locks, move |r| checkout(r, &name, remote)).await
+}
+
+#[tauri::command]
+pub async fn git_create_branch(
+    workspace: Workspace,
+    trusted: State<'_, TrustedRepos>,
+    locks: State<'_, RepoLocks>,
+    name: String,
+) -> GitResult<String> {
+    with_repo(workspace, trusted, locks, move |r| create_branch(r, &name)).await
+}
+
+#[tauri::command]
+pub async fn git_merge(
+    workspace: Workspace,
+    trusted: State<'_, TrustedRepos>,
+    locks: State<'_, RepoLocks>,
+    name: String,
+) -> GitResult<String> {
+    with_repo(workspace, trusted, locks, move |r| merge_branch(r, &name)).await
+}
+
+#[tauri::command]
+pub async fn git_delete_branch(
+    workspace: Workspace,
+    trusted: State<'_, TrustedRepos>,
+    locks: State<'_, RepoLocks>,
+    name: String,
+) -> GitResult<String> {
+    with_repo(workspace, trusted, locks, move |r| delete_branch(r, &name)).await
+}
+
+#[tauri::command]
+pub async fn git_outgoing(
+    workspace: Workspace,
+    trusted: State<'_, TrustedRepos>,
+    locks: State<'_, RepoLocks>,
+) -> GitResult<Vec<Commit>> {
+    with_repo(workspace, trusted, locks, outgoing).await
 }
 
 #[tauri::command]
@@ -925,6 +1128,79 @@ mod tests {
         pull(&repo, PullMode::Merge).unwrap();
         assert_eq!(fs::read_to_string(repo.root.join("b.md")).unwrap(), "two\n");
         assert_eq!(status(&repo).unwrap().behind, 0);
+    }
+
+    #[test]
+    fn discards_changes_and_trashes_new_files() {
+        let Some((_dir, repo)) = temp_repo() else { return };
+        fs::write(repo.root.join("a.md"), "one\n").unwrap();
+        stage(&repo, &["a.md".to_string()]).unwrap();
+        commit(&repo, "One").unwrap();
+        fs::write(repo.root.join("a.md"), "changed\n").unwrap();
+        discard(&repo, &["a.md".to_string()]).unwrap();
+        assert_eq!(fs::read_to_string(repo.root.join("a.md")).unwrap(), "one\n");
+        assert!(status(&repo).unwrap().files.is_empty());
+        // A deleted file comes back too.
+        fs::remove_file(repo.root.join("a.md")).unwrap();
+        discard(&repo, &["a.md".to_string()]).unwrap();
+        assert!(repo.root.join("a.md").exists());
+        // Staged changes stay: only the working tree is reset.
+        fs::write(repo.root.join("a.md"), "staged\n").unwrap();
+        stage(&repo, &["a.md".to_string()]).unwrap();
+        fs::write(repo.root.join("a.md"), "more\n").unwrap();
+        discard(&repo, &["a.md".to_string()]).unwrap();
+        assert_eq!(fs::read_to_string(repo.root.join("a.md")).unwrap(), "staged\n");
+    }
+
+    #[test]
+    fn creates_switches_merges_and_deletes_branches() {
+        let Some((_dir, repo)) = temp_repo() else { return };
+        fs::write(repo.root.join("a.md"), "one\n").unwrap();
+        stage(&repo, &["a.md".to_string()]).unwrap();
+        commit(&repo, "One").unwrap();
+
+        create_branch(&repo, "feature/x").unwrap();
+        assert_eq!(status(&repo).unwrap().branch.as_deref(), Some("feature/x"));
+        fs::write(repo.root.join("b.md"), "two\n").unwrap();
+        stage(&repo, &["b.md".to_string()]).unwrap();
+        commit(&repo, "Two").unwrap();
+
+        checkout(&repo, "main", false).unwrap();
+        let list = branches(&repo).unwrap();
+        let names: Vec<_> = list.iter().map(|b| (b.name.as_str(), b.current)).collect();
+        assert!(names.contains(&("main", true)) && names.contains(&("feature/x", false)));
+
+        merge_branch(&repo, "feature/x").unwrap();
+        assert!(repo.root.join("b.md").exists());
+        delete_branch(&repo, "feature/x").unwrap();
+        assert!(branches(&repo).unwrap().iter().all(|b| b.name != "feature/x"));
+
+        for bad in ["", "-x", "a..b", "with space", "--force"] {
+            assert!(create_branch(&repo, bad).is_err(), "{bad} should be refused");
+        }
+    }
+
+    #[test]
+    fn lists_the_commits_a_push_would_send() {
+        let Some((dir, repo)) = temp_repo() else { return };
+        fs::write(repo.root.join("a.md"), "one\n").unwrap();
+        stage(&repo, &["a.md".to_string()]).unwrap();
+        commit(&repo, "One").unwrap();
+        // Not published: everything is outgoing.
+        assert_eq!(outgoing(&repo).unwrap().len(), 1);
+        let remote = dir.path().join("remote.git");
+        run_in(dir.path(), &["init", "-q", "--bare", "-b", "main", remote.to_str().unwrap()], None).unwrap();
+        run_in(&repo.root, &["remote", "add", "origin", remote.to_str().unwrap()], None).unwrap();
+        push(&repo, Some("origin")).unwrap();
+        assert!(outgoing(&repo).unwrap().is_empty());
+        fs::write(repo.root.join("a.md"), "two\n").unwrap();
+        stage(&repo, &["a.md".to_string()]).unwrap();
+        commit(&repo, "Two").unwrap();
+        assert_eq!(outgoing(&repo).unwrap().iter().map(|c| c.subject.as_str()).collect::<Vec<_>>(), ["Two"]);
+        // The remote branch is listed, and checking it out finds the local one.
+        assert!(branches(&repo).unwrap().iter().any(|b| b.remote && b.name == "origin/main"));
+        checkout(&repo, "origin/main", true).unwrap();
+        assert_eq!(status(&repo).unwrap().branch.as_deref(), Some("main"));
     }
 
     #[test]
