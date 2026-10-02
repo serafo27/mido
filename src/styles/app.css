@@ -4126,20 +4126,6 @@ body.web-dropping::after {
   white-space: nowrap;
 }
 
-/* ---------- panel: Commit beside the changes window ---------- */
-
-.scm-commit-row {
-  display: flex;
-  gap: 6px;
-}
-.scm-commit-row .scm-button:first-child {
-  flex: 1;
-}
-.scm-show-changes {
-  width: auto;
-  flex: none;
-}
-
 /* ---------- floating dialogs: moved by the title bar, resized from the edges ---------- */
 
 .modal-backdrop.floating {

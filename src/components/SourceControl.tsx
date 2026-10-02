@@ -262,27 +262,15 @@ export default function SourceControl(props: SourceControlProps) {
               rows={1}
               spellCheck
             />
-            <div className="scm-commit-row">
-              <button
-                className="scm-button"
-                disabled={!canCommit}
-                onClick={commit}
-                title={staged.length === 0 ? "Stage the changes to commit first" : undefined}
-              >
-                <Check size={14} />
-                Commit
-              </button>
-              <button
-                className="scm-button secondary scm-show-changes"
-                disabled={!!busy}
-                onClick={props.onOpenCommitDialog}
-                title={`Show Changes in a Window (${isMac ? "⌘K" : "Ctrl+K"})`}
-                aria-label="Show Changes in a Window"
-              >
-                <ListChecks size={15} />
-                Changes
-              </button>
-            </div>
+            <button
+              className="scm-button"
+              disabled={!canCommit}
+              onClick={commit}
+              title={staged.length === 0 ? "Stage the changes to commit first" : undefined}
+            >
+              <Check size={14} />
+              Commit
+            </button>
             {unpublished && (
               <button className="scm-button secondary" disabled={!!busy} onClick={props.onPush}>
                 <CloudUpload size={14} />
