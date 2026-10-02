@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { ArrowRight, GitBranch, GitCommitHorizontal, X } from "lucide-react";
 import { api, type GitCommit, type GitFileChange, type GitStatus } from "../lib/api";
 import { basename, dirname } from "../lib/paths";
 import { isMac } from "../lib/platform";
+import FloatingDialog from "./FloatingDialog";
 import type { DiffTarget } from "./SourceControl";
 
 interface PushDialogProps {
@@ -23,10 +24,8 @@ export default function PushDialog(props: PushDialogProps) {
   const [files, setFiles] = useState<GitFileChange[]>([]);
   const [remote, setRemote] = useState(status.remotes.includes("origin") ? "origin" : (status.remotes[0] ?? ""));
   const publishing = !status.upstream;
-  const dialog = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    dialog.current?.focus();
     api.gitOutgoing().then(
       (list) => {
         setCommits(list);
@@ -57,15 +56,23 @@ export default function PushDialog(props: PushDialogProps) {
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div className="git-dialog push-dialog" role="dialog" aria-label="Push Commits" onKeyDown={onKey} tabIndex={-1} ref={dialog}>
-        <header className="git-dialog-header">
+    <FloatingDialog
+      storageKey="mido.pushDialog.bounds"
+      size={{ width: 900, height: 560 }}
+      minSize={{ width: 560, height: 340 }}
+      className="push-dialog"
+      label="Push Commits"
+      onKeyDown={onKey}
+      header={
+        <>
           <span className="git-dialog-title">Push Commits</span>
           <span className="spacer" />
           <button className="icon-button" onClick={props.onClose} title="Close (Esc)" aria-label="Close">
             <X size={15} />
           </button>
-        </header>
+        </>
+      }
+    >
 
         <div className="push-target">
           <GitBranch size={14} />
@@ -144,7 +151,6 @@ export default function PushDialog(props: PushDialogProps) {
             {publishing ? "Publish and Push" : "Push"}
           </button>
         </footer>
-      </div>
-    </div>
+    </FloatingDialog>
   );
 }

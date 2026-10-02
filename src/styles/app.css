@@ -3831,14 +3831,7 @@ body.web-dropping::after {
 .git-dialog .spacer {
   flex: 1;
 }
-.commit-dialog {
-  width: min(1180px, 100%);
-  height: min(760px, 100%);
-}
-.push-dialog {
-  width: min(900px, 100%);
-  height: min(560px, 100%);
-}
+
 .git-dialog-header {
   flex: none;
   display: flex;
@@ -3885,7 +3878,6 @@ body.web-dropping::after {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(260px, 34%) 1fr;
 }
 .commit-files {
   min-height: 0;
@@ -4105,4 +4097,208 @@ body.web-dropping::after {
   letter-spacing: 0;
   text-transform: none;
   color: var(--text-faint);
+}
+
+/* ---------- diff header path: folders shorten, the file name stays ---------- */
+
+.diff-crumb {
+  flex: 0 1 auto;
+  min-width: 1.6em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+.diff-crumb.current {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 75%;
+  color: var(--text);
+  font-weight: 500;
+}
+.diff-crumb-sep {
+  flex: none;
+  color: var(--text-faint);
+}
+.diff-crumbs .diff-sides-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* ---------- panel: Commit beside the changes window ---------- */
+
+.scm-commit-row {
+  display: flex;
+  gap: 6px;
+}
+.scm-commit-row .scm-button:first-child {
+  flex: 1;
+}
+.scm-show-changes {
+  width: auto;
+  flex: none;
+}
+
+/* ---------- floating dialogs: moved by the title bar, resized from the edges ---------- */
+
+.modal-backdrop.floating {
+  display: block;
+  padding: 0;
+}
+.git-dialog.floating {
+  position: absolute;
+  max-width: none;
+  max-height: none;
+  /* Rounded corners clip their content, and with it the corner resize handles. */
+  overflow: visible;
+}
+.git-dialog.floating .commit-files {
+  border-bottom-left-radius: 0;
+}
+.git-dialog-header.draggable {
+  cursor: grab;
+  user-select: none;
+}
+body.dragging-dialog,
+body.dragging-dialog * {
+  user-select: none !important;
+}
+.resize-handle {
+  position: absolute;
+  z-index: 5;
+}
+.resize-handle.n,
+.resize-handle.s {
+  left: 8px;
+  right: 8px;
+  height: 6px;
+  cursor: ns-resize;
+}
+.resize-handle.n {
+  top: -3px;
+}
+.resize-handle.s {
+  bottom: -3px;
+}
+.resize-handle.e,
+.resize-handle.w {
+  top: 8px;
+  bottom: 8px;
+  width: 6px;
+  cursor: ew-resize;
+}
+.resize-handle.e {
+  right: -3px;
+}
+.resize-handle.w {
+  left: -3px;
+}
+.resize-handle.ne,
+.resize-handle.nw,
+.resize-handle.se,
+.resize-handle.sw {
+  width: 14px;
+  height: 14px;
+}
+.resize-handle.ne {
+  top: -4px;
+  right: -4px;
+  cursor: nesw-resize;
+}
+.resize-handle.sw {
+  bottom: -4px;
+  left: -4px;
+  cursor: nesw-resize;
+}
+.resize-handle.nw {
+  top: -4px;
+  left: -4px;
+  cursor: nwse-resize;
+}
+.resize-handle.se {
+  bottom: -4px;
+  right: -4px;
+  cursor: nwse-resize;
+}
+
+/* ---------- commit dialog: the file tree ---------- */
+
+.commit-dialog-main {
+  grid-template-columns: 340px 1px 1fr;
+}
+.commit-split {
+  position: relative;
+  background: var(--border-soft);
+  cursor: col-resize;
+}
+.commit-split::after {
+  content: "";
+  position: absolute;
+  inset: 0 -3px;
+}
+.commit-split:hover {
+  background: var(--accent);
+}
+.commit-files {
+  border-right: none;
+}
+.commit-files-tools {
+  display: flex;
+  gap: 2px;
+  margin-left: 6px;
+  text-transform: none;
+}
+.commit-folder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding-right: 12px;
+  cursor: default;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text);
+}
+.commit-folder:hover {
+  background: var(--bg-hover);
+}
+.commit-folder .chevron {
+  flex: none;
+  margin-right: -2px;
+  color: var(--text-faint);
+  transition: transform 0.12s ease;
+}
+.commit-folder .chevron.open {
+  transform: rotate(90deg);
+}
+.commit-folder-icon {
+  flex: none;
+  color: color-mix(in srgb, var(--warm) 75%, var(--text-muted));
+}
+.commit-folder-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.commit-folder-count {
+  flex: none;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.commit-file .scm-file-name {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.commit-file-end {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.commit-file-end .scm-letter,
+.commit-file-end .scm-unsaved {
+  margin-left: 0;
 }

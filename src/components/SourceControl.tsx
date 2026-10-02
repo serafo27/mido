@@ -193,7 +193,7 @@ export default function SourceControl(props: SourceControlProps) {
     <div className="scm" ref={panel}>
       {title(
         <>
-          <RowAction title={`Commit… (${isMac ? "⌘K" : "Ctrl+K"})`} disabled={!!busy} onClick={props.onOpenCommitDialog}>
+          <RowAction title={`Show Changes in a Window (${isMac ? "⌘K" : "Ctrl+K"})`} disabled={!!busy} onClick={props.onOpenCommitDialog}>
             <ListChecks size={15} />
           </RowAction>
           <RowAction title="Fetch" disabled={!!busy || status.remotes.length === 0} onClick={props.onFetch}>
@@ -262,10 +262,27 @@ export default function SourceControl(props: SourceControlProps) {
               rows={1}
               spellCheck
             />
-            <button className="scm-button" disabled={!canCommit} onClick={commit} title={staged.length === 0 ? "Stage the changes to commit first" : undefined}>
-              <Check size={14} />
-              Commit
-            </button>
+            <div className="scm-commit-row">
+              <button
+                className="scm-button"
+                disabled={!canCommit}
+                onClick={commit}
+                title={staged.length === 0 ? "Stage the changes to commit first" : undefined}
+              >
+                <Check size={14} />
+                Commit
+              </button>
+              <button
+                className="scm-button secondary scm-show-changes"
+                disabled={!!busy}
+                onClick={props.onOpenCommitDialog}
+                title={`Show Changes in a Window (${isMac ? "⌘K" : "Ctrl+K"})`}
+                aria-label="Show Changes in a Window"
+              >
+                <ListChecks size={15} />
+                Changes
+              </button>
+            </div>
             {unpublished && (
               <button className="scm-button secondary" disabled={!!busy} onClick={props.onPush}>
                 <CloudUpload size={14} />

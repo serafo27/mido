@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Check, ChevronRight, Columns2, FileSymlink, Minus, Plus, Rows2 } from "lucide-react";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
@@ -131,11 +131,12 @@ export default function DiffView(props: DiffViewProps) {
     <div className="diff-view">
       <header className="diff-header">
         <div className="diff-crumbs" title={change.origPath ? `${change.origPath} → ${change.path}` : change.path}>
+          {/* Folders shorten to "…" when the path is long; the file's name stays whole. */}
           {crumbs.map((part, i) => (
-            <span key={i} className={i === crumbs.length - 1 ? "crumb current" : "crumb"}>
-              {i > 0 && <ChevronRight size={12} className="crumb-sep" />}
-              {part}
-            </span>
+            <Fragment key={i}>
+              {i > 0 && <ChevronRight size={12} className="diff-crumb-sep" />}
+              <span className={`diff-crumb ${i === crumbs.length - 1 ? "current" : ""}`}>{part}</span>
+            </Fragment>
           ))}
           {comparing && (
             <span className="diff-sides-label">
