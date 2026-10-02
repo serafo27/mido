@@ -47,6 +47,8 @@ export interface Settings {
   minimap: boolean;
   remoteImages: RemoteImages;
   tabStyle: TabStyle;
+  /** Source control lists every changed file and commit, not only Markdown documents. */
+  gitShowAllFiles: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -76,6 +78,7 @@ export const DEFAULT_SETTINGS: Settings = {
   minimap: false,
   remoteImages: "secure",
   tabStyle: "rounded",
+  gitShowAllFiles: false,
 };
 
 /**

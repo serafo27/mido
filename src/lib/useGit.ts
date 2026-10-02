@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type GitFileChange, type GitRepo } from "./api";
+import { isMarkdown } from "./paths";
 import { isWeb } from "./platform";
 
 /**
@@ -51,6 +52,9 @@ export function useGit(root: string | null, opened: unknown) {
 
   return { repo, refresh, busy, run };
 }
+
+/** A Markdown document, or one of Mido's comment files: what source control shows unless asked for everything. */
+export const isDocumentPath = (path: string) => isMarkdown(path) || /(^|\/)\.mido\/comments\//.test(path);
 
 /** The letter shown for a change, as in VS Code: U for untracked, ! for a conflict. */
 export function changeLetter(change: Pick<GitFileChange, "staged" | "unstaged" | "conflicted">): string {

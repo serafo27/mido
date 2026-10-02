@@ -279,7 +279,19 @@ pub struct Commit {
     pub subject: String,
 }
 
-pub fn log(repo: &Repo, limit: usize, path: Option<&str>) -> GitResult<Vec<Commit>> {
+/// What Mido is about: Markdown documents and their comments. Pathspecs for `git log`.
+const MARKDOWN_PATHSPECS: &[&str] = &[
+    ":(glob,icase)**/*.md",
+    ":(glob,icase)**/*.markdown",
+    ":(glob,icase)**/*.mdown",
+    ":(glob,icase)**/*.mkd",
+    ":(glob,icase)**/*.mdx",
+    ":(glob)**/.mido/comments/**",
+];
+
+/// The latest `limit` commits, of `path` only if given, or only those
+/// touching Markdown documents (or their comments) with `markdown_only`.
+pub fn log(repo: &Repo, limit: usize, path: Option<&str>, markdown_only: bool) -> GitResult<Vec<Commit>> {
     if !repo.has_commits() {
         return Ok(Vec::new());
     }
@@ -288,6 +300,9 @@ pub fn log(repo: &Repo, limit: usize, path: Option<&str>) -> GitResult<Vec<Commi
     if let Some(path) = path {
         repo.path(path)?;
         args.extend(["--", path]);
+    } else if markdown_only {
+        args.push("--");
+        args.extend_from_slice(MARKDOWN_PATHSPECS);
     }
     Ok(parse_log(&repo.run(&args)?))
 }
@@ -735,8 +750,9 @@ pub async fn git_log(
     locks: State<'_, RepoLocks>,
     limit: usize,
     path: Option<String>,
+    markdown_only: bool,
 ) -> GitResult<Vec<Commit>> {
-    with_repo(workspace, trusted, locks, move |r| log(r, limit.min(1000), path.as_deref())).await
+    with_repo(workspace, trusted, locks, move |r| log(r, limit.min(1000), path.as_deref(), markdown_only)).await
 }
 
 #[tauri::command]
@@ -1025,7 +1041,7 @@ mod tests {
         stage(&repo, &["a.md".to_string()]).unwrap();
         commit(&repo, "Second").unwrap();
 
-        let history = log(&repo, 10, None).unwrap();
+        let history = log(&repo, 10, None, false).unwrap();
         assert_eq!(history.iter().map(|c| c.subject.as_str()).collect::<Vec<_>>(), ["Second", "First"]);
         let files = commit_files(&repo, &history[0].hash).unwrap();
         assert_eq!(files[0].path, "a.md");
@@ -1201,6 +1217,25 @@ mod tests {
         assert!(branches(&repo).unwrap().iter().any(|b| b.remote && b.name == "origin/main"));
         checkout(&repo, "origin/main", true).unwrap();
         assert_eq!(status(&repo).unwrap().branch.as_deref(), Some("main"));
+    }
+
+    #[test]
+    fn lists_only_commits_touching_markdown_when_asked() {
+        let Some((_dir, repo)) = temp_repo() else { return };
+        let add = |path: &str, text: &str, message: &str| {
+            let disk = repo.root.join(path);
+            fs::create_dir_all(disk.parent().unwrap()).unwrap();
+            fs::write(disk, text).unwrap();
+            stage(&repo, &[path.to_string()]).unwrap();
+            commit(&repo, message).unwrap();
+        };
+        add("a.md", "one", "Top-level doc");
+        add("src/main.rs", "fn main() {}", "Code only");
+        add("docs/deep/B.MD", "two", "Nested doc");
+        add(".mido/comments/a.md/t/1.json", "{}", "A comment");
+        let subjects = |list: Vec<Commit>| list.into_iter().map(|c| c.subject).collect::<Vec<_>>();
+        assert_eq!(subjects(log(&repo, 10, None, true).unwrap()), ["A comment", "Nested doc", "Top-level doc"]);
+        assert_eq!(log(&repo, 10, None, false).unwrap().len(), 4);
     }
 
     #[test]

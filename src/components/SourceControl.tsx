@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { api, type GitCommit, type GitFileChange, type GitRepo } from "../lib/api";
 import { basename, dirname, tildify } from "../lib/paths";
-import { changeLetter } from "../lib/useGit";
+import { changeLetter, isDocumentPath } from "../lib/useGit";
 import { isMac } from "../lib/platform";
 import { useStoredState } from "../lib/useStoredState";
 
@@ -54,6 +54,9 @@ interface SourceControlProps {
   onOpenBranches: () => void;
   onOpenCommitDialog: () => void;
   onOpenPushDialog: () => void;
+  /** Every changed file and commit, rather than only Markdown documents. */
+  showAll: boolean;
+  onShowAll: () => void;
   onUnstage: (paths: string[]) => void;
   /** Resolves to true once committed, so the message can be cleared. */
   onCommit: (message: string) => Promise<boolean>;
@@ -127,9 +130,13 @@ export default function SourceControl(props: SourceControlProps) {
     );
   }
 
+  // Conflicts always show: they block the commit whatever the file.
+  const shown = (f: GitFileChange) => props.showAll || isDocumentPath(f.path);
   const conflicts = status.files.filter((f) => f.conflicted);
-  const staged = status.files.filter((f) => !f.conflicted && f.staged);
-  const changes = status.files.filter((f) => !f.conflicted && f.unstaged);
+  const staged = status.files.filter((f) => !f.conflicted && f.staged && shown(f));
+  const changes = status.files.filter((f) => !f.conflicted && f.unstaged && shown(f));
+  const hidden = status.files.filter((f) => !f.conflicted && !shown(f));
+  const hiddenStaged = hidden.filter((f) => f.staged).length;
   const branch = status.branch ?? "detached HEAD";
   const canCommit = !busy && staged.length > 0 && message.trim() !== "" && conflicts.length === 0;
   const unpublished = status.branch !== null && !status.upstream && status.remotes.length > 0;
@@ -301,6 +308,16 @@ export default function SourceControl(props: SourceControlProps) {
           </div>
         )}
 
+        {hidden.length > 0 && (
+          <div className="scm-hidden-note">
+            {`${plural(hidden.length, "other file")} changed`}
+            {hiddenStaged > 0 ? `, ${hiddenStaged} staged: ${hiddenStaged === 1 ? "it" : "they"}'ll be committed too.` : "."}
+            <button className="link-button" onClick={props.onShowAll}>
+              Show all files
+            </button>
+          </div>
+        )}
+
         {conflicts.length > 0 && (
           <Group title="Merge Changes" count={conflicts.length}>
             {conflicts.map((c) => row(c, "conflict", null))}
@@ -344,7 +361,7 @@ export default function SourceControl(props: SourceControlProps) {
           }
         >
           {changes.length === 0 && staged.length === 0 && conflicts.length === 0 ? (
-            <p className="scm-empty small">No changes since the last commit.</p>
+            <p className="scm-empty small">{hidden.length ? "No Markdown changes." : "No changes since the last commit."}</p>
           ) : (
             changes.map((c) =>
               row(
@@ -368,6 +385,7 @@ export default function SourceControl(props: SourceControlProps) {
         <div className="scm-pane-resizer" onPointerDown={resizeGraph} />
         <Graph
           enabled={status.hasCommits}
+          markdownOnly={!props.showAll}
           branch={status.branch}
           upstream={status.upstream}
           // A new commit, pull or rebase moves HEAD: read the history again.
@@ -474,6 +492,8 @@ function ago(iso: string): string {
 /** The branch's history as a line of commits, newest first, like VS Code's source control graph. */
 function Graph(props: {
   enabled: boolean;
+  /** Only commits touching Markdown documents, and only those files in them. */
+  markdownOnly: boolean;
   branch: string | null;
   upstream: string | null;
   version: string;
@@ -487,26 +507,30 @@ function Graph(props: {
   useEffect(() => {
     if (!props.enabled) return setCommits([]);
     let cancelled = false;
-    api.gitLog(HISTORY_SIZE).then(
+    api.gitLog(HISTORY_SIZE, null, props.markdownOnly).then(
       (log) => !cancelled && setCommits(log),
       () => !cancelled && setCommits([]),
     );
     return () => {
       cancelled = true;
     };
-  }, [props.enabled, props.version]);
+  }, [props.enabled, props.version, props.markdownOnly]);
 
   const toggle = (commit: GitCommit) => {
     if (expanded === commit.hash) return setExpanded(null);
     setExpanded(commit.hash);
     setFiles([]);
-    api.gitCommitFiles(commit.hash).then(setFiles, () => setFiles([]));
+    api.gitCommitFiles(commit.hash).then(
+      (all) => setFiles(props.markdownOnly ? all.filter((f) => isDocumentPath(f.path)) : all),
+      () => setFiles([]),
+    );
   };
 
   return (
     <>
       <div className="scm-group-header static">
         <span className="scm-group-title">Graph</span>
+        {props.markdownOnly && <span className="scm-group-note">Markdown</span>}
       </div>
       {!props.enabled && <p className="scm-empty small">No commits yet.</p>}
       <div className="scm-graph">

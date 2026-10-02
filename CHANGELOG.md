@@ -20,6 +20,7 @@ GitHub and on the website's changelog page.
 - **Branches**: click the branch in the panel or the status bar to switch to one (a remote branch gets a local one tracking it), create one from a name, merge one into the current branch, or delete a merged one.
 - **Discard Changes** on a file, or on all the changes, after asking: files go back to their staged or committed contents, and new files go to the Trash.
 - The history graph stays in view below the changes, which scroll on their own; drag the line between them to resize.
+- Source control is about your documents: it lists only Markdown files (and Mido's comments) and the commits that touch them. A line says how many other files changed, and warns when one of them is staged and would be committed. **Settings → Source Control → Show all files** lists everything.
 - Git runs as it does in Terminal, with your keys, credentials, hooks and settings, and only in a repository you've allowed it in.
 
 ## [0.11.0] - 2026-10-02

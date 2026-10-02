@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { GitBranch, Undo2, X } from "lucide-react";
 import type { GitFileChange, GitStatus } from "../lib/api";
 import { basename, dirname } from "../lib/paths";
-import { changeLetter } from "../lib/useGit";
+import { changeLetter, isDocumentPath } from "../lib/useGit";
 import { isMac } from "../lib/platform";
 import DiffView from "./DiffView";
 import type { DiffTarget } from "./SourceControl";
@@ -25,6 +25,8 @@ interface CommitDialogProps {
   onOpenDiff: (target: DiffTarget, pin?: boolean) => void;
   onOpenFile: (path: string) => void;
   onClose: () => void;
+  /** Every changed file, rather than only Markdown documents. */
+  showAll: boolean;
 }
 
 type Check = "on" | "off" | "partial";
@@ -35,12 +37,16 @@ const checkOf = (f: GitFileChange): Check => (f.staged ? (f.unstaged ? "partial"
 /** IntelliJ's commit dialog: tick the files to commit, see their changes, write the message. */
 export default function CommitDialog(props: CommitDialogProps) {
   const { status, busy } = props;
-  const files = useMemo(() => status.files.filter((f) => !f.conflicted), [status.files]);
-  const conflicts = status.files.length - files.length;
+  const files = useMemo(
+    () => status.files.filter((f) => !f.conflicted && (props.showAll || isDocumentPath(f.path))),
+    [status.files, props.showAll],
+  );
+  const conflicts = status.files.filter((f) => f.conflicted).length;
+  const hiddenStaged = status.files.filter((f) => !f.conflicted && f.staged && !props.showAll && !isDocumentPath(f.path)).length;
   const [selected, setSelected] = useState<string | null>(files[0]?.path ?? null);
   const message = useRef<HTMLTextAreaElement>(null);
   const checked = files.filter((f) => f.staged);
-  const canCommit = !busy && checked.length > 0 && props.message.trim() !== "" && conflicts === 0;
+  const canCommit = !busy && checked.length + hiddenStaged > 0 && props.message.trim() !== "" && conflicts === 0;
 
   useEffect(() => {
     message.current?.focus();
@@ -165,6 +171,12 @@ export default function CommitDialog(props: CommitDialogProps) {
           />
           <div className="git-dialog-buttons">
             {conflicts > 0 && <span className="git-dialog-hint">Resolve the merge conflicts first.</span>}
+            {hiddenStaged > 0 && (
+              <span className="git-dialog-hint">
+                {hiddenStaged === 1 ? "1 staged file that isn't Markdown" : `${hiddenStaged} staged files that aren't Markdown`} will be
+                committed too.
+              </span>
+            )}
             {busy && <span className="git-dialog-hint">{busy}</span>}
             <span className="spacer" />
             <button className="ghost-button" onClick={props.onClose}>

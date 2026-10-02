@@ -156,7 +156,9 @@ export const api = {
   gitInfo: () => invoke<GitRepo | null>("git_info"),
   /** Asks in a native prompt whether Mido may run git in the repository; resolves to the answer. */
   gitTrust: () => invoke<boolean>("git_trust"),
-  gitLog: (limit: number, path: string | null = null) => invoke<GitCommit[]>("git_log", { limit, path }),
+  /** `markdownOnly`: only commits that touch Markdown documents or their comments. */
+  gitLog: (limit: number, path: string | null = null, markdownOnly = false) =>
+    invoke<GitCommit[]>("git_log", { limit, path, markdownOnly }),
   gitCommitFiles: (hash: string) => invoke<GitFileChange[]>("git_commit_files", { hash }),
   gitFileVersions: (kind: DiffKind, path: string, origPath: string | null, commit: string | null) =>
     invoke<FileVersions>("git_file_versions", { kind, path, origPath, commit }),

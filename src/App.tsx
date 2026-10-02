@@ -80,7 +80,7 @@ import CommitDialog from "./components/CommitDialog";
 import PushDialog from "./components/PushDialog";
 import { setLinkShortcutYields } from "./components/Editor";
 import type { GitBranch } from "./lib/api";
-import { changeLetter, useGit } from "./lib/useGit";
+import { changeLetter, isDocumentPath, useGit } from "./lib/useGit";
 
 interface Tab {
   path: string;
@@ -1023,6 +1023,12 @@ export default function App() {
     if (open) setGitOpenState(false);
   }, []);
 
+  // What the panel lists: Markdown documents (and conflicts), unless every file is asked for.
+  const gitChangeCount = useMemo(
+    () =>
+      (gitStatus?.files ?? []).filter((f) => f.conflicted || settings.gitShowAllFiles || isDocumentPath(f.path)).length,
+    [gitStatus, settings.gitShowAllFiles],
+  );
   const gitBadges = useMemo(
     () => new Map((gitStatus?.files ?? []).filter((f) => f.local).map((f) => [f.local!, changeLetter(f)])),
     [gitStatus],
@@ -1646,6 +1652,7 @@ export default function App() {
           }}
           onOpenFile={openFile}
           onClose={() => setGitDialog(null)}
+          showAll={settings.gitShowAllFiles}
         />
       )}
       {gitDialog === "push" && gitStatus && (
@@ -1758,7 +1765,7 @@ export default function App() {
               onOpenMatch={openMatch}
               gitOpen={gitOpen && git.repo !== null}
               onGitOpenChange={setGitOpen}
-              gitChanges={gitStatus?.files.length ?? 0}
+              gitChanges={gitChangeCount}
               gitBadges={gitBadges}
               gitPanel={
                 git.repo && (
@@ -1777,6 +1784,8 @@ export default function App() {
                     onOpenBranches={() => setGitDialog("branches")}
                     onOpenCommitDialog={() => setGitDialog("commit")}
                     onOpenPushDialog={() => setGitDialog("push")}
+                    showAll={settings.gitShowAllFiles}
+                    onShowAll={() => updateSettings({ gitShowAllFiles: true })}
                     onStage={stage}
                     onUnstage={unstage}
                     onCommit={commit}
@@ -1920,7 +1929,7 @@ export default function App() {
                     branch: gitStatus.branch,
                     ahead: gitStatus.ahead,
                     behind: gitStatus.behind,
-                    changes: gitStatus.files.length,
+                    changes: gitChangeCount,
                     onClick: () => setGitDialog("branches"),
                   }
                 }

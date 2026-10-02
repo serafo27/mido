@@ -4082,3 +4082,27 @@ body.web-dropping::after {
 .push-files .commit-file {
   padding-left: 14px;
 }
+
+.scm-hidden-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0 12px 6px 20px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.scm-hidden-note .link-button {
+  font-size: 11.5px;
+}
+.scm-group-note {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-faint);
+}

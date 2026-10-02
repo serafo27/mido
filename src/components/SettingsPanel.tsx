@@ -175,6 +175,16 @@ export default function SettingsPanel(props: SettingsPanelProps) {
           </Section>
         )}
 
+        {!isWeb && (
+          <Section title="Source Control">
+            <Toggle
+              label="Show all files, not only Markdown"
+              checked={settings.gitShowAllFiles}
+              onChange={(gitShowAllFiles) => onChange({ gitShowAllFiles })}
+            />
+          </Section>
+        )}
+
         <Section title="Appearance">
           <Row label="Mode">
             <div className="segmented small">
