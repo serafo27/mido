@@ -511,7 +511,7 @@ function Group(props: { title: string; count?: number; actions?: ReactNode; chil
         <span className="scm-group-actions">{props.actions}</span>
         {props.count !== undefined && props.count > 0 && <span className="scm-count">{props.count}</span>}
       </div>
-      {open && props.children}
+      {open && <div className="scm-group-items">{props.children}</div>}
     </section>
   );
 }

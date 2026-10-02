@@ -3440,7 +3440,7 @@ body.web-dropping::after {
   margin-left: 4px;
   padding: 0 5px;
   border-radius: 9px;
-  background: var(--bg-active);
+  background: color-mix(in srgb, var(--text) 14%, transparent);
   color: var(--text);
   font-size: 10.5px;
   font-weight: 600;
@@ -4866,7 +4866,7 @@ body.resizing-row * {
 .window-light.zoom {
   background: #28c840;
 }
-/* Like a sheet's: there's nothing to minimize to. */
+/* Like a sheet's: it can't be minimized or zoomed, only closed. */
 .window-light:disabled {
   background: color-mix(in srgb, var(--text-faint) 45%, transparent);
   border-color: transparent;
@@ -4896,4 +4896,19 @@ body.resizing-row * {
 }
 .scm-scroll .scm-group-header:hover {
   background: color-mix(in srgb, var(--bg-sidebar) 100%, var(--text) 5%);
+}
+
+/* A group's files hang from a thin line under its chevron, as VS Code's tree guides. */
+.scm-group-items {
+  position: relative;
+}
+.scm-group-items::before {
+  content: "";
+  position: absolute;
+  left: 21px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  pointer-events: none;
 }
