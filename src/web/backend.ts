@@ -220,6 +220,7 @@ export const commands: Record<string, (args: Record<string, unknown>, options?: 
   git_merge: desktopOnly,
   git_delete_branch: desktopOnly,
   git_outgoing: desktopOnly,
+  git_last_message: desktopOnly,
 
   /** Comments can't be written here, so nobody needs to sign them. */
   git_identity: () => null,

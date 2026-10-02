@@ -89,7 +89,7 @@ import BranchPicker from "./components/BranchPicker";
 import CommitDialog from "./components/CommitDialog";
 import PushDialog from "./components/PushDialog";
 import { setLinkShortcutYields } from "./components/Editor";
-import type { GitBranch } from "./lib/api";
+import type { CommitOptions, GitBranch } from "./lib/api";
 import { changeLetter, isDocumentPath, useGit } from "./lib/useGit";
 
 interface Tab {
@@ -1095,8 +1095,8 @@ export default function App() {
   );
 
   const commit = useCallback(
-    async (message: string) => {
-      const done = await gitAction("Committing…", () => api.gitCommit(message));
+    async (message: string, options?: CommitOptions) => {
+      const done = await gitAction(options?.amend ? "Amending…" : "Committing…", () => api.gitCommit(message, options));
       if (done) setCommitMessage("");
       return done;
     },
@@ -1161,8 +1161,8 @@ export default function App() {
     [gitAction],
   );
   const commitFromDialog = useCallback(
-    async (thenPush: boolean) => {
-      const done = await commit(commitMessage);
+    async (thenPush: boolean, options?: CommitOptions) => {
+      const done = await commit(commitMessage, options);
       if (done && thenPush) setGitDialog("push");
       return done;
     },
@@ -1769,6 +1769,7 @@ export default function App() {
           onUnstage={unstage}
           onDiscard={discard}
           onCommit={commitFromDialog}
+          identity={gitAuthor ?? null}
           onOpenDiff={(target, pin) => {
             setGitDialog(null);
             openDiff(target, pin);

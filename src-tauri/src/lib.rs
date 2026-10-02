@@ -956,6 +956,7 @@ pub fn run() {
             git::git_stage,
             git::git_unstage,
             git::git_commit,
+            git::git_last_message,
             git::git_push,
             git::git_pull,
             git::git_fetch,

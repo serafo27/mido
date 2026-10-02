@@ -72,6 +72,14 @@ export interface GitRepo {
   status: GitStatus | null;
 }
 
+/** How to commit, beyond the message (the commit dialog's Git options). */
+export interface CommitOptions {
+  amend?: boolean;
+  signOff?: boolean;
+  /** "Name <email>"; empty for git's configured identity. */
+  author?: string;
+}
+
 export interface GitCommit {
   hash: string;
   short: string;
@@ -171,7 +179,9 @@ export const api = {
     invoke<FileVersions>("git_file_versions", { kind, path, origPath, commit }),
   gitStage: (paths: string[]) => invoke<void>("git_stage", { paths }),
   gitUnstage: (paths: string[]) => invoke<void>("git_unstage", { paths }),
-  gitCommit: (message: string) => invoke<string>("git_commit", { message }),
+  gitCommit: (message: string, options?: CommitOptions) => invoke<string>("git_commit", { message, options }),
+  /** The last commit's whole message, to start from when amending it. */
+  gitLastMessage: () => invoke<string>("git_last_message"),
   /** `setUpstream`: publishes the branch to that remote and tracks it. */
   gitPush: (setUpstream: string | null = null) => invoke<string>("git_push", { setUpstream }),
   gitPull: (mode: "merge" | "rebase") => invoke<string>("git_pull", { mode }),

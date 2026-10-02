@@ -454,12 +454,48 @@ pub fn unstage(repo: &Repo, paths: &[String]) -> GitResult<()> {
     repo.run(&with_paths(repo, args, paths)?).map(drop)
 }
 
-pub fn commit(repo: &Repo, message: &str) -> GitResult<String> {
+/// How to commit, beyond the message: as in IntelliJ's commit dialog.
+#[derive(serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CommitOptions {
+    /// Replace the last commit instead of adding one.
+    pub amend: bool,
+    /// Add a `Signed-off-by` line.
+    pub sign_off: bool,
+    /// "Name <email>" to commit as someone else; empty for the configured identity.
+    pub author: String,
+}
+
+pub fn commit(repo: &Repo, message: &str, options: &CommitOptions) -> GitResult<String> {
     if message.trim().is_empty() {
         return Err("The commit message is empty".to_string());
     }
     // From stdin, so the message is never taken for an option.
-    run_in(&repo.root, &["commit", "-F", "-"], Some(message))
+    let mut args = vec!["commit".to_string(), "-F".to_string(), "-".to_string()];
+    if options.amend {
+        args.push("--amend".to_string());
+    }
+    if options.sign_off {
+        args.push("--signoff".to_string());
+    }
+    let author = options.author.trim();
+    if !author.is_empty() {
+        // Git wants "Name <email>"; one `=` argument can't be taken for another option.
+        if !author.contains('<') || !author.ends_with('>') {
+            return Err("The author should look like: Name <email@example.com>".to_string());
+        }
+        args.push(format!("--author={author}"));
+    }
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    run_in(&repo.root, &args, Some(message))
+}
+
+/// The last commit's whole message, to start from when amending it.
+pub fn last_message(repo: &Repo) -> GitResult<String> {
+    if !repo.has_commits() {
+        return Ok(String::new());
+    }
+    repo.run(&["log", "-1", "--format=%B"]).map(|m| m.trim_end().to_string())
 }
 
 pub fn push(repo: &Repo, set_upstream: Option<&str>) -> GitResult<String> {
@@ -807,8 +843,19 @@ pub async fn git_commit(
     trusted: State<'_, TrustedRepos>,
     locks: State<'_, RepoLocks>,
     message: String,
+    options: Option<CommitOptions>,
 ) -> GitResult<String> {
-    with_repo(workspace, trusted, locks, move |r| commit(r, &message)).await
+    let options = options.unwrap_or_default();
+    with_repo(workspace, trusted, locks, move |r| commit(r, &message, &options)).await
+}
+
+#[tauri::command]
+pub async fn git_last_message(
+    workspace: Workspace,
+    trusted: State<'_, TrustedRepos>,
+    locks: State<'_, RepoLocks>,
+) -> GitResult<String> {
+    with_repo(workspace, trusted, locks, last_message).await
 }
 
 #[tauri::command]
@@ -1032,14 +1079,14 @@ mod tests {
         assert_eq!(status(&repo).unwrap().files[0].staged, None);
 
         stage(&repo, &["a.md".to_string()]).unwrap();
-        commit(&repo, "First\n\nWith a body").unwrap();
+        commit(&repo, "First\n\nWith a body", &CommitOptions::default()).unwrap();
         assert!(status(&repo).unwrap().files.is_empty());
 
         fs::write(repo.root.join("a.md"), "two\n").unwrap();
         let versions = file_versions(&repo, DiffKind::Unstaged, "a.md", None, None).unwrap();
         assert_eq!((versions.original.as_deref(), versions.modified.as_deref()), (Some("one\n"), Some("two\n")));
         stage(&repo, &["a.md".to_string()]).unwrap();
-        commit(&repo, "Second").unwrap();
+        commit(&repo, "Second", &CommitOptions::default()).unwrap();
 
         let history = log(&repo, 10, None, false).unwrap();
         assert_eq!(history.iter().map(|c| c.subject.as_str()).collect::<Vec<_>>(), ["Second", "First"]);
@@ -1053,9 +1100,28 @@ mod tests {
     }
 
     #[test]
+    fn amends_signs_off_and_commits_as_someone_else() {
+        let Some((_dir, repo)) = temp_repo() else { return };
+        fs::write(repo.root.join("a.md"), "one\n").unwrap();
+        stage(&repo, &["a.md".to_string()]).unwrap();
+        commit(&repo, "First", &CommitOptions::default()).unwrap();
+        assert_eq!(last_message(&repo).unwrap(), "First");
+
+        let options = CommitOptions { amend: true, sign_off: true, author: "Ada Lovelace <ada@example.com>".to_string() };
+        commit(&repo, "First, amended", &options).unwrap();
+        let history = log(&repo, 10, None, false).unwrap();
+        assert_eq!(history.len(), 1);
+        assert_eq!((history[0].subject.as_str(), history[0].author.as_str()), ("First, amended", "Ada Lovelace"));
+        assert!(last_message(&repo).unwrap().contains("Signed-off-by:"));
+
+        let bad = CommitOptions { author: "--exec=evil".to_string(), ..Default::default() };
+        assert!(commit(&repo, "Nope", &bad).is_err());
+    }
+
+    #[test]
     fn refuses_an_empty_message() {
         let Some((_dir, repo)) = temp_repo() else { return };
-        assert!(commit(&repo, "  \n").is_err());
+        assert!(commit(&repo, "  \n", &CommitOptions::default()).is_err());
     }
 
     #[test]
@@ -1074,7 +1140,7 @@ mod tests {
         let git = |args: &[&str]| run_in(&repo.root, args, None);
         fs::write(repo.root.join("a.md"), "base\n").unwrap();
         stage(&repo, &["a.md".to_string()]).unwrap();
-        commit(&repo, "Base").unwrap();
+        commit(&repo, "Base", &CommitOptions::default()).unwrap();
         git(&["checkout", "-q", "-b", "other"]).unwrap();
         fs::write(repo.root.join("a.md"), "theirs\n").unwrap();
         git(&["commit", "-qam", "Theirs"]).unwrap();
@@ -1122,7 +1188,7 @@ mod tests {
         run_in(&repo.root, &["remote", "add", "origin", remote.to_str().unwrap()], None).unwrap();
         fs::write(repo.root.join("a.md"), "one\n").unwrap();
         stage(&repo, &["a.md".to_string()]).unwrap();
-        commit(&repo, "One").unwrap();
+        commit(&repo, "One", &CommitOptions::default()).unwrap();
         // No upstream yet: a plain push fails, publishing the branch works.
         assert!(push(&repo, None).is_err());
         push(&repo, Some("origin")).unwrap();
@@ -1151,7 +1217,7 @@ mod tests {
         let Some((_dir, repo)) = temp_repo() else { return };
         fs::write(repo.root.join("a.md"), "one\n").unwrap();
         stage(&repo, &["a.md".to_string()]).unwrap();
-        commit(&repo, "One").unwrap();
+        commit(&repo, "One", &CommitOptions::default()).unwrap();
         fs::write(repo.root.join("a.md"), "changed\n").unwrap();
         discard(&repo, &["a.md".to_string()]).unwrap();
         assert_eq!(fs::read_to_string(repo.root.join("a.md")).unwrap(), "one\n");
@@ -1173,13 +1239,13 @@ mod tests {
         let Some((_dir, repo)) = temp_repo() else { return };
         fs::write(repo.root.join("a.md"), "one\n").unwrap();
         stage(&repo, &["a.md".to_string()]).unwrap();
-        commit(&repo, "One").unwrap();
+        commit(&repo, "One", &CommitOptions::default()).unwrap();
 
         create_branch(&repo, "feature/x").unwrap();
         assert_eq!(status(&repo).unwrap().branch.as_deref(), Some("feature/x"));
         fs::write(repo.root.join("b.md"), "two\n").unwrap();
         stage(&repo, &["b.md".to_string()]).unwrap();
-        commit(&repo, "Two").unwrap();
+        commit(&repo, "Two", &CommitOptions::default()).unwrap();
 
         checkout(&repo, "main", false).unwrap();
         let list = branches(&repo).unwrap();
@@ -1201,7 +1267,7 @@ mod tests {
         let Some((dir, repo)) = temp_repo() else { return };
         fs::write(repo.root.join("a.md"), "one\n").unwrap();
         stage(&repo, &["a.md".to_string()]).unwrap();
-        commit(&repo, "One").unwrap();
+        commit(&repo, "One", &CommitOptions::default()).unwrap();
         // Not published: everything is outgoing.
         assert_eq!(outgoing(&repo).unwrap().len(), 1);
         let remote = dir.path().join("remote.git");
@@ -1211,7 +1277,7 @@ mod tests {
         assert!(outgoing(&repo).unwrap().is_empty());
         fs::write(repo.root.join("a.md"), "two\n").unwrap();
         stage(&repo, &["a.md".to_string()]).unwrap();
-        commit(&repo, "Two").unwrap();
+        commit(&repo, "Two", &CommitOptions::default()).unwrap();
         assert_eq!(outgoing(&repo).unwrap().iter().map(|c| c.subject.as_str()).collect::<Vec<_>>(), ["Two"]);
         // The remote branch is listed, and checking it out finds the local one.
         assert!(branches(&repo).unwrap().iter().any(|b| b.remote && b.name == "origin/main"));
@@ -1227,7 +1293,7 @@ mod tests {
             fs::create_dir_all(disk.parent().unwrap()).unwrap();
             fs::write(disk, text).unwrap();
             stage(&repo, &[path.to_string()]).unwrap();
-            commit(&repo, message).unwrap();
+            commit(&repo, message, &CommitOptions::default()).unwrap();
         };
         add("a.md", "one", "Top-level doc");
         add("src/main.rs", "fn main() {}", "Code only");
