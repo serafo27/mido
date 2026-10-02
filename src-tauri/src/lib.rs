@@ -1,6 +1,7 @@
 mod assets;
 mod comments;
 mod folders;
+mod git;
 mod search;
 
 use std::collections::HashMap;
@@ -794,11 +795,14 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(Workspaces::default())
+        .manage(git::RepoLocks::default())
         .manage(OpenRequests::default())
         .setup(|app| {
             // Before the open requests below, which grant their folders.
             let granted = folders::Granted::load(app.path().app_data_dir()?.join("granted-folders.json"));
             app.manage(GrantedFolders(Mutex::new(granted)));
+            let trusted = folders::Granted::load(app.path().app_data_dir()?.join("trusted-repositories.json"));
+            app.manage(git::TrustedRepos(Mutex::new(trusted)));
             #[cfg(target_os = "macos")]
             {
                 let menu = build_menu(app.handle())?;
@@ -857,6 +861,20 @@ pub fn run() {
             add_comment_file,
             compact_comment_thread,
             git_identity,
+            git::git_info,
+            git::git_trust,
+            git::git_log,
+            git::git_commit_files,
+            git::git_file_versions,
+            git::git_stage,
+            git::git_unstage,
+            git::git_commit,
+            git::git_push,
+            git::git_pull,
+            git::git_fetch,
+            git::git_resolve,
+            git::git_continue,
+            git::git_abort,
             app_arch
         ])
         .build(tauri::generate_context!())

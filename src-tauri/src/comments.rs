@@ -142,33 +142,13 @@ pub struct Identity {
 /// signed with. Asks git itself, so includes and per-repository settings
 /// apply. `None` without git or without a name.
 pub fn git_identity(root: &Path) -> Option<Identity> {
-    let git = git_binary()?;
+    let git = crate::git::binary()?;
     let get = |key: &str| -> Option<String> {
         let out = Command::new(&git).args(["config", "--get", key]).current_dir(root).output().ok()?;
         let value = String::from_utf8(out.stdout).ok()?.trim().to_string();
         (out.status.success() && !value.is_empty()).then_some(value)
     };
     Some(Identity { name: get("user.name")?, email: get("user.email").unwrap_or_default() })
-}
-
-/// Apps opened from the Finder don't get the shell's PATH, so look where git
-/// usually is. On macOS `/usr/bin/git` is a stub that offers to install the
-/// developer tools when they're missing, so it's only used when they're there.
-fn git_binary() -> Option<PathBuf> {
-    if cfg!(target_os = "macos") {
-        let found = ["/opt/homebrew/bin/git", "/usr/local/bin/git"]
-            .into_iter()
-            .map(PathBuf::from)
-            .find(|p| p.is_file());
-        if found.is_some() {
-            return found;
-        }
-        let developer_dir = Command::new("/usr/bin/xcode-select").arg("-p").output().ok()?;
-        let developer_dir = String::from_utf8(developer_dir.stdout).ok()?;
-        let tools_git = Path::new(developer_dir.trim()).join("usr/bin/git");
-        return tools_git.is_file().then(|| PathBuf::from("/usr/bin/git"));
-    }
-    Some(PathBuf::from("git"))
 }
 
 #[cfg(test)]
