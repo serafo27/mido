@@ -9,6 +9,27 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-02
+
+### Added
+
+- **Commit button with a menu**, as in VS Code: **Commit**, **Commit (Amend)**, **Commit & Push** and **Commit & Sync**. With nothing to commit it becomes what the branch needs: **Sync Changes** (pull, then push) or **Publish Branch**.
+- The **commit dialog** (⌘K) is laid out as IntelliJ's: the files to commit on top, grouped into Changes and Unversioned Files with each folder's file count, the message under them, and git's options beside them: **Author**, **Amend commit** (starting from the last commit's message) and **Sign-off commit**. The diff runs along the bottom, collapsible and resizable, with the previous and next file.
+- **Changes** and **Graph** in the source control panel fold to their titles; when both are folded they slide up to the top.
+
+### Changed
+
+- **Source control is no longer experimental**: it's on in every git repository again, with no setting to turn it on. Only the terminal is still experimental.
+- Source control is calmer and closer to VS Code's: file names in the text colour with an icon for their kind, only the status letter coloured, a thin guide line along each group's files, and grey counts. The graph shows each commit's message rather than its author, on a thin muted line.
+- Diffs use softer reds and greens, easier on the eyes in a long review, and a new or deleted file is no longer highlighted word by word.
+- In the panel only the changed files scroll, under their group's title: the branch, the message and the Commit button stay put. The message's placeholder fits on one line.
+- The commit and push dialogs have macOS window buttons on the left, in place of the × on the right, with small square checkboxes.
+- The website shows source control, the writing toolbar and Word export, with new screenshots.
+
+### Fixed
+
+- A changed file with a long name no longer hides its Stage button and status letter on hover.
+
 ## [0.12.0] - 2026-10-02
 
 ### Added
