@@ -9,6 +9,8 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-02
+
 ### Added
 
 - **Mido → New Window** (⇧⌘N) opens another window, each with its own folder and tabs. Settings and recent folders are shared, and a change made in one window applies to all. The main window still reopens its folder at launch; the others start empty.
@@ -174,7 +176,8 @@ The first release of Mido, for macOS (Apple Silicon and Intel).
 - Custom themes with a colour editor and JSON import and export.
 - Auto, light and dark modes, with an optional accent colour.
 
-[Unreleased]: https://github.com/serafo27/mido/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/serafo27/mido/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/serafo27/mido/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/serafo27/mido/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/serafo27/mido/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/serafo27/mido/compare/v0.8.0...v0.9.0
