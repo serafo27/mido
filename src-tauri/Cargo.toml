@@ -24,6 +24,7 @@ trash = "5"
 tempfile = "3"
 regex = "1"
 percent-encoding = "2"
+portable-pty = "0.9"
 
 [profile.release]
 lto = true

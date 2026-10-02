@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ArrowDown, ArrowUp, GitBranch } from "lucide-react";
+import { ArrowDown, ArrowUp, GitBranch, SquareTerminal } from "lucide-react";
 import { documentStats } from "../lib/markdown";
 import { isWeb, requireDesktop } from "../lib/platform";
 
@@ -11,6 +11,9 @@ interface StatusBarProps {
   autosave: boolean;
   onWrap: () => void;
   onAutosave: () => void;
+  terminalOpen: boolean;
+  /** Shows or hides the terminal (in the web version, asks for the desktop app). */
+  onTerminal: () => void;
   /** The repository's branch, when the folder is in one Mido may use git in. */
   git?: { branch: string | null; ahead: number; behind: number; changes: number; onClick: () => void } | null;
 }
@@ -45,6 +48,15 @@ export default function StatusBar(props: StatusBarProps) {
           )}
         </button>
       )}
+      <button
+        className={`statusbar-terminal ${props.terminalOpen ? "active" : ""}`}
+        onClick={props.onTerminal}
+        title="Terminal (⌃`)"
+        aria-pressed={props.terminalOpen}
+      >
+        <SquareTerminal size={12} />
+        Terminal
+      </button>
       <button onClick={props.onWrap}>{props.wrap ? "Wrap" : "No wrap"}</button>
       {isWeb ? (
         <button className="read-only-badge" onClick={() => requireDesktop("Editing")} title="Get the desktop app to edit">

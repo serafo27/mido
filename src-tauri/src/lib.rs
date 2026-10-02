@@ -3,6 +3,7 @@ mod comments;
 mod folders;
 mod git;
 mod search;
+mod terminal;
 
 use std::collections::HashMap;
 use std::fs;
@@ -85,10 +86,10 @@ struct OpenFolder {
 
 /// The folder each window has open, by window label.
 #[derive(Default)]
-struct Workspaces(Mutex<HashMap<String, OpenFolder>>);
+pub(crate) struct Workspaces(Mutex<HashMap<String, OpenFolder>>);
 
 impl Workspaces {
-    fn root(&self, window: &str) -> Result<Option<PathBuf>, String> {
+    pub(crate) fn root(&self, window: &str) -> Result<Option<PathBuf>, String> {
         Ok(self.0.lock().map_err(err)?.get(window).map(|f| f.root.clone()))
     }
 
@@ -314,7 +315,7 @@ fn build_tree(dir: &Path, depth: usize) -> Vec<FileNode> {
     dirs
 }
 
-fn err<E: std::fmt::Display>(e: E) -> String {
+pub(crate) fn err<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
 }
 
@@ -803,6 +804,21 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .item(&PredefinedMenuItem::paste(app, None)?)
         .item(&PredefinedMenuItem::select_all(app, None)?)
         .build()?;
+    let new_terminal = MenuItemBuilder::with_id("new-terminal", "New Terminal")
+        .accelerator("Ctrl+Shift+`")
+        .build(app)?;
+    let toggle_terminal = MenuItemBuilder::with_id("toggle-terminal", "Toggle Terminal")
+        .accelerator("Ctrl+`")
+        .build(app)?;
+    let clear_terminal = MenuItemBuilder::with_id("clear-terminal", "Clear Terminal").build(app)?;
+    let kill_terminal = MenuItemBuilder::with_id("kill-terminal", "Kill Terminal").build(app)?;
+    let terminal_menu = SubmenuBuilder::new(app, "Terminal")
+        .item(&new_terminal)
+        .item(&toggle_terminal)
+        .separator()
+        .item(&clear_terminal)
+        .item(&kill_terminal)
+        .build()?;
     let window_menu = SubmenuBuilder::new(app, "Window")
         .item(&PredefinedMenuItem::minimize(app, None)?)
         .item(&PredefinedMenuItem::maximize(app, None)?)
@@ -810,7 +826,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .item(&PredefinedMenuItem::fullscreen(app, None)?)
         .build()?;
     MenuBuilder::new(app)
-        .items(&[&app_menu, &file_menu, &edit_menu, &window_menu])
+        .items(&[&app_menu, &file_menu, &edit_menu, &terminal_menu, &window_menu])
         .build()
 }
 
@@ -824,6 +840,7 @@ pub fn run() {
         .manage(Workspaces::default())
         .manage(git::RepoLocks::default())
         .manage(OpenRequests::default())
+        .manage(terminal::Terminals::default())
         .setup(|app| {
             // Before the open requests below, which grant their folders.
             let granted = folders::Granted::load(app.path().app_data_dir()?.join("granted-folders.json"));
@@ -850,6 +867,10 @@ pub fn run() {
                 "check-updates" => "menu-check-updates",
                 "export-html" => "menu-export-html",
                 "export-word" => "menu-export-word",
+                "new-terminal" => "menu-new-terminal",
+                "toggle-terminal" => "menu-toggle-terminal",
+                "clear-terminal" => "menu-clear-terminal",
+                "kill-terminal" => "menu-kill-terminal",
                 "print" => "menu-print",
                 _ => return,
             };
@@ -868,6 +889,8 @@ pub fn run() {
                 if let Ok(mut pending) = window.state::<OpenRequests>().0.lock() {
                     pending.remove(label);
                 }
+                // Ends its shells.
+                window.state::<terminal::Terminals>().close_window(label);
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -886,6 +909,10 @@ pub fn run() {
             export_html,
             export_word,
             save_asset,
+            terminal::pty_spawn,
+            terminal::pty_write,
+            terminal::pty_resize,
+            terminal::pty_kill,
             read_comments,
             add_comment_file,
             compact_comment_thread,

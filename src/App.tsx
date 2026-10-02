@@ -27,6 +27,7 @@ import Sidebar from "./components/Sidebar";
 import QuickSearch from "./components/QuickSearch";
 import DesktopOnly from "./components/DesktopOnly";
 import FormatBar from "./components/FormatBar";
+import TerminalPanel, { isAppShortcut, type TerminalPanelHandle } from "./components/TerminalPanel";
 import Toolbar, { type ViewMode } from "./components/Toolbar";
 import Editor, {
   activeEditor,
@@ -133,6 +134,9 @@ export default function App() {
   const [storedSettings, setStoredSettings] = useStoredState<Partial<Settings>>("mido.settings", {}, { shared: true });
   const [sidebarOpen, setSidebarOpen] = useStoredState("mido.sidebarOpen", true);
   const [sidebarWidth, setSidebarWidth] = useStoredState("mido.sidebarWidth", 268);
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalHeight, setTerminalHeight] = useStoredState("mido.terminalHeight", 260);
+  const terminalRef = useRef<TerminalPanelHandle>(null);
   const [splitRatio, setSplitRatio] = useStoredState("mido.splitRatio", 0.5);
   const [outlineOpen, setOutlineOpen] = useStoredState("mido.outlineOpen", false);
   const [commentsOpen, setCommentsOpen] = useStoredState("mido.commentsOpen", false);
@@ -1428,6 +1432,40 @@ export default function App() {
     }
   }, [renderTab, fail]);
 
+  /* ---------- terminal ---------- */
+
+  const newTerminal = useCallback(() => {
+    if (requireDesktop("The terminal")) return;
+    setTerminalOpen(true);
+    terminalRef.current?.newTerminal();
+  }, []);
+
+  /** Shows or hides the terminals, opening one when there are none, as in VS Code. */
+  const toggleTerminal = useCallback(() => {
+    if (requireDesktop("The terminal")) return;
+    const panel = terminalRef.current;
+    if (!panel?.hasTerminals()) return newTerminal();
+    setTerminalOpen((open) => {
+      if (!open) panel.focus();
+      return !open;
+    });
+  }, [newTerminal]);
+
+  const hideTerminal = useCallback(() => setTerminalOpen(false), []);
+
+  // The Terminal menu (macOS).
+  useEffect(() => {
+    const unlisteners = [
+      getCurrentWindow().listen("menu-new-terminal", newTerminal),
+      getCurrentWindow().listen("menu-toggle-terminal", toggleTerminal),
+      getCurrentWindow().listen("menu-clear-terminal", () => terminalRef.current?.clear()),
+      getCurrentWindow().listen("menu-kill-terminal", () => terminalRef.current?.kill()),
+    ];
+    return () => {
+      for (const u of unlisteners) u.then((f) => f());
+    };
+  }, [newTerminal, toggleTerminal]);
+
   // "Export as HTML…", "Export as Word…" and "Print…" in the File menu (macOS).
   useEffect(() => {
     const unlisteners = [
@@ -1442,6 +1480,15 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Terminal: ⌃` shows or hides it, ⌃⇧` opens a new one, as in VS Code.
+      if (e.ctrlKey && !e.metaKey && !e.altKey && (e.code === "Backquote" || e.code === "IntlBackslash")) {
+        e.preventDefault();
+        if (e.shiftKey) newTerminal();
+        else toggleTerminal();
+        return;
+      }
+      // Keys typed in a terminal are the shell's, except the app's own shortcuts.
+      if ((e.target as Element | null)?.closest?.(".terminal-panel") && !isAppShortcut(e)) return;
       if (e.altKey && e.code === "KeyZ" && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         toggleWrap();
@@ -1453,6 +1500,11 @@ export default function App() {
         return;
       }
       // Source control: ⌃⇧G, as in VS Code.
+      if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.code === "KeyG" && isWeb) {
+        e.preventDefault();
+        requireDesktop("Source control");
+        return;
+      }
       if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.code === "KeyG" && git.repo) {
         e.preventDefault();
         setSidebarOpen(true);
@@ -1531,7 +1583,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, exportWord, printDocument, fail, git.repo, setGitOpen]);
+  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, exportWord, printDocument, fail, git.repo, setGitOpen, newTerminal, toggleTerminal]);
 
   const dragResize = (e: ReactPointerEvent<HTMLDivElement>, onMove: (ev: PointerEvent) => void) => {
     e.preventDefault();
@@ -1955,27 +2007,41 @@ export default function App() {
                   />
                 )}
               </div>
-              <StatusBar
-                content={active.content}
-                dirty={dirty}
-                saving={saving}
-                wrap={settings.wrap}
-                autosave={settings.autosave}
-                onWrap={toggleWrap}
-                onAutosave={() => updateSettings({ autosave: !settings.autosave })}
-                git={
-                  gitStatus && {
-                    branch: gitStatus.branch,
-                    ahead: gitStatus.ahead,
-                    behind: gitStatus.behind,
-                    changes: gitChangeCount,
-                    onClick: () => setGitDialog("branches"),
-                  }
-                }
-              />
             </>
           ) : (
             <NoFile />
+          )}
+          {!isWeb && (
+            <TerminalPanel
+              ref={terminalRef}
+              visible={terminalOpen}
+              height={terminalHeight}
+              onResize={setTerminalHeight}
+              onHide={hideTerminal}
+              onEmpty={hideTerminal}
+            />
+          )}
+          {active && !activeDiffTab && (
+            <StatusBar
+              content={active.content}
+              dirty={dirty}
+              saving={saving}
+              wrap={settings.wrap}
+              autosave={settings.autosave}
+              onWrap={toggleWrap}
+              onAutosave={() => updateSettings({ autosave: !settings.autosave })}
+              terminalOpen={terminalOpen}
+              onTerminal={toggleTerminal}
+              git={
+                gitStatus && {
+                  branch: gitStatus.branch,
+                  ahead: gitStatus.ahead,
+                  behind: gitStatus.behind,
+                  changes: gitChangeCount,
+                  onClick: () => setGitDialog("branches"),
+                }
+              }
+            />
           )}
         </main>
         {overlays}

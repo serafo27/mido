@@ -16,3 +16,8 @@ export async function invoke<T>(
 export function convertFileSrc(path: string): string {
   return assetUrl(path);
 }
+
+/** The web version has no backend to stream from: a channel that never hears anything. */
+export class Channel<T> {
+  onmessage: (message: T) => void = () => {};
+}

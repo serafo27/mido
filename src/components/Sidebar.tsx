@@ -276,11 +276,12 @@ export default function Sidebar(props: SidebarProps) {
           >
             <Search size={14} />
           </IconButton>
-          {props.gitPanel !== null && (
+          {/* The web version shows it too, to say source control needs the desktop app. */}
+          {(props.gitPanel !== null || isWeb) && (
             <IconButton
               title={`Source control (${isMac ? "⌃⇧G" : "Ctrl+Shift+G"})`}
               active={props.gitOpen}
-              onClick={() => props.onGitOpenChange(!props.gitOpen)}
+              onClick={() => !requireDesktop("Source control") && props.onGitOpenChange(!props.gitOpen)}
             >
               <GitBranch size={14} />
               {props.gitChanges > 0 && <span className="icon-badge">{props.gitChanges > 99 ? "99+" : props.gitChanges}</span>}
