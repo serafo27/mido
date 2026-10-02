@@ -9,20 +9,29 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-02
+
 ### Added
 
-- **Source control** for folders in a git repository (the folder itself or one above it), in the sidebar (⌃⇧G): laid out like VS Code's: a commit message and **Commit**, **Pull** and **Push** with the number of commits waiting, staged changes and changes with their status colours, staging file by file, and a graph of the branch's history with each commit's files. **Fetch**, **Pull** (asking whether to merge or rebase each time) and **Push** (offering to publish a new branch) are also in the panel's title. Nothing happens on its own: Mido only does what you click.
-- Changed files show their git letter (M, A, D, U) in the file tree, and the branch shows in the status bar.
-- Diffs open in tabs next to your files, as in VS Code: a file's changes, its staged changes, or what a commit changed in it, side by side or inline, with line numbers, the words that changed highlighted, unchanged stretches folded, and buttons to jump between changes and to stage or unstage. A single click opens a preview tab; a double click keeps it.
-- Merge and rebase conflicts open in a tab as VS Code shows them: the current and incoming changes coloured, with **Accept Current Change**, **Accept Incoming Change** and **Accept Both Changes** above each, the text editable, and **Mark as Resolved** to stage the file. Then **Commit Merge** (or **Continue Rebase**) finishes, and **Abort** goes back.
-- **Commit dialog** (⌘K, or the list icon in the panel's title), as in IntelliJ: every change with a checkbox to stage it, in a folder tree you can fold (each folder's checkbox stages what's in it) or as a list, the selected file's diff beside it, the commit message, and **Commit** or **Commit and Push…**. In a git repository ⌘K opens it everywhere, and ⌥⌘K inserts a link in the editor.
-- **Push dialog** (⌘⇧K): where the branch goes, the commits about to leave and each one's files, then **Push** (or **Publish and Push** for a new branch).
-- Both dialogs move by their title bar and resize from any edge or corner, like windows, and open where you left them; double-click the title bar to center them again.
-- **Branches**: click the branch in the panel or the status bar to switch to one (a remote branch gets a local one tracking it), create one from a name, merge one into the current branch, or delete a merged one.
-- **Discard Changes** on a file, or on all the changes, after asking: files go back to their staged or committed contents, and new files go to the Trash.
-- The history graph stays in view below the changes, which scroll on their own; drag the line between them to resize.
-- Source control is about your documents: it lists only Markdown files (and Mido's comments) and the commits that touch them. A line says how many other files changed, and warns when one of them is staged and would be committed. **Settings → Source Control → Show all files** lists everything.
-- Git runs as it does in Terminal, with your keys, credentials, hooks and settings, and only in a repository you've allowed it in.
+- **Formatting toolbar** in Edit mode, like a word processor's: paragraph style (headings), bold, italic, strikethrough, code, links, images, bulleted, numbered and task lists, quotes, code blocks, tables (pick the size from a grid), rules, and under **⋯** formulas, Mermaid diagrams and footnotes. Buttons light up for the formatting at the cursor. **Settings → Editor** hides it.
+- Selecting text in the editor shows formatting buttons over it; selecting in the preview still offers **Comment**.
+- **File → Export as Word…** (⌥⌘E): a .docx with Word's own headings, numbered lists, footnotes and equations, coloured code and diagrams as pictures. Comments become Word comments on the same text, with their replies, and resolved threads are marked done. In the web version, the export button offers HTML or Word.
+- **⌘+** and **⌘−** make text bigger or smaller (the document and the editor together), **⌘0** resets it. **⌘⇧+** and **⌘⇧−** open up or tighten the line spacing. The editor's line height is now a setting of its own.
+- **Experimental features**, off by default and turned on at the bottom of Settings:
+  - **Terminal**, as in VS Code: your shell in the open folder, under the document, in tabs, with a **Terminal** menu (New Terminal ⌃⇧\`, Toggle Terminal ⌃\`, Clear, Kill) and a button in the status bar.
+  - **Source control (git)**:
+    - **Source control** for folders in a git repository (the folder itself or one above it), in the sidebar (⌃⇧G): laid out like VS Code's: a commit message and **Commit**, **Pull** and **Push** with the number of commits waiting, staged changes and changes with their status colours, staging file by file, and a graph of the branch's history with each commit's files. **Fetch**, **Pull** (asking whether to merge or rebase each time) and **Push** (offering to publish a new branch) are also in the panel's title. Nothing happens on its own: Mido only does what you click.
+    - Changed files show their git letter (M, A, D, U) in the file tree, and the branch shows in the status bar.
+    - Diffs open in tabs next to your files, as in VS Code: a file's changes, its staged changes, or what a commit changed in it, side by side or inline, with line numbers, the words that changed highlighted, unchanged stretches folded, and buttons to jump between changes and to stage or unstage. A single click opens a preview tab; a double click keeps it.
+    - Merge and rebase conflicts open in a tab as VS Code shows them: the current and incoming changes coloured, with **Accept Current Change**, **Accept Incoming Change** and **Accept Both Changes** above each, the text editable, and **Mark as Resolved** to stage the file. Then **Commit Merge** (or **Continue Rebase**) finishes, and **Abort** goes back.
+    - **Commit dialog** (⌘K, or the list icon in the panel's title), as in IntelliJ: every change with a checkbox to stage it, in a folder tree you can fold (each folder's checkbox stages what's in it) or as a list, the selected file's diff beside it, the commit message, and **Commit** or **Commit and Push…**. In a git repository ⌘K opens it everywhere, and ⌥⌘K inserts a link in the editor.
+    - **Push dialog** (⌘⇧K): where the branch goes, the commits about to leave and each one's files, then **Push** (or **Publish and Push** for a new branch).
+    - Both dialogs move by their title bar and resize from any edge or corner, like windows, and open where you left them; double-click the title bar to center them again.
+    - **Branches**: click the branch in the panel or the status bar to switch to one (a remote branch gets a local one tracking it), create one from a name, merge one into the current branch, or delete a merged one.
+    - **Discard Changes** on a file, or on all the changes, after asking: files go back to their staged or committed contents, and new files go to the Trash.
+    - The history graph stays in view below the changes, which scroll on their own; drag the line between them to resize.
+    - Source control is about your documents: it lists only Markdown files (and Mido's comments) and the commits that touch them. A line says how many other files changed, and warns when one of them is staged and would be committed. **Settings → Source Control → Show all files** lists everything.
+    - Git runs as it does in Terminal, with your keys, credentials, hooks and settings, and only in a repository you've allowed it in.
 
 ## [0.11.0] - 2026-10-02
 
