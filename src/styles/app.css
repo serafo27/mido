@@ -256,36 +256,132 @@ body.resizing .resizer {
   gap: 2px;
 }
 
-.workspace-name {
+/* The open folder, and the menu to switch it. */
+.folder-switcher {
+  position: relative;
+  margin: 0 10px 8px;
+}
+.folder-button {
   display: flex;
   align-items: center;
   gap: 9px;
-  margin: 0 10px 8px;
-  padding: 6px 8px;
-  border-radius: var(--radius);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  width: 100%;
+  padding: 6px 8px 6px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
   text-align: left;
+  transition: background 0.12s, border-color 0.12s;
 }
-.workspace-name:hover {
+.folder-button:hover,
+.folder-button.open {
   background: var(--bg-hover);
+  border-color: color-mix(in srgb, var(--text-faint) 45%, var(--border));
+}
+.folder-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.folder-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--warm);
+  background: color-mix(in srgb, var(--warm) 16%, transparent);
+}
+.folder-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.folder-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.folder-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text);
 }
-.workspace-name .name {
+.folder-chevron {
+  flex: none;
+  color: var(--text-faint);
+}
+.folder-button:hover .folder-chevron,
+.folder-button.open .folder-chevron {
+  color: var(--text-muted);
+}
+
+.context-menu.folder-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  min-width: 0;
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
+  transform-origin: top center;
+}
+.menu-heading {
+  padding: 5px 9px 3px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.folder-current {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 9px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.folder-current svg {
+  flex: none;
+  color: var(--accent);
+}
+.folder-option-name {
+  flex: none;
+  max-width: 60%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.workspace-dot {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--warm);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warm) 20%, transparent);
+.folder-option-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+.menu-item:hover .folder-option-path {
+  color: rgba(255, 255, 255, 0.75);
+}
+.menu-item kbd {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.menu-item:hover kbd {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .filter {

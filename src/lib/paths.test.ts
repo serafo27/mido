@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { basename, decodeLink, dirname, splitLink, isInside, isMarkdown, join, relative, resolve } from "./paths";
+import { basename, decodeLink, dirname, splitLink, isInside, isMarkdown, join, relative, resolve, tildify } from "./paths";
 
 describe("basename / dirname", () => {
   it("splits POSIX and Windows paths", () => {
@@ -90,5 +90,19 @@ describe("splitLink", () => {
 
   it("splits at the first #, keeping the rest in the fragment", () => {
     expect(splitLink("a.md#x#y")).toEqual({ path: "a.md", anchor: "x#y" });
+  });
+});
+
+describe("tildify", () => {
+  it("shows the home folder as ~", () => {
+    expect(tildify("/Users/ada/notes")).toBe("~/notes");
+    expect(tildify("/Users/ada")).toBe("~");
+    expect(tildify("/home/ada/docs/a")).toBe("~/docs/a");
+  });
+
+  it("leaves other paths alone", () => {
+    expect(tildify("/Users")).toBe("/Users");
+    expect(tildify("/Volumes/Data/notes")).toBe("/Volumes/Data/notes");
+    expect(tildify("C:\\Users\\ada")).toBe("C:\\Users\\ada");
   });
 });

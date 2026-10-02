@@ -11,13 +11,12 @@ import {
 import { flushSync } from "react-dom";
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorView } from "@codemirror/view";
 import { api, type FileNode, type OpenRequest } from "./lib/api";
 import { basename, dirname, isInside, isMarkdown, join } from "./lib/paths";
-import { DOWNLOAD_URL, isMac, isWeb, requireDesktop, WEB_ACCESS_NEEDED } from "./lib/platform";
+import { DOWNLOAD_URL, isMac, isMainWindow, isWeb, requireDesktop, WEB_ACCESS_NEEDED } from "./lib/platform";
 import { useStoredState } from "./lib/useStoredState";
 import { DEFAULT_SETTINGS, applySettings, lightThemeVariables, type RemoteImages, type Settings } from "./lib/settings";
 import { currentMermaidTheme, mermaidTheme, type MermaidTheme } from "./lib/mermaid";
@@ -95,13 +94,14 @@ const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(mi
 const isDirty = (t: Tab) => t.content !== t.saved;
 
 export default function App() {
-  const [root, setRoot] = useStoredState<string | null>("mido.root", null);
-  const [recents, setRecents] = useStoredState<string[]>("mido.recents", []);
-  const [storedTabs, setStoredTabs] = useStoredState<string[]>("mido.tabs", []);
-  const [storedPreviewTab, setStoredPreviewTab] = useStoredState<string | null>("mido.previewTab", null);
-  const [activePath, setActivePath] = useStoredState<string | null>("mido.active", null);
+  // Each window has its own folder and tabs (see `perWindow`).
+  const [root, setRoot] = useStoredState<string | null>("mido.root", null, { perWindow: true });
+  const [recents, setRecents] = useStoredState<string[]>("mido.recents", [], { shared: true });
+  const [storedTabs, setStoredTabs] = useStoredState<string[]>("mido.tabs", [], { perWindow: true });
+  const [storedPreviewTab, setStoredPreviewTab] = useStoredState<string | null>("mido.previewTab", null, { perWindow: true });
+  const [activePath, setActivePath] = useStoredState<string | null>("mido.active", null, { perWindow: true });
   const [mode, setMode] = useStoredState<ViewMode>("mido.mode", "view");
-  const [storedSettings, setStoredSettings] = useStoredState<Partial<Settings>>("mido.settings", {});
+  const [storedSettings, setStoredSettings] = useStoredState<Partial<Settings>>("mido.settings", {}, { shared: true });
   const [sidebarOpen, setSidebarOpen] = useStoredState("mido.sidebarOpen", true);
   const [sidebarWidth, setSidebarWidth] = useStoredState("mido.sidebarWidth", 268);
   const [splitRatio, setSplitRatio] = useStoredState("mido.splitRatio", 0.5);
@@ -460,7 +460,7 @@ export default function App() {
       openRequests.current.push(...(await api.takeOpenRequests()));
       handleOpenRequests();
     };
-    const unlisten = listen("open-requests", take);
+    const unlisten = getCurrentWindow().listen("open-requests", take);
     // Also take the requests that came before the listener, e.g. the file that launched Mido.
     unlisten.then(take);
     return () => {
@@ -526,7 +526,7 @@ export default function App() {
   // React to changes made outside the app.
   useEffect(() => {
     let timer: number | undefined;
-    const unlisten = listen<string[]>("fs-changed", async ({ payload }) => {
+    const unlisten = getCurrentWindow().listen<string[]>("fs-changed", async ({ payload }) => {
       window.clearTimeout(timer);
       timer = window.setTimeout(refreshTree, 120);
 
@@ -617,7 +617,7 @@ export default function App() {
   }, [commentsOpen]);
 
   useEffect(() => {
-    const unlisten = listen("comments-changed", loadComments);
+    const unlisten = getCurrentWindow().listen("comments-changed", loadComments);
     return () => {
       unlisten.then((f) => f());
     };
@@ -885,7 +885,7 @@ export default function App() {
 
   // Native "Settings…" menu item (macOS).
   useEffect(() => {
-    const unlisten = listen("menu-settings", () => setSettingsOpen((o) => !o));
+    const unlisten = getCurrentWindow().listen("menu-settings", () => setSettingsOpen((o) => !o));
     return () => {
       unlisten.then((f) => f());
     };
@@ -926,7 +926,8 @@ export default function App() {
 
   useEffect(() => {
     // The web version is always the latest: it's served with the website.
-    if (isWeb || !settings.checkForUpdates) return;
+    // Other windows leave it to the main one, so an update is offered once.
+    if (isWeb || !isMainWindow || !settings.checkForUpdates) return;
     const first = window.setTimeout(() => runUpdateCheck(false), 4000);
     const periodic = window.setInterval(() => runUpdateCheck(false), CHECK_INTERVAL);
     return () => {
@@ -937,7 +938,7 @@ export default function App() {
 
   // "Check for Updates…" in the macOS app menu.
   useEffect(() => {
-    const unlisten = listen("menu-check-updates", () => runUpdateCheck(true));
+    const unlisten = getCurrentWindow().listen("menu-check-updates", () => runUpdateCheck(true));
     return () => {
       unlisten.then((f) => f());
     };
@@ -1023,7 +1024,10 @@ export default function App() {
 
   // "Export as HTML…" and "Print…" in the File menu (macOS).
   useEffect(() => {
-    const unlisteners = [listen("menu-export-html", exportHtml), listen("menu-print", printDocument)];
+    const unlisteners = [
+      getCurrentWindow().listen("menu-export-html", exportHtml),
+      getCurrentWindow().listen("menu-print", printDocument),
+    ];
     return () => {
       for (const u of unlisteners) u.then((f) => f());
     };
@@ -1055,7 +1059,11 @@ export default function App() {
       }
       if (!mod || e.altKey) return;
       if (e.shiftKey) {
-        if (e.code === "KeyO") {
+        // On macOS, New Window is a menu item.
+        if (!isMac && !isWeb && e.code === "KeyN") {
+          e.preventDefault();
+          api.openNewWindow().catch(fail);
+        } else if (e.code === "KeyO") {
           e.preventDefault();
           setOutlineOpen((o) => !o);
         } else if (e.code === "KeyM") {
@@ -1095,7 +1103,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive, openFolder, closeTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, printDocument]);
+  }, [saveActive, openFolder, closeTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, printDocument, fail]);
 
   const dragResize = (e: ReactPointerEvent<HTMLDivElement>, onMove: (ev: PointerEvent) => void) => {
     e.preventDefault();
@@ -1318,7 +1326,9 @@ export default function App() {
               width={sidebarWidth}
               onOpenFile={openFile}
               onPinFile={pinFile}
-              onOpenFolder={() => openFolder()}
+              recents={recents}
+              onOpenFolder={openFolder}
+              onNewWindow={() => api.openNewWindow().catch(fail)}
               onRefresh={refreshTree}
               onCreate={createEntry}
               onRename={renameEntry}

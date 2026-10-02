@@ -17,6 +17,7 @@ import { basename, dirname, isInside } from "../lib/paths";
 import { isMac, isWeb, macWindowInset, requireDesktop } from "../lib/platform";
 import { useStoredState } from "../lib/useStoredState";
 import SearchPanel from "./SearchPanel";
+import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import { WebBrand } from "./Welcome";
 
 type Pending =
@@ -38,7 +39,11 @@ interface SidebarProps {
   onOpenFile: (path: string) => void;
   /** Double click: open in a tab that stays. */
   onPinFile: (path: string) => void;
-  onOpenFolder: () => void;
+  /** Recently opened folders, most recent first. */
+  recents: string[];
+  /** Opens `path`, or asks for a folder without one. */
+  onOpenFolder: (path?: string) => void;
+  onNewWindow: () => void;
   onRefresh: () => void;
   onCreate: (parent: string, name: string, kind: "file" | "folder") => Promise<void>;
   onRename: (path: string, newName: string, isDir: boolean) => Promise<void>;
@@ -263,10 +268,12 @@ export default function Sidebar(props: SidebarProps) {
         </div>
       </div>
 
-      <button className="workspace-name" onClick={onOpenFolder} title={`${root}\nClick to open another folder`}>
-        <span className="workspace-dot" />
-        <span className="name">{basename(root) || root}</span>
-      </button>
+      <WorkspaceSwitcher
+        root={root}
+        recents={props.recents}
+        onOpenFolder={onOpenFolder}
+        onNewWindow={props.onNewWindow}
+      />
 
       <SearchPanel
         visible={props.searchOpen}

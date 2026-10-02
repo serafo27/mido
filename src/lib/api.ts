@@ -60,6 +60,8 @@ export const api = {
         "x-mime": encodeURIComponent(file.type),
       },
     }),
+  /** Opens another window, with no folder open. */
+  openNewWindow: () => invoke<void>("open_new_window"),
   takeOpenRequests: () => invoke<OpenRequest[]>("take_open_requests"),
   readFile: (path: string) => invoke<string>("read_file", { path }),
   /**

@@ -211,6 +211,7 @@ export const commands: Record<string, (args: Record<string, unknown>) => unknown
   add_comment_file: desktopOnly,
   compact_comment_thread: desktopOnly,
   app_arch: desktopOnly,
+  open_new_window: desktopOnly,
 };
 
 function flatten(nodes: Workspace["tree"], out: string[] = []): string[] {

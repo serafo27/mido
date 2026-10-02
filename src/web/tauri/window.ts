@@ -1,4 +1,5 @@
 // Web stand-in for @tauri-apps/api/window: the browser tab is the window.
+import { listen } from "./event";
 
 // The page's own title (see vite.web.config.ts), shown while no file is open
 // in place of the app's bare "Mido", so search engines index a descriptive one.
@@ -6,6 +7,8 @@ const pageTitle = document.title;
 
 export function getCurrentWindow() {
   return {
+    label: "main",
+    listen,
     async setTitle(title: string) {
       document.title = title === "Mido" ? pageTitle : title;
     },

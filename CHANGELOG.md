@@ -9,6 +9,14 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Added
+
+- **Mido → New Window** (⇧⌘N) opens another window, each with its own folder and tabs. Settings and recent folders are shared, and a change made in one window applies to all. The main window still reopens its folder at launch; the others start empty.
+
+### Changed
+
+- The open folder, at the top of the sidebar, now reads as one: its name with a folder icon and a switch arrow. Clicking it lists the recent folders to switch to, **Open Folder…** and **New Window**.
+
 ## [0.10.0] - 2026-10-01
 
 ### Added

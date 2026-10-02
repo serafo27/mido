@@ -1,9 +1,21 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
+
 export const isMac = navigator.userAgent.includes("Mac");
 export const modKey = isMac ? "⌘" : "Ctrl";
 export const altKey = isMac ? "⌥" : "Alt";
 
 /** The read-only web version (built with vite.web.config.ts), rather than the desktop app. */
 export const isWeb = import.meta.env.VITE_WEB === "1";
+
+/** Whether this is the window Mido opens at launch, rather than one opened with New Window. The web version only has that one. */
+export const isMainWindow = (() => {
+  try {
+    return getCurrentWindow().label === "main";
+  } catch {
+    // Not in a Tauri window (tests).
+    return true;
+  }
+})();
 
 /** The desktop app on macOS draws its traffic lights over the top-left corner. */
 export const macWindowInset = isMac && !isWeb;

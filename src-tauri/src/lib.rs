@@ -3,16 +3,19 @@ mod comments;
 mod folders;
 mod search;
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
 use notify_debouncer_mini::notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::ipc::{CommandArg, CommandItem, InvokeError};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State, WebviewWindow, WebviewWindowBuilder};
 
 const MARKDOWN_EXTENSIONS: &[&str] = &["md", "markdown", "mdown", "mkd", "mdx"];
 const IGNORED_DIRS: &[&str] = &["node_modules", "target", "dist", "build", "__pycache__"];
@@ -27,40 +30,71 @@ struct FileNode {
     children: Option<Vec<FileNode>>,
 }
 
-#[derive(Default)]
-struct WatcherState(Mutex<Option<Debouncer<RecommendedWatcher>>>);
+/// The label of the window Mido opens at launch. It's the one whose folder and
+/// tabs are remembered across launches.
+const MAIN_WINDOW: &str = "main";
 
-/// The folder open in Mido. File commands only accept paths inside it, and
+/// The folder open in a window. File commands only accept paths inside it, and
 /// only folders the user granted can be opened (see `GrantedFolders`), so even
 /// a compromised webview (say, a malicious Markdown file getting past the
 /// sanitizer) can't read or write the rest of the disk.
-#[derive(Default)]
-struct Workspace(Mutex<Option<PathBuf>>);
+///
+/// Commands take it as an argument: it's the folder of the window that called.
+struct Workspace {
+    root: PathBuf,
+}
 
 impl Workspace {
-    fn root(&self) -> Result<PathBuf, String> {
-        self.0.lock().map_err(err)?.clone().ok_or_else(|| "No folder is open".to_string())
-    }
-
     /// `path`, normalised, if it's inside the open folder.
     fn resolve(&self, path: &str) -> Result<PathBuf, String> {
-        resolve_inside(&self.root()?, path)
+        resolve_inside(&self.root, path)
     }
 
     /// Errs unless changing `path` stays inside the open folder once symlinks
     /// are followed. Reads may follow a symlink out of the folder; writes may not.
     fn writable(&self, path: &Path) -> Result<(), String> {
-        writable_inside(&self.root()?, path)
+        writable_inside(&self.root, path)
     }
 
     /// Like `resolve`, but refuses the open folder itself.
     fn resolve_entry(&self, path: &str) -> Result<PathBuf, String> {
-        let root = self.root()?;
-        let path = resolve_inside(&root, path)?;
-        if path == root {
+        let path = resolve_inside(&self.root, path)?;
+        if path == self.root {
             return Err("The open folder itself can't be changed".to_string());
         }
         Ok(path)
+    }
+}
+
+impl<'de, R: Runtime> CommandArg<'de, R> for Workspace {
+    fn from_command(command: CommandItem<'de, R>) -> Result<Self, InvokeError> {
+        let webview = command.message.webview_ref();
+        let root = webview.state::<Workspaces>().root(webview.label())?;
+        root.map(|root| Workspace { root })
+            .ok_or_else(|| InvokeError::from("No folder is open"))
+    }
+}
+
+/// A window's open folder, with the watcher that reports its changes.
+struct OpenFolder {
+    root: PathBuf,
+    /// Dropping it stops the watch.
+    _watcher: Debouncer<RecommendedWatcher>,
+}
+
+/// The folder each window has open, by window label.
+#[derive(Default)]
+struct Workspaces(Mutex<HashMap<String, OpenFolder>>);
+
+impl Workspaces {
+    fn root(&self, window: &str) -> Result<Option<PathBuf>, String> {
+        Ok(self.0.lock().map_err(err)?.get(window).map(|f| f.root.clone()))
+    }
+
+    /// The window that has a folder containing `path` open, if any.
+    fn window_with(&self, path: &Path) -> Option<String> {
+        let folders = self.0.lock().ok()?;
+        folders.iter().find(|(_, f)| path.starts_with(&f.root)).map(|(label, _)| label.clone())
     }
 }
 
@@ -86,11 +120,12 @@ struct OpenRequest {
     is_dir: bool,
 }
 
-/// Open requests not yet taken by the webview. They can arrive before it has
-/// loaded (when a file launches Mido), so they wait here instead of being
-/// sent as event payloads that nobody might be listening to yet.
+/// Open requests not yet taken by their window, by window label. They can
+/// arrive before its webview has loaded (when a file launches Mido), so they
+/// wait here instead of being sent as event payloads that nobody might be
+/// listening to yet.
 #[derive(Default)]
-struct OpenRequests(Mutex<Vec<OpenRequest>>);
+struct OpenRequests(Mutex<HashMap<String, Vec<OpenRequest>>>);
 
 /// The folders and Markdown files among `paths`, made absolute. Anything else
 /// (other file types, missing paths, stray arguments) is ignored.
@@ -108,6 +143,26 @@ fn open_requests(paths: impl IntoIterator<Item = PathBuf>) -> Vec<OpenRequest> {
         .collect()
 }
 
+/// The window to open `path` in: the one that already has it open, else the
+/// one in front, else the main one (which may not have loaded yet, at launch),
+/// else any.
+fn window_for(app: &AppHandle, path: &Path) -> String {
+    if let Some(label) = app.state::<Workspaces>().window_with(path) {
+        return label;
+    }
+    if let Some(window) = focused_window(app) {
+        return window.label().to_string();
+    }
+    // "main" sorts before the "window-…" labels of the others.
+    let mut labels: Vec<String> = app.webview_windows().into_keys().collect();
+    labels.sort();
+    labels.into_iter().next().unwrap_or_else(|| MAIN_WINDOW.to_string())
+}
+
+fn focused_window(app: &AppHandle) -> Option<WebviewWindow> {
+    app.webview_windows().into_values().find(|w| w.is_focused().unwrap_or(false))
+}
+
 fn queue_open_requests(app: &AppHandle, paths: impl IntoIterator<Item = PathBuf>) {
     let requests = open_requests(paths);
     if requests.is_empty() {
@@ -123,16 +178,24 @@ fn queue_open_requests(app: &AppHandle, paths: impl IntoIterator<Item = PathBuf>
             }
         }
     }
+    let mut windows = Vec::new();
     if let Ok(mut pending) = app.state::<OpenRequests>().0.lock() {
-        pending.extend(requests);
+        for request in requests {
+            let window = window_for(app, Path::new(&request.path));
+            pending.entry(window.clone()).or_default().push(request);
+            windows.push(window);
+        }
     }
-    // Tells the webview to take them, if it's already listening.
-    let _ = app.emit("open-requests", ());
+    // Tells each window to take its requests, if it's already listening.
+    windows.dedup();
+    for window in windows {
+        let _ = app.emit_to(window.as_str(), "open-requests", ());
+    }
 }
 
 #[tauri::command]
-fn take_open_requests(pending: State<OpenRequests>) -> Vec<OpenRequest> {
-    pending.0.lock().map(|mut p| std::mem::take(&mut *p)).unwrap_or_default()
+fn take_open_requests(window: WebviewWindow, pending: State<OpenRequests>) -> Vec<OpenRequest> {
+    pending.0.lock().ok().and_then(|mut p| p.remove(window.label())).unwrap_or_default()
 }
 
 /// Resolves `.` and `..` without touching the disk, since the path may not
@@ -289,15 +352,15 @@ fn confirm_folder(app: &AppHandle, folder: &Path) -> bool {
         .blocking_show()
 }
 
-/// Makes `root` the open folder: file commands, the preview's images and the
-/// watcher are all limited to it. Returns its tree. A folder the user hasn't
+/// Makes `root` the calling window's open folder: its file commands, the
+/// preview's images and the watcher are all limited to it. Returns its tree. A folder the user hasn't
 /// granted yet (say, a recent folder from before grants were saved) needs
 /// their confirmation first.
 #[tauri::command]
 async fn open_folder(
     app: AppHandle,
-    workspace: State<'_, Workspace>,
-    watcher: State<'_, WatcherState>,
+    window: WebviewWindow,
+    workspaces: State<'_, Workspaces>,
     granted: State<'_, GrantedFolders>,
     root: String,
 ) -> Result<Vec<FileNode>, String> {
@@ -315,16 +378,18 @@ async fn open_folder(
     app.asset_protocol_scope()
         .allow_directory(&root, true)
         .map_err(err)?;
-    let debouncer = watch(&app, &root)?;
-    // Replacing the previous debouncer drops it, which stops the old watch.
-    *watcher.0.lock().map_err(err)? = Some(debouncer);
-    *workspace.0.lock().map_err(err)? = Some(root.clone());
+    let watcher = watch(&app, window.label(), &root)?;
+    // Replacing the window's previous folder drops its watcher, which stops the old watch.
+    workspaces.0.lock().map_err(err)?.insert(
+        window.label().to_string(),
+        OpenFolder { root: root.clone(), _watcher: watcher },
+    );
     tree(root).await
 }
 
 #[tauri::command]
-async fn read_tree(workspace: State<'_, Workspace>) -> Result<Vec<FileNode>, String> {
-    tree(workspace.root()?).await
+async fn read_tree(workspace: Workspace) -> Result<Vec<FileNode>, String> {
+    tree(workspace.root).await
 }
 
 async fn tree(root: PathBuf) -> Result<Vec<FileNode>, String> {
@@ -346,11 +411,11 @@ fn markdown_files(nodes: Vec<FileNode>, out: &mut Vec<PathBuf>) {
 
 #[tauri::command]
 async fn search_files(
-    workspace: State<'_, Workspace>,
+    workspace: Workspace,
     query: String,
     options: search::SearchOptions,
 ) -> Result<search::SearchResults, String> {
-    let root = workspace.root()?;
+    let root = workspace.root;
     tauri::async_runtime::spawn_blocking(move || {
         let mut files = Vec::new();
         markdown_files(build_tree(&root, 0), &mut files);
@@ -361,7 +426,7 @@ async fn search_files(
 }
 
 #[tauri::command]
-async fn read_file(workspace: State<'_, Workspace>, path: String) -> Result<String, String> {
+async fn read_file(workspace: Workspace, path: String) -> Result<String, String> {
     fs::read_to_string(workspace.resolve(&path)?).map_err(err)
 }
 
@@ -378,7 +443,7 @@ enum WriteOutcome {
 /// A missing file is never a conflict, so a deleted file can be saved again.
 #[tauri::command]
 async fn write_file(
-    workspace: State<'_, Workspace>,
+    workspace: Workspace,
     path: String,
     content: String,
     expected: Option<String>,
@@ -430,7 +495,7 @@ fn write_atomic(path: &Path, content: &[u8]) -> io::Result<()> {
 }
 
 #[tauri::command]
-async fn create_file(workspace: State<'_, Workspace>, path: String) -> Result<(), String> {
+async fn create_file(workspace: Workspace, path: String) -> Result<(), String> {
     let path = workspace.resolve_entry(&path)?;
     workspace.writable(&path)?;
     if path.exists() {
@@ -447,7 +512,7 @@ async fn create_file(workspace: State<'_, Workspace>, path: String) -> Result<()
 }
 
 #[tauri::command]
-async fn create_dir(workspace: State<'_, Workspace>, path: String) -> Result<(), String> {
+async fn create_dir(workspace: Workspace, path: String) -> Result<(), String> {
     let path = workspace.resolve_entry(&path)?;
     workspace.writable(&path)?;
     if path.exists() {
@@ -458,17 +523,17 @@ async fn create_dir(workspace: State<'_, Workspace>, path: String) -> Result<(),
 
 #[tauri::command]
 async fn rename_path(
-    workspace: State<'_, Workspace>,
+    workspace: Workspace,
     from: String,
     to: String,
 ) -> Result<(), String> {
     let from = workspace.resolve_entry(&from)?;
     let to = workspace.resolve_entry(&to)?;
-    let root = workspace.root()?;
+    let root = &workspace.root;
     // Renaming a symlink moves the link, not its target: check its folder.
     workspace.writable(parent_of(&from))?;
     workspace.writable(&to)?;
-    if let (Some(old), Some(new)) = (comments::dir_for(&root, &from), comments::dir_for(&root, &to)) {
+    if let (Some(old), Some(new)) = (comments::dir_for(root, &from), comments::dir_for(root, &to)) {
         workspace.writable(parent_of(&old))?;
         workspace.writable(&new)?;
     }
@@ -476,7 +541,7 @@ async fn rename_path(
         return Err(format!("{} already exists", to.display()));
     }
     fs::rename(&from, &to).map_err(err)?;
-    comments::moved(&root, &from, &to).map_err(err)
+    comments::moved(root, &from, &to).map_err(err)
 }
 
 /// Saves an image pasted or dropped into the editor in the `assets` folder
@@ -485,7 +550,7 @@ async fn rename_path(
 /// path, file name and MIME type come as percent-encoded headers.
 #[tauri::command]
 async fn save_asset(
-    workspace: State<'_, Workspace>,
+    workspace: Workspace,
     request: tauri::ipc::Request<'_>,
 ) -> Result<String, String> {
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
@@ -530,11 +595,11 @@ async fn export_html(
 
 /// Moves the path to the OS trash instead of deleting it permanently, with its comments.
 #[tauri::command]
-async fn trash_path(workspace: State<'_, Workspace>, path: String) -> Result<(), String> {
+async fn trash_path(workspace: Workspace, path: String) -> Result<(), String> {
     let path = workspace.resolve_entry(&path)?;
     // Trashing a symlink moves the link, not its target: check its folder.
     workspace.writable(parent_of(&path))?;
-    let comments = comments::dir_for(&workspace.root()?, &path).filter(|d| d.exists());
+    let comments = comments::dir_for(&workspace.root, &path).filter(|d| d.exists());
     if let Some(dir) = &comments {
         workspace.writable(parent_of(dir))?;
     }
@@ -548,12 +613,12 @@ async fn trash_path(workspace: State<'_, Workspace>, path: String) -> Result<(),
 /// The comments folder of `document`, which must be inside the open folder.
 fn comments_dir(workspace: &Workspace, document: &str) -> Result<PathBuf, String> {
     let document = workspace.resolve_entry(document)?;
-    comments::dir_for(&workspace.root()?, &document).ok_or_else(|| "Not a document".to_string())
+    comments::dir_for(&workspace.root, &document).ok_or_else(|| "Not a document".to_string())
 }
 
 #[tauri::command]
 async fn read_comments(
-    workspace: State<'_, Workspace>,
+    workspace: Workspace,
     document: String,
 ) -> Result<Vec<comments::CommentFile>, String> {
     comments::read(&comments_dir(&workspace, &document)?).map_err(err)
@@ -561,7 +626,7 @@ async fn read_comments(
 
 #[tauri::command]
 async fn add_comment_file(
-    workspace: State<'_, Workspace>,
+    workspace: Workspace,
     document: String,
     thread: String,
     name: String,
@@ -574,7 +639,7 @@ async fn add_comment_file(
 
 #[tauri::command]
 async fn compact_comment_thread(
-    workspace: State<'_, Workspace>,
+    workspace: Workspace,
     document: String,
     thread: String,
     name: String,
@@ -588,18 +653,19 @@ async fn compact_comment_thread(
 
 /// Who comments are signed by: the git user of the open folder, if any.
 #[tauri::command]
-async fn git_identity(workspace: State<'_, Workspace>) -> Result<Option<comments::Identity>, String> {
-    let root = workspace.root()?;
+async fn git_identity(workspace: Workspace) -> Result<Option<comments::Identity>, String> {
+    let root = workspace.root;
     tauri::async_runtime::spawn_blocking(move || comments::git_identity(&root))
         .await
         .map_err(err)
 }
 
-/// Emits `fs-changed` with the changed paths whenever something in `root`
-/// changes, and `comments-changed` when comments do (hidden folders are
+/// Emits `fs-changed` to `window` with the changed paths whenever something in
+/// `root` changes, and `comments-changed` when comments do (hidden folders are
 /// otherwise ignored).
-fn watch(app: &AppHandle, root: &Path) -> Result<Debouncer<RecommendedWatcher>, String> {
+fn watch(app: &AppHandle, window: &str, root: &Path) -> Result<Debouncer<RecommendedWatcher>, String> {
     let handle = app.clone();
+    let window = window.to_string();
     let comments_root = root.join(comments::COMMENTS_DIR);
     let mut debouncer = new_debouncer(
         Duration::from_millis(250),
@@ -613,10 +679,10 @@ fn watch(app: &AppHandle, root: &Path) -> Result<Debouncer<RecommendedWatcher>, 
                     .filter(|p| !p.split(['/', '\\']).any(|seg| is_hidden(seg) && seg.len() > 1))
                     .collect();
                 if !paths.is_empty() {
-                    let _ = handle.emit("fs-changed", paths);
+                    let _ = handle.emit_to(window.as_str(), "fs-changed", paths);
                 }
                 if !comments.is_empty() {
-                    let _ = handle.emit("comments-changed", ());
+                    let _ = handle.emit_to(window.as_str(), "comments-changed", ());
                 }
             }
         },
@@ -637,6 +703,33 @@ fn app_arch() -> &'static str {
     std::env::consts::ARCH
 }
 
+/// How far each new window sits from the one in front, so it doesn't hide it exactly.
+const CASCADE: f64 = 28.0;
+
+/// Opens another window, with no folder open: it shows the welcome screen.
+fn new_window(app: &AppHandle) -> tauri::Result<()> {
+    static NEXT: AtomicUsize = AtomicUsize::new(1);
+
+    let Some(mut config) = app.config().app.windows.first().cloned() else {
+        return Ok(());
+    };
+    config.label = format!("window-{}", NEXT.fetch_add(1, Ordering::Relaxed));
+    let mut builder = WebviewWindowBuilder::from_config(app, &config)?;
+    if let Some(front) = focused_window(app) {
+        let scale = front.scale_factor()?;
+        let at = front.outer_position()?.to_logical::<f64>(scale);
+        let size = front.inner_size()?.to_logical::<f64>(scale);
+        builder = builder.position(at.x + CASCADE, at.y + CASCADE).inner_size(size.width, size.height);
+    }
+    builder.build()?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn open_new_window(app: AppHandle) -> Result<(), String> {
+    new_window(&app).map_err(err)
+}
+
 /// macOS app menu. It replaces Tauri's default one, whose "Close Window"
 /// item would grab ⌘W before the webview can use it to close a tab. Undo/redo
 /// are left out on purpose so ⌘Z reaches CodeMirror's own history.
@@ -648,9 +741,14 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
     let check_updates = MenuItemBuilder::with_id("check-updates", "Check for Updates…").build(app)?;
+    let new_window = MenuItemBuilder::with_id("new-window", "New Window")
+        .accelerator("CmdOrCtrl+Shift+N")
+        .build(app)?;
     let app_menu = SubmenuBuilder::new(app, "Mido")
         .item(&PredefinedMenuItem::about(app, Some("About Mido"), None)?)
         .item(&check_updates)
+        .separator()
+        .item(&new_window)
         .separator()
         .item(&settings)
         .separator()
@@ -693,8 +791,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(WatcherState::default())
-        .manage(Workspace::default())
+        .manage(Workspaces::default())
         .manage(OpenRequests::default())
         .setup(|app| {
             // Before the open requests below, which grant their folders.
@@ -711,6 +808,10 @@ pub fn run() {
             Ok(())
         })
         .on_menu_event(|app, event| {
+            if event.id() == "new-window" {
+                let _ = new_window(app);
+                return;
+            }
             let name = match event.id().as_ref() {
                 "settings" => "menu-settings",
                 "check-updates" => "menu-check-updates",
@@ -718,12 +819,28 @@ pub fn run() {
                 "print" => "menu-print",
                 _ => return,
             };
-            let _ = app.emit(name, ());
+            // Only the window in front acts on the menu.
+            if let Some(window) = focused_window(app) {
+                let _ = window.emit_to(window.label(), name, ());
+            }
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                let label = window.label();
+                if let Ok(mut folders) = window.state::<Workspaces>().0.lock() {
+                    // Stops watching its folder.
+                    folders.remove(label);
+                }
+                if let Ok(mut pending) = window.state::<OpenRequests>().0.lock() {
+                    pending.remove(label);
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             open_folder,
             pick_folder,
             take_open_requests,
+            open_new_window,
             read_tree,
             search_files,
             read_file,

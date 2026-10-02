@@ -59,7 +59,7 @@ export function Welcome(props: { recents: string[]; onOpen: (path?: string) => v
 
 // Chromium can read a folder again (and reopen it from the recent list);
 // Safari and Firefox only get a snapshot of what was picked.
-const canReadFolders = isWeb && "showDirectoryPicker" in window;
+export const canReadFolders = isWeb && "showDirectoryPicker" in window;
 
 /** The web version's start page: open a folder or files from this computer, read-only. */
 function WebWelcome(props: { recents: string[]; onOpen: (path?: string) => void }) {

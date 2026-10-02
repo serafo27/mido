@@ -67,3 +67,8 @@ export function splitLink(href: string): { path: string; anchor: string } {
   if (hash < 0) return { path: decodeLink(href), anchor: "" };
   return { path: decodeLink(href.slice(0, hash)), anchor: decodeLink(href.slice(hash + 1), decodeURIComponent) };
 }
+
+/** `p` with the home folder shown as `~`, as Finder and shells do: `/Users/ada/notes` → `~/notes`. */
+export function tildify(p: string): string {
+  return p.replace(/^(\/Users\/[^/]+|\/home\/[^/]+)(?=\/|$)/, "~");
+}
