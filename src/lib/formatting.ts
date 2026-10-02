@@ -217,7 +217,8 @@ export function insertCodeBlock(language = ""): Command {
 
 /** A Markdown table with a header row and `rows` empty rows of `columns` cells. */
 export function tableMarkdown(rows: number, columns: number): string {
-  const row = (cell: (i: number) => string) => "| " + Array.from({ length: columns }, (_, i) => cell(i)).join(" | ") + " |";
+  const row = (cell: (i: number) => string) =>
+    "| " + Array.from({ length: columns }, (_, i) => cell(i)).join(" | ") + " |";
   const header = row((i) => `Column ${i + 1}`);
   const rule = row(() => "--------");
   const body = Array.from({ length: rows }, () => row(() => "        "));

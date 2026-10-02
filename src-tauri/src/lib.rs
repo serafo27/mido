@@ -566,20 +566,21 @@ async fn save_asset(
     assets::save(&document, &header("x-name"), &header("x-mime"), bytes).map_err(err)
 }
 
-/// Asks where to save an exported HTML page, then writes it there. The save
+/// Asks where to save an exported file, then writes it there. The save
 /// dialog runs here rather than in the webview, so the destination outside
 /// the open folder is always one the user picked. Returns the saved path, or
 /// `None` if the dialog was cancelled.
-#[tauri::command]
-async fn export_html(
-    app: AppHandle,
-    default_path: String,
-    html: String,
+fn save_export(
+    app: &AppHandle,
+    default_path: &str,
+    title: &str,
+    (filter, extension): (&str, &str),
+    bytes: &[u8],
 ) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
 
     let default_path = PathBuf::from(default_path);
-    let mut dialog = app.dialog().file().set_title("Export as HTML").add_filter("HTML", &["html"]);
+    let mut dialog = app.dialog().file().set_title(title).add_filter(filter, &[extension]);
     if let Some(dir) = default_path.parent() {
         dialog = dialog.set_directory(dir);
     }
@@ -590,8 +591,30 @@ async fn export_html(
         return Ok(None);
     };
     let path = chosen.into_path().map_err(err)?;
-    write_atomic(&path, html.as_bytes()).map_err(err)?;
+    write_atomic(&path, bytes).map_err(err)?;
     Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+/// Saves an exported HTML page where the user picks.
+#[tauri::command]
+async fn export_html(
+    app: AppHandle,
+    default_path: String,
+    html: String,
+) -> Result<Option<String>, String> {
+    save_export(&app, &default_path, "Export as HTML", ("HTML", "html"), html.as_bytes())
+}
+
+/// Saves an exported Word document where the user picks. The file comes as
+/// the raw request body; the suggested path as a percent-encoded header.
+#[tauri::command]
+async fn export_word(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<Option<String>, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("Expected the document data".to_string());
+    };
+    let value = request.headers().get("x-default-path").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let default_path = percent_encoding::percent_decode_str(value).decode_utf8_lossy();
+    save_export(&app, &default_path, "Export as Word", ("Word Document", "docx"), bytes)
 }
 
 /// Moves the path to the OS trash instead of deleting it permanently, with its comments.
@@ -762,11 +785,15 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     let export_html = MenuItemBuilder::with_id("export-html", "Export as HTML…")
         .accelerator("CmdOrCtrl+Shift+E")
         .build(app)?;
+    let export_word = MenuItemBuilder::with_id("export-word", "Export as Word…")
+        .accelerator("CmdOrCtrl+Alt+E")
+        .build(app)?;
     let print = MenuItemBuilder::with_id("print", "Print…")
         .accelerator("CmdOrCtrl+Alt+P")
         .build(app)?;
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&export_html)
+        .item(&export_word)
         .separator()
         .item(&print)
         .build()?;
@@ -822,6 +849,7 @@ pub fn run() {
                 "settings" => "menu-settings",
                 "check-updates" => "menu-check-updates",
                 "export-html" => "menu-export-html",
+                "export-word" => "menu-export-word",
                 "print" => "menu-print",
                 _ => return,
             };
@@ -856,6 +884,7 @@ pub fn run() {
             rename_path,
             trash_path,
             export_html,
+            export_word,
             save_asset,
             read_comments,
             add_comment_file,

@@ -124,7 +124,22 @@ const desktopOnly = () => {
   throw new DesktopOnlyError("This needs the Mido desktop app");
 };
 
-export const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
+/** Saves `blob` as a download named `name`; resolves to the name. */
+function download(name: string, blob: Blob): string {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+  return name;
+}
+
+/** Options of `invoke`: the headers sent with a raw body. */
+export interface InvokeOptions {
+  headers?: Record<string, string>;
+}
+
+export const commands: Record<string, (args: Record<string, unknown>, options?: InvokeOptions) => unknown> = {
   pick_folder: () => pickFolder(),
   async open_folder({ root }) {
     let ws = workspaces.get(root as string);
@@ -216,13 +231,13 @@ export const commands: Record<string, (args: Record<string, unknown>) => unknown
   },
 
   async export_html({ defaultPath, html }) {
-    const name = (defaultPath as string).split("/").pop() || "document.html";
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([html as string], { type: "text/html" }));
-    link.download = name;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
-    return name;
+    return download((defaultPath as string).split("/").pop() || "document.html", new Blob([html as string], { type: "text/html" }));
+  },
+
+  async export_word(bytes, options) {
+    const path = decodeURIComponent(options?.headers?.["x-default-path"] ?? "");
+    const type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    return download(path.split("/").pop() || "document.docx", new Blob([bytes as unknown as Uint8Array<ArrayBuffer>], { type }));
   },
 
   write_file: desktopOnly,

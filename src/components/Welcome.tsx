@@ -128,6 +128,7 @@ const WEB_SHORTCUTS: [string, string][] = [
   [`${altKey}Z`, "Toggle line wrap"],
   [`${modKey}⇧[ / ]`, "Previous · next tab"],
   [`${modKey}⇧O`, "Outline"],
+  [`${modKey}⇧E / ${altKey}${modKey}E`, "Export as HTML · Word"],
   [`${modKey},`, "Settings"],
   [`${modKey}\\`, "Toggle sidebar"],
 ];

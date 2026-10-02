@@ -1376,6 +1376,36 @@ export default function App() {
     }
   }, [renderTab, fail]);
 
+  const placedRef = useRef(placedThreads);
+  placedRef.current = placedThreads;
+
+  const exportWord = useCallback(async () => {
+    const tab = activeTab();
+    if (!tab) return;
+    try {
+      const { settings, root } = live.current;
+      // Paper is light: code, alerts and diagrams take the light theme's colours.
+      const variables = lightThemeVariables(settings);
+      const { wordDocument } = await import("./lib/exportWord");
+      const doc = await wordDocument({
+        source: tab.content,
+        filePath: tab.path,
+        root: root ?? dirname(tab.path),
+        title: basename(tab.path).replace(/\.[^.]+$/, ""),
+        showFrontmatter: settings.showFrontmatter,
+        assetUrl: (path) => convertFileSrc(path),
+        remoteImages: settings.remoteImages,
+        variables,
+        mermaid: mermaidTheme((name) => variables[name] ?? "", false),
+        threads: tab.path === live.current.activePath ? placedRef.current : [],
+      });
+      const saved = await api.exportWord(tab.path.replace(/\.[^./\\]+$/, "") + ".docx", doc);
+      if (saved) setToast(`Exported to ${basename(saved)}`);
+    } catch (e) {
+      fail(e);
+    }
+  }, [fail]);
+
   // The document being printed, rendered apart from the app (which print CSS hides).
   const [printBody, setPrintBody] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
@@ -1398,16 +1428,17 @@ export default function App() {
     }
   }, [renderTab, fail]);
 
-  // "Export as HTML…" and "Print…" in the File menu (macOS).
+  // "Export as HTML…", "Export as Word…" and "Print…" in the File menu (macOS).
   useEffect(() => {
     const unlisteners = [
       getCurrentWindow().listen("menu-export-html", exportHtml),
+      getCurrentWindow().listen("menu-export-word", exportWord),
       getCurrentWindow().listen("menu-print", printDocument),
     ];
     return () => {
       for (const u of unlisteners) u.then((f) => f());
     };
-  }, [exportHtml, printDocument]);
+  }, [exportHtml, exportWord, printDocument]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1439,6 +1470,11 @@ export default function App() {
       if (isWeb && mod && e.altKey && e.code === "KeyP") {
         e.preventDefault();
         printDocument();
+        return;
+      }
+      if (isWeb && mod && e.altKey && !e.shiftKey && e.code === "KeyE") {
+        e.preventDefault();
+        exportWord();
         return;
       }
       if (mod && e.altKey && !e.shiftKey && e.code === "KeyM") {
@@ -1495,7 +1531,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, printDocument, fail, git.repo, setGitOpen]);
+  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, exportWord, printDocument, fail, git.repo, setGitOpen]);
 
   const dragResize = (e: ReactPointerEvent<HTMLDivElement>, onMove: (ev: PointerEvent) => void) => {
     e.preventDefault();
@@ -1721,6 +1757,7 @@ export default function App() {
       onToggleComments={() => setCommentsOpen((o) => !o)}
       onMode={changeMode}
       onExport={isWeb ? exportHtml : undefined}
+      onExportWord={isWeb ? exportWord : undefined}
       onPrint={isWeb ? printDocument : undefined}
       onWrap={toggleWrap}
       onToggleSidebar={() => setSidebarOpen((o) => !o)}

@@ -117,6 +117,11 @@ export const api = {
     invoke<SearchResults>("search_files", { query, options }),
   /** Asks where to save, then writes the page; resolves to the saved path, or null if cancelled. */
   exportHtml: (defaultPath: string, html: string) => invoke<string | null>("export_html", { defaultPath, html }),
+  /** Asks where to save, then writes the Word document; resolves to the saved path, or null if cancelled. */
+  exportWord: async (defaultPath: string, document: Blob) =>
+    invoke<string | null>("export_word", new Uint8Array(await document.arrayBuffer()), {
+      headers: { "x-default-path": encodeURIComponent(defaultPath) },
+    }),
   /**
    * Saves an image in the `assets` folder next to `document` (never replacing
    * a file) and resolves to its path relative to the document. The bytes go

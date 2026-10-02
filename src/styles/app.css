@@ -943,6 +943,18 @@ body.resizing .resizer {
   min-height: 0;
 }
 
+/* ---------- export menu (web toolbar) ---------- */
+.export-menu {
+  position: relative;
+  display: flex;
+}
+.context-menu.export-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+}
+
 /* ---------- format bar (Edit mode) ---------- */
 .format-bar {
   flex: none;

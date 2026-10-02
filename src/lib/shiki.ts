@@ -165,6 +165,35 @@ export function loadLanguages(languages: Iterable<string>): Promise<void> {
   return Promise.all(jobs).then(() => {});
 }
 
+export interface CodeToken {
+  content: string;
+  /** A theme colour, as the CSS variable it comes from (`var(--hl-keyword)`). */
+  color?: string;
+  bold: boolean;
+  italic: boolean;
+}
+
+/**
+ * The highlighted tokens of `code`, line by line, for exports that aren't
+ * HTML; null when its language has no grammar or it hasn't loaded.
+ */
+export function codeTokens(code: string, language: string): CodeToken[][] | null {
+  const id = grammarFor(language);
+  if (!id || !highlighter || !loaded.has(id)) return null;
+  try {
+    return highlighter.codeToTokensBase(code, { lang: id, theme: "mido" }).map((line) =>
+      line.map((token) => ({
+        content: token.content,
+        color: token.color,
+        italic: ((token.fontStyle ?? 0) & 1) !== 0,
+        bold: ((token.fontStyle ?? 0) & 2) !== 0,
+      })),
+    );
+  } catch {
+    return null;
+  }
+}
+
 /** The languages of a document's fenced code blocks, to load before rendering it at once (exports). */
 export function codeLanguages(source: string): Set<string> {
   const names = new Set<string>();

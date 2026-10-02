@@ -60,7 +60,13 @@ function run(command: Command) {
 /** Keeps the editor focused (and its selection) when a button is pressed. */
 const keepFocus = (e: React.MouseEvent) => e.preventDefault();
 
-function FormatButton(props: { title: string; active?: boolean; disabled?: boolean; onClick: () => void; children: ReactNode }) {
+function FormatButton(props: {
+  title: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
   return (
     <button
       className={`icon-button ${props.active ? "active" : ""}`}
@@ -107,7 +113,12 @@ function TableGrid({ onPick }: { onPick: (rows: number, columns: number) => void
 
 function MenuItem(props: { icon: ReactNode; label: string; hint?: string; className?: string; onClick: () => void }) {
   return (
-    <button className={`menu-item ${props.className ?? ""}`} role="menuitem" onMouseDown={keepFocus} onClick={props.onClick}>
+    <button
+      className={`menu-item ${props.className ?? ""}`}
+      role="menuitem"
+      onMouseDown={keepFocus}
+      onClick={props.onClick}
+    >
       {props.icon}
       <span>{props.label}</span>
       {props.hint && <span className="menu-hint">{props.hint}</span>}
@@ -122,11 +133,7 @@ export default function FormatBar() {
   const barRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(
-    () =>
-      watchEditorFormat((next) => setFormat(next ?? EMPTY_FORMAT)),
-    [],
-  );
+  useEffect(() => watchEditorFormat((next) => setFormat(next ?? EMPTY_FORMAT)), []);
 
   // Clicking elsewhere or pressing Escape closes a popup.
   useEffect(() => {
@@ -281,10 +288,30 @@ export default function FormatBar() {
           </FormatButton>
           {popup === "more" && (
             <div className="format-popup context-menu more-menu" role="menu">
-              <MenuItem className="narrow-only" icon={<TextQuote size={14} />} label="Quote" onClick={() => pick(toggleList("quote"))} />
-              <MenuItem className="narrow-only" icon={<SquareCode size={14} />} label="Code Block" onClick={() => pick(insertCodeBlock())} />
-              <MenuItem className="narrow-only" icon={<Table size={14} />} label="Table" onClick={() => pick(insertTable(2, 3))} />
-              <MenuItem className="narrow-only" icon={<Minus size={14} />} label="Horizontal Rule" onClick={() => pick(insertRule)} />
+              <MenuItem
+                className="narrow-only"
+                icon={<TextQuote size={14} />}
+                label="Quote"
+                onClick={() => pick(toggleList("quote"))}
+              />
+              <MenuItem
+                className="narrow-only"
+                icon={<SquareCode size={14} />}
+                label="Code Block"
+                onClick={() => pick(insertCodeBlock())}
+              />
+              <MenuItem
+                className="narrow-only"
+                icon={<Table size={14} />}
+                label="Table"
+                onClick={() => pick(insertTable(2, 3))}
+              />
+              <MenuItem
+                className="narrow-only"
+                icon={<Minus size={14} />}
+                label="Horizontal Rule"
+                onClick={() => pick(insertRule)}
+              />
               <div className="menu-sep narrow-only" />
               <MenuItem icon={<Sigma size={14} />} label="Math Formula" onClick={() => pick(insertMath)} />
               <MenuItem icon={<Workflow size={14} />} label="Mermaid Diagram" onClick={() => pick(insertDiagram)} />

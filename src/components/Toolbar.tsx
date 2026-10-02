@@ -1,5 +1,8 @@
+import { useEffect, useRef, useState } from "react";
 import {
   ChevronRight,
+  FileCode2,
+  FileText,
   Columns2,
   Eye,
   FileDown,
@@ -48,6 +51,7 @@ interface ToolbarProps {
   onToggleSettings: () => void;
   /** The web version has no File menu: export and print sit in the toolbar. */
   onExport?: () => void;
+  onExportWord?: () => void;
   onPrint?: () => void;
 }
 
@@ -134,10 +138,8 @@ export default function Toolbar(props: ToolbarProps) {
             </IconButton>
             {props.commentCount > 0 && <span className="comments-badge">{props.commentCount}</span>}
           </span>
-          {props.onExport && (
-            <IconButton title={`Export as HTML (${modKey}⇧E)`} onClick={props.onExport}>
-              <FileDown size={15} />
-            </IconButton>
+          {props.onExport && props.onExportWord && (
+            <ExportMenu onExportHtml={props.onExport} onExportWord={props.onExportWord} />
           )}
           {props.onPrint && (
             <IconButton title={`Print or save as PDF (${altKey}${modKey}P)`} onClick={props.onPrint}>
@@ -152,5 +154,47 @@ export default function Toolbar(props: ToolbarProps) {
         </IconButton>
       </span>
     </header>
+  );
+}
+
+/** Export as HTML or Word, from a button (the web version has no File menu). */
+function ExportMenu(props: { onExportHtml: () => void; onExportWord: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  const pick = (action: () => void) => {
+    setOpen(false);
+    action();
+  };
+  return (
+    <span className="export-menu" ref={ref}>
+      <IconButton title="Export" active={open} onClick={() => setOpen((o) => !o)}>
+        <FileDown size={15} />
+      </IconButton>
+      {open && (
+        <div className="context-menu export-popup" role="menu">
+          <button className="menu-item" role="menuitem" onClick={() => pick(props.onExportHtml)}>
+            <FileCode2 size={14} />
+            <span>Export as HTML</span>
+            <span className="menu-hint">{modKey}⇧E</span>
+          </button>
+          <button className="menu-item" role="menuitem" onClick={() => pick(props.onExportWord)}>
+            <FileText size={14} />
+            <span>Export as Word</span>
+            <span className="menu-hint">{altKey}{modKey}E</span>
+          </button>
+        </div>
+      )}
+    </span>
   );
 }

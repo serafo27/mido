@@ -37,7 +37,9 @@ function after(doc: string, command: Command): string {
   const { from, to } = view.state.selection.main;
   const text = view.state.doc.toString();
   view.destroy();
-  return from === to ? text.slice(0, from) + "|" + text.slice(from) : text.slice(0, from) + "«" + text.slice(from, to) + "»" + text.slice(to);
+  return from === to
+    ? text.slice(0, from) + "|" + text.slice(from)
+    : text.slice(0, from) + "«" + text.slice(from, to) + "»" + text.slice(to);
 }
 
 describe("inline markers", () => {

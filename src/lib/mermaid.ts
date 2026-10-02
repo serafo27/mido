@@ -11,12 +11,12 @@ export interface MermaidTheme {
 
 const FONT = '"Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
-type Rgb = [number, number, number];
+export type Rgb = [number, number, number];
 
 let probe: CanvasRenderingContext2D | null | undefined;
 
 /** Any CSS colour as RGB, as the browser reads it; null if it isn't one. */
-function parseColor(css: string): Rgb | null {
+export function parseColor(css: string): Rgb | null {
   probe ??= document.createElement("canvas").getContext("2d");
   if (!probe || !css.trim()) return null;
   probe.fillStyle = "#010203";
@@ -102,9 +102,13 @@ let queue: Promise<unknown> = Promise.resolve();
 const cache = new Map<string, string>();
 const CACHE_SIZE = 100;
 
-/** Renders a Mermaid diagram to SVG markup. Rejects with Mermaid's message on a syntax error. */
-export function renderMermaid(code: string, theme: MermaidTheme): Promise<string> {
-  const themeKey = JSON.stringify(theme);
+/**
+ * Renders a Mermaid diagram to SVG markup. Rejects with Mermaid's message on
+ * a syntax error. Without `htmlLabels`, labels are SVG text rather than HTML
+ * (which keeps a canvas the SVG is drawn on readable, to make a PNG).
+ */
+export function renderMermaid(code: string, theme: MermaidTheme, { htmlLabels = true } = {}): Promise<string> {
+  const themeKey = JSON.stringify({ theme, htmlLabels });
   const key = `${themeKey}\n${code}`;
   const cached = cache.get(key);
   if (cached !== undefined) return Promise.resolve(cached);
@@ -121,6 +125,8 @@ export function renderMermaid(code: string, theme: MermaidTheme): Promise<string
         theme: custom ? "base" : theme.dark ? "dark" : "default",
         themeVariables: custom ? theme.variables : undefined,
         fontFamily: FONT,
+        htmlLabels,
+        flowchart: { htmlLabels },
       });
       configuredTheme = themeKey;
     }
