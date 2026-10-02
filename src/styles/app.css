@@ -3928,12 +3928,12 @@ body.web-dropping::after {
 .scm-pane-resizer:hover {
   background: color-mix(in srgb, var(--accent) 40%, transparent);
 }
-.scm-group-header.static {
+.scm-graph-pane > .scm-group-header {
   flex: none;
-  padding-left: 20px;
 }
-.scm-group-header.static:hover {
-  background: none;
+/* Folded: only its title, at the bottom of the panel; the changes take the rest. */
+.scm-graph-pane.closed {
+  min-height: 0;
 }
 
 /* ---------- popups: branches, commit, push ---------- */

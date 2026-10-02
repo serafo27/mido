@@ -83,6 +83,8 @@ export default function SourceControl(props: SourceControlProps) {
   const input = useRef<HTMLTextAreaElement>(null);
   // The graph's share of the panel, as VS Code lets you drag it.
   const [graphHeight, setGraphHeight] = useStoredState("mido.scm.graphHeight", 220);
+  // Folded down to its title at the bottom, as VS Code's views fold.
+  const [graphOpen, setGraphOpen] = useStoredState("mido.scm.graphOpen", true);
   const panel = useRef<HTMLDivElement>(null);
 
   // The message box grows with what's typed, as VS Code's does.
@@ -389,9 +391,11 @@ export default function SourceControl(props: SourceControlProps) {
         </Group>
       </div>
 
-      <div className="scm-graph-pane" style={{ height: graphHeight }}>
-        <div className="scm-pane-resizer" onPointerDown={resizeGraph} />
+      <div className={`scm-graph-pane ${graphOpen ? "" : "closed"}`} style={graphOpen ? { height: graphHeight } : undefined}>
+        {graphOpen && <div className="scm-pane-resizer" onPointerDown={resizeGraph} />}
         <Graph
+          open={graphOpen}
+          onToggle={() => setGraphOpen(!graphOpen)}
           enabled={status.hasCommits}
           markdownOnly={!props.showAll}
           branch={status.branch}
@@ -507,6 +511,9 @@ function ago(iso: string): string {
 
 /** The branch's history as a line of commits, newest first, like VS Code's source control graph. */
 function Graph(props: {
+  /** Folded, only the title shows. */
+  open: boolean;
+  onToggle: () => void;
   enabled: boolean;
   /** Only commits touching Markdown documents, and only those files in them. */
   markdownOnly: boolean;
@@ -521,7 +528,7 @@ function Graph(props: {
   const [files, setFiles] = useState<GitFileChange[]>([]);
 
   useEffect(() => {
-    if (!props.enabled) return setCommits([]);
+    if (!props.enabled || !props.open) return setCommits([]);
     let cancelled = false;
     api.gitLog(HISTORY_SIZE, null, props.markdownOnly).then(
       (log) => !cancelled && setCommits(log),
@@ -530,7 +537,7 @@ function Graph(props: {
     return () => {
       cancelled = true;
     };
-  }, [props.enabled, props.version, props.markdownOnly]);
+  }, [props.enabled, props.open, props.version, props.markdownOnly]);
 
   const toggle = (commit: GitCommit) => {
     if (expanded === commit.hash) return setExpanded(null);
@@ -544,54 +551,58 @@ function Graph(props: {
 
   return (
     <>
-      <div className="scm-group-header static">
+      <div className="scm-group-header" onClick={props.onToggle} aria-expanded={props.open}>
+        <ChevronRight size={14} className={`chevron ${props.open ? "open" : ""}`} />
         <span className="scm-group-title">Graph</span>
-        {props.markdownOnly && <span className="scm-group-note">Markdown</span>}
+        {props.markdownOnly && props.open && <span className="scm-group-note">Markdown</span>}
       </div>
-      {!props.enabled && <p className="scm-empty small">No commits yet.</p>}
-      <div className="scm-graph">
-        {commits.map((commit, i) => (
-          <div key={commit.hash} className={`scm-graph-item ${i === commits.length - 1 ? "last" : ""}`}>
-            <div
-              className={`scm-graph-row ${expanded === commit.hash ? "open" : ""}`}
-              onClick={() => toggle(commit)}
-              title={`${commit.subject}\n\n${commit.author}${commit.email ? ` <${commit.email}>` : ""}\n${new Date(commit.date).toLocaleString()}\n${commit.short}`}
-            >
-              <span className={`scm-node ${i === 0 ? "head" : ""}`} />
-              {/* The message first, as VS Code shows it: the author is in the details and the tooltip. */}
-              <span className="scm-commit-subject">{commit.subject}</span>
-              {i === 0 && props.branch && (
-                <span className="scm-ref" title={props.upstream ? `Tracking ${props.upstream}` : undefined}>
-                  <GitBranch size={11} />
-                  {props.branch}
-                </span>
+      {!props.open ? null : !props.enabled ? (
+        <p className="scm-empty small">No commits yet.</p>
+      ) : (
+        <div className="scm-graph">
+          {commits.map((commit, i) => (
+            <div key={commit.hash} className={`scm-graph-item ${i === commits.length - 1 ? "last" : ""}`}>
+              <div
+                className={`scm-graph-row ${expanded === commit.hash ? "open" : ""}`}
+                onClick={() => toggle(commit)}
+                title={`${commit.subject}\n\n${commit.author}${commit.email ? ` <${commit.email}>` : ""}\n${new Date(commit.date).toLocaleString()}\n${commit.short}`}
+              >
+                <span className={`scm-node ${i === 0 ? "head" : ""}`} />
+                {/* The message first, as VS Code shows it: the author is in the details and the tooltip. */}
+                <span className="scm-commit-subject">{commit.subject}</span>
+                {i === 0 && props.branch && (
+                  <span className="scm-ref" title={props.upstream ? `Tracking ${props.upstream}` : undefined}>
+                    <GitBranch size={11} />
+                    {props.branch}
+                  </span>
+                )}
+              </div>
+              {expanded === commit.hash && (
+                <div className="scm-commit-details">
+                  <span className="scm-commit-meta">
+                    {commit.author} · {ago(commit.date)} · <code>{commit.short}</code>
+                  </span>
+                  {files.map((change) => {
+                    const target: DiffTarget = { kind: "commit", change, commit };
+                    return (
+                      <FileRow
+                        key={change.path}
+                        change={change}
+                        letter={change.staged ?? "M"}
+                        active={props.activeDiff === diffKey(target)}
+                        unsaved={false}
+                        onOpen={(pin) => props.onOpenDiff(target, pin)}
+                        actions={null}
+                        indent
+                      />
+                    );
+                  })}
+                </div>
               )}
             </div>
-            {expanded === commit.hash && (
-              <div className="scm-commit-details">
-                <span className="scm-commit-meta">
-                  {commit.author} · {ago(commit.date)} · <code>{commit.short}</code>
-                </span>
-                {files.map((change) => {
-                  const target: DiffTarget = { kind: "commit", change, commit };
-                  return (
-                    <FileRow
-                      key={change.path}
-                      change={change}
-                      letter={change.staged ?? "M"}
-                      active={props.activeDiff === diffKey(target)}
-                      unsaved={false}
-                      onOpen={(pin) => props.onOpenDiff(target, pin)}
-                      actions={null}
-                      indent
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }
