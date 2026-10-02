@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blocksImage, DEFAULT_SETTINGS, migrateDefaults } from "./settings";
+import { blocksImage, DEFAULT_SETTINGS, migrateDefaults, zoomText } from "./settings";
 
 describe("blocksImage", () => {
   it("loads everything with all, only https with secure, nothing remote with none", () => {
@@ -40,5 +40,25 @@ describe("migrateDefaults", () => {
     s.map.set("mido.settings", JSON.stringify({ theme: "dark" }));
     migrateDefaults(s);
     expect(settingsIn(s).theme).toBe("dark");
+  });
+});
+
+describe("zoomText", () => {
+  it("makes both text sizes bigger or smaller together", () => {
+    const settings = { ...DEFAULT_SETTINGS, fontSize: 16, editorFontSize: 14 };
+    expect(zoomText(settings, 1)).toEqual({ fontSize: 17, editorFontSize: 15 });
+    expect(zoomText(settings, -1)).toEqual({ fontSize: 15, editorFontSize: 13 });
+  });
+
+  it("stays within the sizes Settings offers", () => {
+    expect(zoomText({ ...DEFAULT_SETTINGS, fontSize: 24, editorFontSize: 21.5 }, 1)).toEqual({ fontSize: 24, editorFontSize: 22 });
+    expect(zoomText({ ...DEFAULT_SETTINGS, fontSize: 13, editorFontSize: 11 }, -1)).toEqual({ fontSize: 13, editorFontSize: 11 });
+  });
+
+  it("goes back to the defaults with 0", () => {
+    expect(zoomText({ ...DEFAULT_SETTINGS, fontSize: 20, editorFontSize: 19 }, 0)).toEqual({
+      fontSize: DEFAULT_SETTINGS.fontSize,
+      editorFontSize: DEFAULT_SETTINGS.editorFontSize,
+    });
   });
 });

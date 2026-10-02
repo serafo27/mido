@@ -19,7 +19,14 @@ import { api, type FileNode, type OpenRequest } from "./lib/api";
 import { basename, dirname, isInside, isMarkdown, join } from "./lib/paths";
 import { DOWNLOAD_URL, isMac, isMainWindow, isWeb, requireDesktop, WEB_ACCESS_NEEDED } from "./lib/platform";
 import { useStoredState } from "./lib/useStoredState";
-import { DEFAULT_SETTINGS, applySettings, lightThemeVariables, type RemoteImages, type Settings } from "./lib/settings";
+import {
+  DEFAULT_SETTINGS,
+  applySettings,
+  lightThemeVariables,
+  zoomText,
+  type RemoteImages,
+  type Settings,
+} from "./lib/settings";
 import { currentMermaidTheme, mermaidTheme, type MermaidTheme } from "./lib/mermaid";
 import { currentMarkdownVariables, htmlDocument, renderDocument } from "./lib/exportDocument";
 import { assetName, imageMarkdown } from "./lib/images";
@@ -1535,6 +1542,16 @@ export default function App() {
         return;
       }
       if (!mod || e.altKey) return;
+      // Text size: ⌘+ and ⌘− (with or without ⇧, for any keyboard layout), ⌘0 back to the default.
+      // The web version leaves these to the browser's own zoom.
+      const zoom = ["+", "="].includes(e.key) ? 1 : ["-", "_"].includes(e.key) ? -1 : e.key === "0" ? 0 : null;
+      if (zoom !== null && !isWeb) {
+        e.preventDefault();
+        const next = zoomText(live.current.settings, zoom);
+        updateSettings(next);
+        setToast(`Text size ${next.fontSize}px · editor ${next.editorFontSize}px`);
+        return;
+      }
       if (e.shiftKey) {
         // On macOS, New Window is a menu item.
         if (!isMac && !isWeb && e.code === "KeyN") {
@@ -1583,7 +1600,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, exportWord, printDocument, fail, git.repo, setGitOpen, newTerminal, toggleTerminal]);
+  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, exportWord, printDocument, fail, git.repo, setGitOpen, newTerminal, toggleTerminal, updateSettings]);
 
   const dragResize = (e: ReactPointerEvent<HTMLDivElement>, onMove: (ev: PointerEvent) => void) => {
     e.preventDefault();

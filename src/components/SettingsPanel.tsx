@@ -5,8 +5,10 @@ import { Check, Monitor, Moon, RotateCcw, Sun, X } from "lucide-react";
 import {
   ACCENTS,
   DEFAULT_SETTINGS,
+  EDITOR_FONT_SIZE,
   FONT_CHOICES,
   PRESETS,
+  TEXT_SIZE,
   activeTheme,
   fontFor,
   type FontRole,
@@ -98,8 +100,8 @@ export default function SettingsPanel(props: SettingsPanelProps) {
           <Slider
             label="Text size"
             value={settings.fontSize}
-            min={13}
-            max={24}
+            min={TEXT_SIZE.min}
+            max={TEXT_SIZE.max}
             step={0.5}
             format={(v) => `${v}px`}
             onChange={(fontSize) => onChange({ fontSize })}
@@ -165,8 +167,8 @@ export default function SettingsPanel(props: SettingsPanelProps) {
             <Slider
               label="Font size"
               value={settings.editorFontSize}
-              min={11}
-              max={22}
+              min={EDITOR_FONT_SIZE.min}
+              max={EDITOR_FONT_SIZE.max}
               step={0.5}
               format={(v) => `${v}px`}
               onChange={(editorFontSize) => onChange({ editorFontSize })}

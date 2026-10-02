@@ -268,6 +268,23 @@ export function applySettings(settings: Settings, systemDark: boolean) {
 }
 
 /** Whether `src` is an image from the internet that `policy` doesn't load. */
+/** The text sizes' ranges, as Settings offers them. */
+export const TEXT_SIZE = { min: 13, max: 24 };
+export const EDITOR_FONT_SIZE = { min: 11, max: 22 };
+
+/**
+ * Both text sizes (the document's and the editor's) `steps` pixels bigger
+ * or smaller, within their ranges; 0 steps puts them back to the defaults.
+ */
+export function zoomText(settings: Settings, steps: number): Pick<Settings, "fontSize" | "editorFontSize"> {
+  if (steps === 0) return { fontSize: DEFAULT_SETTINGS.fontSize, editorFontSize: DEFAULT_SETTINGS.editorFontSize };
+  const clamp = (v: number, { min, max }: { min: number; max: number }) => Math.min(max, Math.max(min, v));
+  return {
+    fontSize: clamp(settings.fontSize + steps, TEXT_SIZE),
+    editorFontSize: clamp(settings.editorFontSize + steps, EDITOR_FONT_SIZE),
+  };
+}
+
 export function blocksImage(policy: RemoteImages, src: string): boolean {
   if (policy === "all") return false;
   // Protocol-relative URLs count as insecure: the app's own origin isn't https everywhere.
