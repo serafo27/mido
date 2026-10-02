@@ -290,6 +290,18 @@ export default function SettingsPanel(props: SettingsPanelProps) {
             checked={settings.experimentalTerminal}
             onChange={(experimentalTerminal) => onChange({ experimentalTerminal })}
           />
+          {settings.experimentalTerminal && (
+            <Row label="Terminal font">
+              <input
+                className="text-input settings-row-input"
+                placeholder="System, or an installed font"
+                title="Any installed font, such as a Nerd Font for your prompt's symbols"
+                value={settings.terminalFont}
+                spellCheck={false}
+                onChange={(e) => onChange({ terminalFont: e.target.value })}
+              />
+            </Row>
+          )}
         </Section>
 
         {/* Custom themes are user content, not a setting: keep them. */}

@@ -12,6 +12,7 @@ GitHub and on the website's changelog page.
 ### Changed
 
 - The **terminal** (experimental) takes its colours from the theme: Nord, Dracula, Solarized, VS Code and IntelliJ keep their own terminal palettes, and the other themes, custom ones included, draw theirs from their code colours. It's drawn on the GPU, as in VS Code, for crisper, evenly spaced text; Powerline arrows and box lines join up, and colours too faint for the background are made readable.
+- The terminal uses the system's monospaced font, as Terminal does, at the editor's text size, or any installed font set in **Settings → Experimental** (a Nerd Font for a prompt's symbols). It waits for that font before measuring, so text sits on its grid; emoji and East Asian characters take their two cells, so the cursor no longer drifts after them; and its margins are even.
 
 ## [0.14.0] - 2026-10-02
 

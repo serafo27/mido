@@ -1990,6 +1990,9 @@ body.resizing .resizer {
   justify-content: space-between;
   min-height: 34px;
 }
+.settings-row-input {
+  width: 210px;
+}
 
 .swatches {
   display: flex;
@@ -4565,7 +4568,7 @@ body.resizing-row * {
 .terminal-body {
   flex: 1;
   min-height: 0;
-  padding: 2px 4px 4px 12px;
+  padding: 6px 12px;
 }
 .terminal-view {
   width: 100%;

@@ -60,10 +60,21 @@ function appearance() {
       selectionBackground: color("--selection"),
       scrollbarSliderBackground: color("--bg-hover"),
     },
-    fontFamily: v("--md-font-code") || v("--font-mono") || "Menlo, monospace",
-    fontSize: Math.max(10, Math.round((parseFloat(v("--editor-font-size")) || 14) - 1)),
+    // The system's monospaced font by default, as in Terminal; Settings can name another.
+    fontFamily: v("--terminal-font") || "ui-monospace, Menlo, monospace",
+    fontSize: parseFloat(v("--editor-font-size")) || 14,
   };
 }
+
+/**
+ * Waits for a font to be ready. xterm.js measures its character cell once, when the
+ * font is set: measured on a stand-in font, every glyph would sit off the grid.
+ */
+const fontReady = (family: string, size: number) =>
+  document.fonts.load(`${size}px ${family}`).then(
+    () => undefined,
+    () => undefined,
+  );
 
 /** The app's shortcuts that a terminal should leave to the app. */
 export function isAppShortcut(e: KeyboardEvent): boolean {
@@ -94,17 +105,21 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
 
     (async () => {
       // xterm.js is only loaded once a terminal is opened.
-      const [{ Terminal }, { FitAddon }, { WebLinksAddon }, { WebglAddon }] = await Promise.all([
+      const look = appearance();
+      const [{ Terminal }, { FitAddon }, { WebLinksAddon }, { WebglAddon }, { Unicode11Addon }] = await Promise.all([
         import("@xterm/xterm"),
         import("@xterm/addon-fit"),
         import("@xterm/addon-web-links"),
         import("@xterm/addon-webgl"),
+        import("@xterm/addon-unicode11"),
+        fontReady(look.fontFamily, look.fontSize),
       ]);
       if (disposed || !hostRef.current) return;
       term = new Terminal({
-        ...appearance(),
+        ...look,
         cursorBlink: true,
-        allowProposedApi: false,
+        // The Unicode 11 widths below are a "proposed" xterm.js API.
+        allowProposedApi: true,
         scrollback: 5000,
         macOptionClickForcesSelection: true,
         // As VS Code: colours a program picks that would be hard to read on this background are adjusted.
@@ -115,6 +130,9 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
       fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
       term.loadAddon(new WebLinksAddon((_event, uri) => void openUrl(uri)));
+      // Emoji and East Asian characters take two cells, as the shell expects: without it the cursor drifts after them.
+      term.loadAddon(new Unicode11Addon());
+      term.unicode.activeVersion = "11";
       term.attachCustomKeyEventHandler((e) => !isAppShortcut(e));
       term.open(hostRef.current);
       // Drawn on the GPU, as in VS Code: crisp, evenly spaced text. When WebGL isn't
@@ -140,12 +158,16 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
       observer = new ResizeObserver(() => requestAnimationFrame(fit));
       observer.observe(hostRef.current);
       // Follows the app's theme and fonts.
-      themeObserver = new MutationObserver(() => {
+      themeObserver = new MutationObserver(async () => {
         if (!term) return;
         const next = appearance();
         term.options.theme = next.theme;
-        term.options.fontFamily = next.fontFamily;
-        term.options.fontSize = next.fontSize;
+        if (next.fontFamily !== term.options.fontFamily || next.fontSize !== term.options.fontSize) {
+          await fontReady(next.fontFamily, next.fontSize);
+          if (disposed) return;
+          term.options.fontFamily = next.fontFamily;
+          term.options.fontSize = next.fontSize;
+        }
         fit();
       });
       themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "data-theme"] });

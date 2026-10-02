@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blocksImage, DEFAULT_SETTINGS, migrateDefaults, spaceLines, zoomText } from "./settings";
+import { blocksImage, DEFAULT_SETTINGS, migrateDefaults, spaceLines, terminalFontCss, zoomText } from "./settings";
 
 describe("blocksImage", () => {
   it("loads everything with all, only https with secure, nothing remote with none", () => {
@@ -72,5 +72,15 @@ describe("spaceLines", () => {
       lineHeight: 2.2,
       editorLineHeight: 2.4,
     });
+  });
+});
+
+describe("terminalFontCss", () => {
+  it("uses the system's monospaced font by default, as Terminal does", () => {
+    expect(terminalFontCss("")).toMatch(/^ui-monospace,/);
+  });
+
+  it("puts a named font first, with the system's after it for missing characters", () => {
+    expect(terminalFontCss(" MesloLGS NF ")).toMatch(/^"MesloLGS NF", ui-monospace,/);
   });
 });

@@ -54,6 +54,8 @@ export interface Settings {
   gitShowAllFiles: boolean;
   /** Experimental: a terminal under the document, and the Terminal menu. */
   experimentalTerminal: boolean;
+  /** An installed font for the terminal (a Nerd Font for a fancy prompt); empty: the system's, as in Terminal. */
+  terminalFont: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -87,6 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tabStyle: "rounded",
   gitShowAllFiles: false,
   experimentalTerminal: false,
+  terminalFont: "",
 };
 
 /**
@@ -171,6 +174,9 @@ function fontCss(id: string, custom: string, fallback: string): string {
   if (id === "custom" && custom.trim()) return `"${custom.trim().replace(/"/g, "")}", ${fallback}`;
   return ALL_FONTS.find((f) => f.id === id)?.css ?? fallback;
 }
+
+/** The terminal's font: the one named, then the system's monospaced font, as Terminal uses. */
+export const terminalFontCss = (name: string) => fontCss("custom", name, MONO_FALLBACK);
 
 export interface PresetInfo {
   id: StylePreset;
@@ -269,6 +275,7 @@ export function applySettings(settings: Settings, systemDark: boolean) {
     "--md-width": settings.contentWidth ? `${settings.contentWidth}px` : "none",
     "--editor-font-size": `${settings.editorFontSize}px`,
     "--editor-line-height": String(settings.editorLineHeight),
+    "--terminal-font": terminalFontCss(settings.terminalFont),
   };
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
 }
