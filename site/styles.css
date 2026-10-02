@@ -1062,36 +1062,26 @@ code {
   visibility: visible;
 }
 
-/* The caret hangs off the last typed letter, so it always sits right after it. */
+/* The caret is a thin shadow off the right edge of the last typed letter: it adds nothing to
+   the line, so it can't wrap on its own and always sits right after that letter. */
 .type-char.caret {
-  position: relative;
-}
-
-.type-char.caret::after {
-  content: "";
-  position: absolute;
-  left: calc(100% + 0.04em);
-  bottom: 0.1em;
-  width: 0.06em;
-  height: 0.95em;
-  border-radius: 1px;
-  background: var(--accent);
+  box-shadow: 0.15em 0 0 -0.09em var(--accent);
   animation: caret-blink 1.05s steps(1) infinite;
 }
 
-.typing .type-char.caret::after {
+.typing .type-char.caret {
   animation: none;
 }
 
-.caret-gone .type-char.caret::after {
-  opacity: 0;
-  transition: opacity 0.8s var(--ease-calm);
+.caret-gone .type-char.caret {
+  box-shadow: 0.15em 0 0 -0.09em transparent;
+  transition: box-shadow 0.8s var(--ease-calm);
   animation: none;
 }
 
 @keyframes caret-blink {
   50% {
-    opacity: 0;
+    box-shadow: 0.15em 0 0 -0.09em transparent;
   }
 }
 

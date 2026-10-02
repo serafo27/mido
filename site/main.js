@@ -65,13 +65,23 @@
   title.replaceChildren(label, typed);
 
   const showHero = () => heroParts.concat(hero.querySelector(".hero-shot")).forEach((el) => el.classList.add("visible"));
+  // The first half is already on the page, caret waiting after it, so the animation reads as finishing the sentence.
+  const start = text.indexOf(" ", Math.floor(text.length / 2) - 1) + 1;
+  chars.slice(0, start).forEach((c) => c.classList.add("typed"));
+  // The caret sits on the last letter, never on a space, which can fall at the end of a line.
+  let caretOn = chars[start - 2];
+  caretOn.classList.add("caret");
   // The rest of the hero arrives while the last words are being typed.
-  const heroAt = Math.floor(chars.length * 0.5);
-  let i = 0;
+  const heroAt = start + Math.floor((chars.length - start) * 0.4);
+  let i = start;
   const typeNext = () => {
     typed.classList.add("typing");
-    chars[i - 1]?.classList.remove("caret");
-    chars[i].classList.add("typed", "caret");
+    chars[i].classList.add("typed");
+    if (chars[i].textContent !== " ") {
+      caretOn.classList.remove("caret");
+      caretOn = chars[i];
+      caretOn.classList.add("caret");
+    }
     if (i === heroAt) showHero();
     i += 1;
     if (i === chars.length) {
@@ -81,10 +91,10 @@
     }
     // A human rhythm: a little uneven, with a breath after spaces and punctuation.
     const prev = chars[i - 1].textContent;
-    const pause = prev === " " ? 35 : /[.,]/.test(prev) ? 140 : 0;
-    setTimeout(typeNext, 22 + Math.random() * 26 + pause);
+    const pause = prev === " " ? 70 : /[.,]/.test(prev) ? 220 : 0;
+    setTimeout(typeNext, 55 + Math.random() * 50 + pause);
   };
-  setTimeout(typeNext, 250);
+  setTimeout(typeNext, 900);
 })();
 
 // Theme switcher: swaps the large screenshot.
