@@ -172,6 +172,11 @@ export default function SettingsPanel(props: SettingsPanelProps) {
               onChange={(editorFontSize) => onChange({ editorFontSize })}
             />
             <Toggle label="Autosave" checked={settings.autosave} onChange={(autosave) => onChange({ autosave })} />
+            <Toggle
+              label="Formatting toolbar in Edit mode"
+              checked={settings.formatBar}
+              onChange={(formatBar) => onChange({ formatBar })}
+            />
           </Section>
         )}
 

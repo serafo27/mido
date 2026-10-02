@@ -39,6 +39,8 @@ export interface Settings {
   editorFontSize: number;
   wrap: boolean;
   autosave: boolean;
+  /** The writing tools over the editor in Edit mode. */
+  formatBar: boolean;
   /** Check for new versions at launch (and periodically) and offer them. */
   checkForUpdates: boolean;
   /** Name comments are signed with when git has no user. */
@@ -73,6 +75,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editorFontSize: 14,
   wrap: true,
   autosave: true,
+  formatBar: true,
   checkForUpdates: true,
   commentAuthor: "",
   minimap: false,

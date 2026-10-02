@@ -26,6 +26,7 @@ import { assetName, imageMarkdown } from "./lib/images";
 import Sidebar from "./components/Sidebar";
 import QuickSearch from "./components/QuickSearch";
 import DesktopOnly from "./components/DesktopOnly";
+import FormatBar from "./components/FormatBar";
 import Toolbar, { type ViewMode } from "./components/Toolbar";
 import Editor, {
   activeEditor,
@@ -1831,6 +1832,7 @@ export default function App() {
             />
           ) : active ? (
             <>
+              {mode === "edit" && settings.formatBar && <FormatBar />}
               <div className="content-row">
                 <div
                   ref={workspaceRef}

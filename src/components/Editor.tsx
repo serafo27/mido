@@ -4,7 +4,6 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import {
   Compartment,
-  EditorSelection,
   EditorState,
   Prec,
   StateEffect,
@@ -12,11 +11,12 @@ import {
   type Extension,
   type Text,
 } from "@codemirror/state";
-import { Decoration, EditorView, keymap, type Command, type DecorationSet } from "@codemirror/view";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { Decoration, EditorView, keymap, type DecorationSet } from "@codemirror/view";
+import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 import { imageFiles } from "../lib/images";
 import type { SourceHighlight } from "../lib/previewComments";
+import { formatAt, insertLink, sameFormat, toggleBold, toggleItalic, toggleStrikethrough, type FormatState } from "../lib/formatting";
 import ScrollMarkers, { sameMarkers, type ScrollMarker } from "./ScrollMarkers";
 import Minimap, { type MinimapSpace } from "./Minimap";
 import { LineKind, layoutLines, lineAtY, wrapRows, yOfLine, type Layout, type Metrics } from "../lib/minimapLayout";
@@ -260,66 +260,17 @@ function drawMinimap(
   ctx.globalAlpha = 1;
 }
 
-/** Toggles `marker` around each selection (e.g. `**` for bold). */
-function toggleMarker(marker: string): Command {
-  return (view) => {
-    const { state } = view;
-    const n = marker.length;
-    view.dispatch(
-      state.changeByRange((range) => {
-        const before = state.sliceDoc(range.from - n, range.from);
-        const after = state.sliceDoc(range.to, range.to + n);
-        if (before === marker && after === marker) {
-          return {
-            changes: [
-              { from: range.from - n, to: range.from },
-              { from: range.to, to: range.to + n },
-            ],
-            range: EditorSelection.range(range.from - n, range.to - n),
-          };
-        }
-        return {
-          changes: [
-            { from: range.from, insert: marker },
-            { from: range.to, insert: marker },
-          ],
-          range: EditorSelection.range(range.from + n, range.to + n),
-        };
-      }),
-    );
-    return true;
-  };
-}
-
 /** In a git repository ⌘K opens the commit dialog: the link shortcut lets it through. */
 let linkShortcutYields = false;
 export function setLinkShortcutYields(yields: boolean) {
   linkShortcutYields = yields;
 }
 
-const insertLink: Command = (view) => {
-  const { state } = view;
-  view.dispatch(
-    state.changeByRange((range) => {
-      const text = state.sliceDoc(range.from, range.to);
-      const insert = `[${text}](url)`;
-      const urlStart = range.from + text.length + 3;
-      return {
-        changes: { from: range.from, to: range.to, insert },
-        range: text
-          ? EditorSelection.range(urlStart, urlStart + 3)
-          : EditorSelection.cursor(range.from + 1),
-      };
-    }),
-  );
-  return true;
-};
-
 const markdownKeys = Prec.high(
   keymap.of([
-    { key: "Mod-b", run: toggleMarker("**") },
-    { key: "Mod-i", run: toggleMarker("*") },
-    { key: "Mod-Shift-x", run: toggleMarker("~~") },
+    { key: "Mod-b", run: toggleBold },
+    { key: "Mod-i", run: toggleItalic },
+    { key: "Mod-Shift-x", run: toggleStrikethrough },
     { key: "Mod-k", run: (view) => !linkShortcutYields && insertLink(view) },
     { key: "Mod-Alt-k", run: insertLink },
   ]),
@@ -447,6 +398,34 @@ export function keepCursorInView(view: EditorView) {
 /** The editor showing the active document, if one is open. */
 export const activeEditor = (): EditorView | null => currentView;
 
+/*
+ * The format bar follows the formatting at the cursor, and asks the editor
+ * to add the images it picks.
+ */
+let currentFormat: FormatState | null = null;
+const formatListeners = new Set<(format: FormatState | null) => void>();
+
+function publishFormat(state: EditorState | null) {
+  const next = state && formatAt(state);
+  if (next === currentFormat || (next && currentFormat && sameFormat(next, currentFormat))) return;
+  currentFormat = next;
+  formatListeners.forEach((listener) => listener(next));
+}
+
+/** Calls `listener` with the formatting at the editor's cursor now and whenever it changes; returns the unsubscribe. */
+export function watchEditorFormat(listener: (format: FormatState | null) => void): () => void {
+  formatListeners.add(listener);
+  listener(currentFormat);
+  return () => formatListeners.delete(listener);
+}
+
+let addImagesToEditor: ((files: File[]) => void) | null = null;
+
+/** Saves `files` next to the document and inserts them at the cursor. */
+export function insertEditorImages(files: File[]) {
+  addImagesToEditor?.(files);
+}
+
 export default function Editor(props: EditorProps) {
   const { docKey, value, wrap, onChange, onScroll, onAddImages, highlights, onSelectHighlight, onHoverHighlight } =
     props;
@@ -523,6 +502,9 @@ export default function Editor(props: EditorProps) {
           const highlightsChanged = update.transactions.some((tr) => tr.effects.some((e) => e.is(setHighlights)));
           if (update.docChanged || update.geometryChanged || highlightsChanged) updateMarkers(update.view);
           if (update.docChanged || update.geometryChanged) setMinimapVersion((v) => v + 1);
+          if (update.docChanged || update.selectionSet || syntaxTree(update.startState) !== syntaxTree(update.state)) {
+            publishFormat(update.state);
+          }
         }),
         EditorView.domEventObservers({
           scroll: (_e, view) => callbacks.current.onScroll?.(view),
@@ -573,6 +555,7 @@ export default function Editor(props: EditorProps) {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
     }
     view.dispatch({ effects: setHighlights.of(highlightsRef.current ?? []) });
+    publishFormat(view.state);
     const top = cached?.scrollTop ?? 0;
     requestAnimationFrame(() => {
       view.scrollDOM.scrollTop = top;
@@ -587,15 +570,20 @@ export default function Editor(props: EditorProps) {
     const view = new EditorView({ parent: hostRef.current! });
     viewRef.current = view;
     currentView = view;
+    addImagesToEditor = (files) => addImages(view, files, null);
     setScroller(view.scrollDOM);
     restore(view, keyRef.current, value);
     view.focus();
     return () => {
+      if (addImagesToEditor && currentView === view) addImagesToEditor = null;
       cancelAnimationFrame(markersFrame.current);
       stash(view, keyRef.current);
       view.destroy();
       viewRef.current = null;
-      if (currentView === view) currentView = null;
+      if (currentView === view) {
+        currentView = null;
+        publishFormat(null);
+      }
     };
   }, []);
 
