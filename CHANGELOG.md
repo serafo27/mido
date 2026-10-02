@@ -12,6 +12,7 @@ GitHub and on the website's changelog page.
 ### Added
 
 - **Mido → New Window** (⇧⌘N) opens another window, each with its own folder and tabs. Settings and recent folders are shared, and a change made in one window applies to all. The main window still reopens its folder at launch; the others start empty.
+- Updates install from inside Mido: **Install** downloads the new version and puts it in place, then **Restart Mido** opens it, after saving your edits in every window. No more `.dmg` to download, and no more macOS warning after each update. This version still has to be installed by hand, one last time.
 
 ### Changed
 

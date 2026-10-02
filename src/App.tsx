@@ -12,6 +12,7 @@ import { flushSync } from "react-dom";
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorView } from "@codemirror/view";
 import { api, type FileNode, type OpenRequest } from "./lib/api";
@@ -70,7 +71,7 @@ import { MarkdownParser } from "./lib/blockRenderer";
 import StatusBar from "./components/StatusBar";
 import SettingsPanel from "./components/SettingsPanel";
 import UpdateDialog, { type UpdateState } from "./components/UpdateDialog";
-import { CHECK_INTERVAL, checkForUpdates } from "./lib/updates";
+import { CHECK_INTERVAL, checkForUpdates, PREPARE_RESTART, RESTART_READY, type RestartReady } from "./lib/updates";
 import { NoFile, Welcome } from "./components/Welcome";
 
 interface Tab {
@@ -935,6 +936,18 @@ export default function App() {
       window.clearInterval(periodic);
     };
   }, [settings.checkForUpdates, runUpdateCheck]);
+
+  // Before restarting into an update, every window saves its edits.
+  useEffect(() => {
+    const unlisten = getCurrentWindow().listen(PREPARE_RESTART, async () => {
+      const saved = await saveAll().catch(() => false);
+      const reply: RestartReady = { label: getCurrentWindow().label, saved };
+      emit(RESTART_READY, reply);
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, [saveAll]);
 
   // "Check for Updates…" in the macOS app menu.
   useEffect(() => {

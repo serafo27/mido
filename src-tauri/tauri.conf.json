@@ -43,6 +43,12 @@
       }
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDA4ODMxRkUwNTBERTcxRTYKUldUbWNkNVE0QitEQ09mTEY5MzQxd0c5QXdadEE3cXZsbkF1MnQycWVqaHN4Zjl5SndGWE42NXEK",
+      "endpoints": ["https://github.com/serafo27/mido/releases/latest/download/latest.json"]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

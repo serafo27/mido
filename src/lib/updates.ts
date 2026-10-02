@@ -1,5 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
+import { emit, listen } from "@tauri-apps/api/event";
+import { getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check } from "@tauri-apps/plugin-updater";
 
 /**
  * Published releases, baked into the website at deploy time. Reading them from
@@ -78,6 +82,65 @@ export async function checkForUpdates(): Promise<UpdateCheck> {
     downloadSize: installer?.size,
     changelogUrl: `${CHANGELOG_URL}#v${version}`,
   };
+}
+
+/**
+ * Downloads the update and puts it in place of the installed app, reporting
+ * the progress as a fraction (null while the size is unknown). Mido downloads
+ * it itself, so macOS doesn't quarantine it and it opens without the warning
+ * an unsigned app downloaded in the browser gets. Resolves to false if the
+ * release has no update for this app (e.g. a release from before the
+ * updater): the installer has to be downloaded instead.
+ */
+export async function installUpdate(onProgress: (fraction: number | null) => void): Promise<boolean> {
+  const update = await check();
+  if (!update) return false;
+  let total = 0;
+  let received = 0;
+  await update.downloadAndInstall((event) => {
+    if (event.event === "Started") {
+      total = event.data.contentLength ?? 0;
+      onProgress(total ? 0 : null);
+    } else if (event.event === "Progress") {
+      received += event.data.chunkLength;
+      onProgress(total ? Math.min(received / total, 1) : null);
+    } else {
+      onProgress(1);
+    }
+  });
+  return true;
+}
+
+/** Asks every window to save its edits before a restart; each answers with `RESTART_READY`. */
+export const PREPARE_RESTART = "prepare-restart";
+export const RESTART_READY = "restart-ready";
+export interface RestartReady {
+  label: string;
+  /** False if something is still unsaved (a save failed or was cancelled). */
+  saved: boolean;
+}
+
+/** Restarts Mido once every window has saved its edits; throws, without restarting, if one couldn't. */
+export async function restartWhenSaved(): Promise<void> {
+  const labels = (await getAllWebviewWindows()).map((w) => w.label);
+  const replies = new Map<string, boolean>();
+  let allReplied = () => {};
+  const done = new Promise<void>((resolve) => (allReplied = resolve));
+  const unlisten = await listen<RestartReady>(RESTART_READY, ({ payload }) => {
+    replies.set(payload.label, payload.saved);
+    if (labels.every((l) => replies.has(l))) allReplied();
+  });
+  try {
+    await emit(PREPARE_RESTART);
+    // A save can ask what to do about a conflict: leave time to answer.
+    await Promise.race([done, new Promise((resolve) => setTimeout(resolve, 120_000))]);
+  } finally {
+    unlisten();
+  }
+  if (!labels.every((l) => replies.get(l))) {
+    throw new Error("Some changes couldn't be saved. Save them, then choose Restart again.");
+  }
+  await relaunch();
 }
 
 const ALLOWED_TAGS = new Set([

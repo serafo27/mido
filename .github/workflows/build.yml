@@ -100,12 +100,21 @@ jobs:
 
       # Runs `pnpm build` (type-check + Vite) and bundles the app. On a `v*` tag
       # it also uploads the installers to a draft release, which the `publish`
-      # job makes public once every build has succeeded.
+      # job makes public once every build has succeeded, along with the app
+      # zipped and signed with the updater key, which the in-app updater
+      # installs (see `latest.json` below). Other builds skip the updater files,
+      # so they don't need the key.
       - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          args: --target ${{ matrix.target }}
+          args: >-
+            --target ${{ matrix.target }}
+            ${{ startsWith(github.ref, 'refs/tags/v') && '--config src-tauri/tauri.release.conf.json' || '' }}
+          # Written once by the `publish` job: the two builds would race to update it.
+          includeUpdaterJson: false
           tagName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
           releaseName: Mido ${{ github.ref_name }}
           releaseBody: ${{ steps.notes.outputs.body }}
@@ -133,15 +142,37 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      # tauri-action also uploads zipped .app bundles (meant for auto-updates,
-      # which Mido doesn't use); keep only the .dmg installers.
-      - name: Remove extra assets
+      # What the in-app updater reads (from the latest release) to find the
+      # update for each Mac and check its signature.
+      - name: Publish latest.json for the updater
+        shell: bash
         run: |
-          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' |
-            grep -E '\.app\.tar\.gz(\.sig)?$' |
-            while read -r asset; do
-              gh release delete-asset "$GITHUB_REF_NAME" "$asset" --repo "$GITHUB_REPOSITORY" --yes
-            done
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          dir=$(mktemp -d)
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.app.tar.gz.sig' --dir "$dir"
+          platforms='{}'
+          for sig in "$dir"/*.sig; do
+            name=$(basename "$sig" .sig)
+            case "$name" in
+              *aarch64*|*arm64*) platform=darwin-aarch64 ;;
+              *x64*|*x86_64*) platform=darwin-x86_64 ;;
+              *) echo "::error::Can't tell the architecture of $name"; exit 1 ;;
+            esac
+            platforms=$(jq --arg p "$platform" --arg s "$(cat "$sig")" \
+              --arg u "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$name" \
+              '. + {($p): {signature: $s, url: $u}}' <<< "$platforms")
+          done
+          for platform in darwin-aarch64 darwin-x86_64; do
+            if [ "$(jq --arg p "$platform" 'has($p)' <<< "$platforms")" != true ]; then
+              echo "::error::No signed update for $platform"
+              exit 1
+            fi
+          done
+          jq -n --arg v "${tag#v}" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson p "$platforms" \
+            '{version: $v, pub_date: $d, notes: "", platforms: $p}' > "$dir/latest.json"
+          cat "$dir/latest.json"
+          gh release upload "$tag" "$dir/latest.json" --repo "$GITHUB_REPOSITORY" --clobber
 
       - name: Publish the draft release
         run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest

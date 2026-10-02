@@ -1,8 +1,8 @@
 import { useEffect, useState, type MouseEvent } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Download } from "lucide-react";
+import { Download, RotateCw } from "lucide-react";
 import { Logo } from "./Welcome";
-import type { UpdateInfo } from "../lib/updates";
+import { installUpdate, restartWhenSaved, type UpdateInfo } from "../lib/updates";
 
 export type UpdateState =
   | { kind: "checking" }
@@ -19,18 +19,63 @@ interface UpdateDialogProps {
   onClose: () => void;
 }
 
+/** Where installing an available update has got to. */
+type Install =
+  | { step: "idle" }
+  | { step: "downloading"; progress: number | null }
+  | { step: "installed" }
+  | { step: "restarting" }
+  /** The installer is downloading in the browser instead (no update for this app, or installing failed). */
+  | { step: "browser"; reason?: string };
+
 const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en", { year: "numeric", month: "long", day: "numeric" });
+  new Date(iso).toLocaleDateString("en", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 
 export default function UpdateDialog(props: UpdateDialogProps) {
   const { state, onClose } = props;
-  const [downloaded, setDownloaded] = useState(false);
+  const [install, setInstall] = useState<Install>({ step: "idle" });
+  const [restartError, setRestartError] = useState<string | null>(null);
+  const busy = install.step === "downloading" || install.step === "restarting";
+
+  const downloadInBrowser = (info: UpdateInfo, reason?: string) => {
+    openUrl(info.downloadUrl).catch(console.error);
+    setInstall({ step: "browser", reason });
+  };
+
+  const startInstall = async (info: UpdateInfo) => {
+    setInstall({ step: "downloading", progress: null });
+    try {
+      if (await installUpdate((progress) => setInstall({ step: "downloading", progress }))) {
+        setInstall({ step: "installed" });
+      } else {
+        downloadInBrowser(info);
+      }
+    } catch (e) {
+      console.error(e);
+      downloadInBrowser(info, "Mido couldn't install the update itself.");
+    }
+  };
+
+  const restart = async () => {
+    setRestartError(null);
+    setInstall({ step: "restarting" });
+    try {
+      await restartWhenSaved();
+    } catch (e) {
+      setRestartError(e instanceof Error ? e.message : String(e));
+      setInstall({ step: "installed" });
+    }
+  };
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, busy]);
 
   // Links in the release notes open in the browser, not inside the app.
   const openLinksExternally = (e: MouseEvent) => {
@@ -42,7 +87,7 @@ export default function UpdateDialog(props: UpdateDialogProps) {
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div className="modal update-dialog" role="dialog" aria-modal="true" aria-labelledby="update-title">
         <Logo size={52} />
 
@@ -93,12 +138,30 @@ export default function UpdateDialog(props: UpdateDialogProps) {
               <div dangerouslySetInnerHTML={{ __html: state.info.notesHtml }} />
             </div>
 
-            {downloaded ? (
+            {install.step === "downloading" && (
+              <div
+                className="update-progress"
+                role="progressbar"
+                aria-valuenow={install.progress === null ? undefined : Math.round(install.progress * 100)}
+              >
+                <div
+                  className={`update-progress-bar ${install.progress === null ? "indeterminate" : ""}`}
+                  style={install.progress === null ? undefined : { width: `${install.progress * 100}%` }}
+                />
+              </div>
+            )}
+            {install.step === "installed" && (
               <p className="update-hint">
-                The download has started in your browser. Open the <code>.dmg</code> and drag Mido to Applications,
-                replacing this version, then reopen Mido.
+                {restartError ??
+                  `Mido ${state.info.version} is installed. Restart to start using it; your edits are saved first.`}
               </p>
-            ) : null}
+            )}
+            {install.step === "browser" && (
+              <p className="update-hint">
+                {install.reason ? `${install.reason} ` : ""}The download has started in your browser. Open the{" "}
+                <code>.dmg</code> and drag Mido to Applications, replacing this version, then reopen Mido.
+              </p>
+            )}
 
             <div className="modal-actions spread">
               <label className="update-optout">
@@ -110,21 +173,24 @@ export default function UpdateDialog(props: UpdateDialogProps) {
                 Don't show update notifications
               </label>
               <div className="modal-buttons">
-                <button className="ghost-button" onClick={onClose}>
-                  {downloaded ? "Done" : "Later"}
+                <button className="ghost-button" onClick={onClose} disabled={busy}>
+                  {install.step === "browser" ? "Done" : "Later"}
                 </button>
-                {!downloaded && (
-                  <button
-                    className="primary-button small"
-                    autoFocus
-                    onClick={() => {
-                      openUrl(state.info.downloadUrl).catch(console.error);
-                      setDownloaded(true);
-                    }}
-                  >
+                {install.step === "idle" && (
+                  <button className="primary-button small" autoFocus onClick={() => startInstall(state.info)}>
                     <Download size={14} />
-                    Download {state.info.version}
-                    {state.info.downloadSize ? ` (${(state.info.downloadSize / 1e6).toFixed(1)} MB)` : ""}
+                    Install {state.info.version}
+                  </button>
+                )}
+                {install.step === "downloading" && (
+                  <button className="primary-button small" disabled>
+                    {install.progress === null ? "Downloading…" : `Downloading… ${Math.round(install.progress * 100)}%`}
+                  </button>
+                )}
+                {(install.step === "installed" || install.step === "restarting") && (
+                  <button className="primary-button small" autoFocus onClick={restart} disabled={busy}>
+                    <RotateCw size={14} />
+                    {install.step === "restarting" ? "Restarting…" : "Restart Mido"}
                   </button>
                 )}
               </div>

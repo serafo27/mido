@@ -32,7 +32,7 @@ Windows and Linux builds are planned but not published yet.
 
 Just want to read? [Mido for the web](https://serafo27.github.io/mido/app/) opens folders and Markdown files from your computer right in the browser, read-only. Nothing is uploaded: the files are read in the browser and never leave your computer. Chrome, Edge and other Chromium browsers can reopen recent folders and pick up changes made on disk; Safari and Firefox read a folder as it is when you open it.
 
-Mido isn't code-signed yet: the first time, right-click the app and choose **Open** (or run `xattr -cr /Applications/Mido.app`).
+Mido isn't code-signed yet: the first time, right-click the app and choose **Open**, or allow it in **System Settings → Privacy & Security** (or run `xattr -cr /Applications/Mido.app`). Updates install from inside the app and don't ask again.
 
 ## Features
 
