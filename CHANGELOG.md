@@ -11,10 +11,10 @@ GitHub and on the website's changelog page.
 
 ### Added
 
-- **Source control** for folders in a git repository (the folder itself or one above it), in the sidebar (⌃⇧G): the branch and how far it is from the remote, the changed files, staging them one by one, a commit message and **Commit**, then **Fetch**, **Pull** (asking whether to merge or rebase each time) and **Push**, which offers to publish a new branch. Nothing happens on its own: Mido only does what you click.
+- **Source control** for folders in a git repository (the folder itself or one above it), in the sidebar (⌃⇧G): laid out like VS Code's: a commit message and **Commit**, **Pull** and **Push** with the number of commits waiting, staged changes and changes with their status colours, staging file by file, and a graph of the branch's history with each commit's files. **Fetch**, **Pull** (asking whether to merge or rebase each time) and **Push** (offering to publish a new branch) are also in the panel's title. Nothing happens on its own: Mido only does what you click.
 - Changed files show their git letter (M, A, D, U) in the file tree, and the branch shows in the status bar.
-- Diffs of a change, a staged change or a file in a commit, side by side or inline, from the panel's changes and history.
-- Merge and rebase conflicts: each conflict offers to keep the current side, the incoming one or both, the text stays editable, and **Mark as Resolved** stages the file. Then **Commit Merge** (or **Continue Rebase**) finishes, and **Abort** goes back.
+- Diffs open in tabs next to your files, as in VS Code: a file's changes, its staged changes, or what a commit changed in it, side by side or inline, with line numbers, the words that changed highlighted, unchanged stretches folded, and buttons to jump between changes and to stage or unstage. A single click opens a preview tab; a double click keeps it.
+- Merge and rebase conflicts open in a tab as VS Code shows them: the current and incoming changes coloured, with **Accept Current Change**, **Accept Incoming Change** and **Accept Both Changes** above each, the text editable, and **Mark as Resolved** to stage the file. Then **Commit Merge** (or **Continue Rebase**) finishes, and **Abort** goes back.
 - Git runs as it does in Terminal, with your keys, credentials, hooks and settings, and only in a repository you've allowed it in.
 
 ## [0.11.0] - 2026-10-02

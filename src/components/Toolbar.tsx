@@ -34,6 +34,8 @@ interface ToolbarProps {
   commentCount: number;
   /** Tabs shown in the title bar in place of the path (when the path bar is off). */
   tabs?: TabInfo[];
+  /** The active tab's key: a file's path, or a diff's. */
+  activeTab: string | null;
   onSelectTab: (path: string) => void;
   onPinTab: (path: string) => void;
   onCloseTab: (path: string) => void;
@@ -77,7 +79,7 @@ export default function Toolbar(props: ToolbarProps) {
         <TabBar
           embedded
           tabs={props.tabs}
-          activePath={activePath}
+          activePath={props.activeTab}
           onSelect={props.onSelectTab}
           onPin={props.onPinTab}
           onClose={props.onCloseTab}

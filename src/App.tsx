@@ -89,6 +89,31 @@ interface Tab {
   conflict?: boolean;
 }
 
+/** A diff open in a tab. Its key starts with "diff:", so it never clashes with a file's path. */
+interface DiffTab {
+  key: string;
+  target: DiffTarget;
+  /** Replaced by the next diff opened with a single click, like a file's preview tab. */
+  preview: boolean;
+}
+
+const diffTabKey = (target: DiffTarget) => `diff:${diffKey(target)}`;
+const isDiffKey = (key: string) => key.startsWith("diff:");
+
+/** What a diff tab is called, as in VS Code: "a.md (Working Tree)". */
+function diffTabInfo(target: DiffTarget) {
+  const name = basename(target.change.path);
+  const detail =
+    target.kind === "unstaged"
+      ? "(Working Tree)"
+      : target.kind === "staged"
+        ? "(Index)"
+        : target.kind === "commit"
+          ? `(${target.commit.short})`
+          : "(Merge Conflict)";
+  return { name, detail, title: `${target.change.path} ${detail}` };
+}
+
 /** The fields every comment event has. */
 const newEvent = (thread: string, by: Author) => ({ id: ulid(), thread, author: by, at: new Date().toISOString() });
 /** Resolving and reopening don't ask for a name when there's no git user yet. */
@@ -145,6 +170,9 @@ export default function App() {
 
   const [tree, setTree] = useState<FileNode[]>([]);
   const [tabs, setTabs] = useState<Tab[]>([]);
+  // Diffs open in tabs next to the files' (see `openDiff`); one of them may be the active tab.
+  const [diffTabs, setDiffTabs] = useState<DiffTab[]>([]);
+  const [activeDiff, setActiveDiff] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -172,6 +200,22 @@ export default function App() {
   // Latest values for async callbacks and event listeners.
   const live = useRef({ tabs, activePath, mode, settings, root });
   live.current = { tabs, activePath, mode, settings, root };
+  const liveDiffs = useRef({ diffTabs, activeDiff });
+  liveDiffs.current = { diffTabs, activeDiff };
+  const activeDiffInfo = useMemo(() => {
+    const tab = diffTabs.find((t) => t.key === activeDiff);
+    return tab ? diffTabInfo(tab.target) : null;
+  }, [diffTabs, activeDiff]);
+
+  /** Activates a file's tab or a diff's. */
+  const selectTab = useCallback(
+    (key: string) => {
+      if (isDiffKey(key)) return setActiveDiff(key);
+      setActiveDiff(null);
+      setActivePath(key);
+    },
+    [setActivePath],
+  );
 
   const fail = useCallback((e: unknown) => {
     console.error(e);
@@ -283,6 +327,7 @@ export default function App() {
     async (path: string, pin = false) => {
       if (live.current.tabs.some((t) => t.path === path)) {
         if (pin) pinTab(path);
+        setActiveDiff(null);
         setActivePath(path);
         return;
       }
@@ -303,6 +348,7 @@ export default function App() {
           }
           return next;
         });
+        setActiveDiff(null);
         setActivePath(path);
       } catch (e) {
         fail(e);
@@ -363,11 +409,13 @@ export default function App() {
   const cycleTab = useCallback(
     (delta: number) => {
       const { tabs, activePath } = live.current;
-      if (tabs.length < 2) return;
-      const i = tabs.findIndex((t) => t.path === activePath);
-      setActivePath(tabs[(i + delta + tabs.length) % tabs.length].path);
+      const { diffTabs, activeDiff } = liveDiffs.current;
+      const keys = [...tabs.map((t) => t.path), ...diffTabs.map((t) => t.key)];
+      if (keys.length < 2) return;
+      const i = keys.indexOf(activeDiff ?? activePath ?? "");
+      selectTab(keys[(i + delta + keys.length) % keys.length]);
     },
-    [setActivePath],
+    [],
   );
 
   /** Saves images added in the editor next to the document; returns the Markdown linking them. */
@@ -580,9 +628,13 @@ export default function App() {
   }, [saveAll]);
 
   useEffect(() => {
-    const title = activePath ? `${basename(activePath)}${dirty ? " •" : ""} — Mido` : "Mido";
+    const title = activeDiffInfo
+      ? `${activeDiffInfo.name} ${activeDiffInfo.detail} — Mido`
+      : activePath
+        ? `${basename(activePath)}${dirty ? " •" : ""} — Mido`
+        : "Mido";
     getCurrentWindow().setTitle(title).catch(() => {});
-  }, [activePath, dirty]);
+  }, [activePath, dirty, activeDiffInfo]);
 
   /* ---------- comments ---------- */
 
@@ -904,11 +956,60 @@ export default function App() {
   const gitOpenRef = useRef(gitOpen);
   gitOpenRef.current = gitOpen;
   const [gitError, setGitError] = useState<string | null>(null);
-  const [diff, setDiff] = useState<DiffTarget | null>(null);
   useEffect(() => {
-    setDiff(null);
+    setDiffTabs([]);
+    setActiveDiff(null);
     setGitError(null);
   }, [root]);
+
+  /** Opens a diff in a tab: a preview tab with a single click, one that stays with `pin`. */
+  const openDiff = useCallback((target: DiffTarget, pin = false) => {
+    const key = diffTabKey(target);
+    setDiffTabs((ts) => {
+      if (ts.some((t) => t.key === key)) return pin ? ts.map((t) => (t.key === key ? { ...t, preview: false } : t)) : ts;
+      const tab = { key, target, preview: !pin };
+      const preview = ts.findIndex((t) => t.preview);
+      if (preview >= 0) return ts.map((t, i) => (i === preview ? tab : t));
+      return [...ts, tab];
+    });
+    setActiveDiff(key);
+  }, []);
+
+  const closeDiff = useCallback(
+    (key: string) => {
+      const { tabs, activePath } = live.current;
+      const { diffTabs, activeDiff } = liveDiffs.current;
+      setDiffTabs((ts) => ts.filter((t) => t.key !== key));
+      if (activeDiff !== key) return;
+      // Activate the neighbour, like closing a file's tab does.
+      const keys = [...tabs.map((t) => t.path), ...diffTabs.map((t) => t.key)];
+      const index = keys.indexOf(key);
+      const remaining = keys.filter((k) => k !== key);
+      const neighbour = remaining[Math.min(index, remaining.length - 1)];
+      if (neighbour && isDiffKey(neighbour)) setActiveDiff(neighbour);
+      else {
+        setActiveDiff(null);
+        if (neighbour) setActivePath(neighbour);
+        else if (activePath) setActivePath(activePath);
+      }
+    },
+    [setActivePath],
+  );
+
+  /** Swaps a diff tab's target (staging a file turns its working tree diff into the index's). */
+  const retargetDiffs = useCallback((change: (t: DiffTarget) => DiffTarget | null) => {
+    const renamed = new Map<string, string>();
+    setDiffTabs((ts) =>
+      ts.map((tab) => {
+        const target = change(tab.target);
+        if (!target) return tab;
+        const key = diffTabKey(target);
+        renamed.set(tab.key, key);
+        return { ...tab, key, target };
+      }),
+    );
+    setActiveDiff((a) => (a && renamed.has(a) ? renamed.get(a)! : a));
+  }, []);
   // The search panel and the source control panel take the tree's place in turn.
   const setGitOpen = useCallback((open: boolean) => {
     setGitOpenState(open);
@@ -951,31 +1052,29 @@ export default function App() {
   const stage = useCallback(
     async (paths: string[]) => {
       if (!(await gitAction("Staging…", () => api.gitStage(paths)))) return;
-      setDiff((d) =>
-        d?.kind === "unstaged" && paths.includes(d.change.path)
+      retargetDiffs((d) =>
+        d.kind === "unstaged" && paths.includes(d.change.path)
           ? { kind: "staged", change: { ...d.change, staged: d.change.unstaged === "?" ? "A" : d.change.unstaged, unstaged: null } }
-          : d,
+          : null,
       );
     },
-    [gitAction],
+    [gitAction, retargetDiffs],
   );
   const unstage = useCallback(
     async (paths: string[]) => {
       if (!(await gitAction("Unstaging…", () => api.gitUnstage(paths)))) return;
-      setDiff((d) =>
-        d?.kind === "staged" && paths.includes(d.change.path)
+      retargetDiffs((d) =>
+        d.kind === "staged" && paths.includes(d.change.path)
           ? { kind: "unstaged", change: { ...d.change, unstaged: d.change.staged === "A" ? "?" : d.change.staged, staged: null } }
-          : d,
+          : null,
       );
     },
-    [gitAction],
+    [gitAction, retargetDiffs],
   );
 
   const commit = useCallback(
     async (message: string) => {
-      const done = await gitAction("Committing…", () => api.gitCommit(message));
-      if (done) setDiff((d) => (d?.kind === "staged" ? null : d));
-      return done;
+      return gitAction("Committing…", () => api.gitCommit(message));
     },
     [gitAction],
   );
@@ -1020,37 +1119,54 @@ export default function App() {
       okLabel: `Abort ${what === "rebase" ? "Rebase" : "Merge"}`,
       cancelLabel: "Cancel",
     });
-    if (sure && (await gitAction("Aborting…", api.gitAbort))) setDiff(null);
-  }, [gitStatus, gitAction]);
+    if (sure && (await gitAction("Aborting…", api.gitAbort))) {
+      for (const tab of liveDiffs.current.diffTabs) if (tab.target.kind === "conflict") closeDiff(tab.key);
+    }
+  }, [gitStatus, gitAction, closeDiff]);
 
   const resolveConflict = useCallback(
     async (path: string, content: string) => {
       const done = await gitAction("Marking as resolved…", () => api.gitResolve(path, content));
-      if (done) setDiff(null);
+      if (done) closeDiff(diffTabKey({ kind: "conflict", change: { path } as DiffTarget["change"] }));
       return done;
     },
-    [gitAction],
+    [gitAction, closeDiff],
   );
 
-  const openFromGit = useCallback(
-    (path: string) => {
-      setDiff(null);
-      openFile(path);
+  const activeDiffTab = diffTabs.find((t) => t.key === activeDiff) ?? null;
+
+  const tabInfos = useMemo(
+    () => [
+      ...tabs.map((t) => ({ path: t.path, dirty: isDirty(t), preview: t.preview })),
+      ...diffTabs.map((t) => ({ path: t.key, dirty: false, preview: t.preview, diff: diffTabInfo(t.target) })),
+    ],
+    [tabs, diffTabs],
+  );
+  const activeTabKey = activeDiff ?? activePath;
+  const pinAnyTab = useCallback(
+    (key: string) => {
+      if (isDiffKey(key)) setDiffTabs((ts) => ts.map((t) => (t.key === key ? { ...t, preview: false } : t)));
+      else pinTab(key);
     },
-    [openFile],
+    [pinTab],
+  );
+  const closeAnyTab = useCallback((key: string) => (isDiffKey(key) ? closeDiff(key) : closeTab(key)), [closeDiff, closeTab]);
+  // Files and diffs each keep their own order: a tab only moves among its kind.
+  const moveAnyTab = useCallback(
+    (from: number, to: number) => {
+      const files = live.current.tabs.length;
+      if (from < files && to < files) moveTab(from, to);
+      else if (from >= files && to >= files)
+        setDiffTabs((ts) => {
+          const next = [...ts];
+          const [tab] = next.splice(from - files, 1);
+          next.splice(to - files, 0, tab);
+          return next;
+        });
+    },
+    [moveTab],
   );
 
-  // A diff closes with Escape, unless the key is meant for a field or the conflict editor.
-  useEffect(() => {
-    if (!diff) return;
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (e.key !== "Escape" || target?.closest("input, textarea, .cm-editor")) return;
-      setDiff(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [diff]);
 
   /* ---------- updates ---------- */
 
@@ -1267,7 +1383,10 @@ export default function App() {
       const actions: Record<string, () => void> = {
         s: saveActive,
         o: () => openFolder(),
-        w: () => live.current.activePath && closeTab(live.current.activePath),
+        w: () => {
+          const key = liveDiffs.current.activeDiff ?? live.current.activePath;
+          if (key) closeAnyTab(key);
+        },
         p: () => setQuickSearchOpen((open) => !open),
         ",": () => setSettingsOpen((o) => !o),
         "\\": () => setSidebarOpen((o) => !o),
@@ -1283,7 +1402,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive, openFolder, closeTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, printDocument, fail, git.repo, setGitOpen]);
+  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, printDocument, fail, git.repo, setGitOpen]);
 
   const dragResize = (e: ReactPointerEvent<HTMLDivElement>, onMove: (ev: PointerEvent) => void) => {
     e.preventDefault();
@@ -1412,11 +1531,6 @@ export default function App() {
 
   /* ---------- render ---------- */
 
-  const tabInfos = useMemo(
-    () => tabs.map((t) => ({ path: t.path, dirty: isDirty(t), preview: t.preview })),
-    [tabs],
-  );
-
   const overlays = (
     <>
       {desktopFeature && <DesktopOnly feature={desktopFeature} onClose={() => setDesktopFeature(null)} />}
@@ -1457,7 +1571,7 @@ export default function App() {
       showSidebarToggle={root !== null}
       sidebarOpen={root !== null && sidebarOpen}
       root={root}
-      activePath={active ? active.path : null}
+      activePath={active && !activeDiffTab ? active.path : null}
       dirty={dirty}
       mode={mode}
       wrap={settings.wrap}
@@ -1465,11 +1579,12 @@ export default function App() {
       outlineOpen={outlineOpen}
       commentsOpen={commentsOpen}
       commentCount={openThreadCount}
-      tabs={root && !settings.showPathBar && tabs.length > 0 ? tabInfos : undefined}
-      onSelectTab={setActivePath}
-      onPinTab={pinTab}
-      onCloseTab={closeTab}
-      onMoveTab={moveTab}
+      tabs={root && !settings.showPathBar && tabInfos.length > 0 ? tabInfos : undefined}
+      activeTab={activeTabKey}
+      onSelectTab={selectTab}
+      onPinTab={pinAnyTab}
+      onCloseTab={closeAnyTab}
+      onMoveTab={moveAnyTab}
       onToggleOutline={() => setOutlineOpen((o) => !o)}
       onToggleComments={() => setCommentsOpen((o) => !o)}
       onMode={changeMode}
@@ -1528,7 +1643,7 @@ export default function App() {
                     repo={git.repo}
                     busy={git.busy}
                     unsaved={unsavedPaths}
-                    activeDiff={diff && diffKey(diff)}
+                    activeDiff={activeDiffTab && diffKey(activeDiffTab.target)}
                     error={gitError}
                     onDismissError={() => setGitError(null)}
                     onTrust={trustRepo}
@@ -1540,8 +1655,8 @@ export default function App() {
                     onPush={push}
                     onContinue={continueOperation}
                     onAbort={abortOperation}
-                    onOpenDiff={setDiff}
-                    onOpenFile={openFromGit}
+                    onOpenDiff={openDiff}
+                    onOpenFile={openFile}
                   />
                 )
               }
@@ -1554,23 +1669,25 @@ export default function App() {
         )}
         <main className="main">
           {toolbar}
-          {settings.showPathBar && tabs.length > 0 && (
+          {settings.showPathBar && tabInfos.length > 0 && (
             <TabBar
               tabs={tabInfos}
-              activePath={activePath}
-              onSelect={setActivePath}
-              onPin={pinTab}
-              onClose={closeTab}
-              onMove={moveTab}
+              activePath={activeTabKey}
+              onSelect={selectTab}
+              onPin={pinAnyTab}
+              onClose={closeAnyTab}
+              onMove={moveAnyTab}
             />
           )}
-          {diff ? (
+          {activeDiffTab ? (
             <DiffView
-              target={diff}
+              key={activeDiffTab.key}
+              target={activeDiffTab.target}
               version={gitVersion}
               busy={git.busy !== null}
-              onClose={() => setDiff(null)}
-              onOpenFile={openFromGit}
+              onOpenFile={openFile}
+              onStage={stage}
+              onUnstage={unstage}
               onResolve={resolveConflict}
             />
           ) : active ? (

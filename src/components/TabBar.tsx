@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, GitCompareArrows, X } from "lucide-react";
 import { basename, dirname } from "../lib/paths";
 
 export interface TabInfo {
+  /** The file's path, or the tab's own key for a tab that isn't a file. */
   path: string;
   dirty: boolean;
   preview: boolean;
+  /** A diff rather than a file. */
+  diff?: { name: string; detail: string; title: string };
 }
 
 interface TabBarProps {
@@ -65,9 +68,10 @@ export default function TabBar({ tabs, activePath, onSelect, onPin, onClose, onM
   const overflowing = hidden.start || hidden.end;
 
   // Disambiguate tabs that share a file name with their parent folder.
-  const names = tabs.map((t) => basename(t.path));
+  const names = tabs.map((t) => t.diff?.name ?? basename(t.path));
   const hint = (i: number) =>
-    names.filter((n) => n === names[i]).length > 1 ? basename(dirname(tabs[i].path)) : null;
+    tabs[i].diff?.detail ??
+    (names.filter((n, j) => n === names[i] && !tabs[j].diff).length > 1 ? basename(dirname(tabs[i].path)) : null);
 
   return (
     // Empty strip space still drags the window when the tabs live in the title bar.
@@ -101,7 +105,7 @@ export default function TabBar({ tabs, activePath, onSelect, onPin, onClose, onM
             ]
               .filter(Boolean)
               .join(" ")}
-            title={tab.preview ? `${tab.path}\nPreview — double-click to keep open` : tab.path}
+            title={(tab.diff?.title ?? tab.path) + (tab.preview ? "\nPreview — double-click to keep open" : "")}
             draggable
             onMouseDown={(e) => {
               if (e.button === 0) onSelect(tab.path);
@@ -131,7 +135,7 @@ export default function TabBar({ tabs, activePath, onSelect, onPin, onClose, onM
               setDropIndex(null);
             }}
           >
-            <FileText size={13} className="tab-icon" />
+            {tab.diff ? <GitCompareArrows size={13} className="tab-icon" /> : <FileText size={13} className="tab-icon" />}
             <span className="tab-name">{names[i]}</span>
             {hint(i) && <span className="tab-hint">{hint(i)}</span>}
             <button
