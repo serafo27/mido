@@ -1,5 +1,5 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { ArrowRight, GitBranch, GitCommitHorizontal, X } from "lucide-react";
+import { ArrowRight, GitBranch, GitCommitHorizontal } from "lucide-react";
 import { api, type GitCommit, type GitFileChange, type GitStatus } from "../lib/api";
 import { basename, dirname } from "../lib/paths";
 import { isMac } from "../lib/platform";
@@ -63,13 +63,10 @@ export default function PushDialog(props: PushDialogProps) {
       className="push-dialog"
       label="Push Commits"
       onKeyDown={onKey}
+      onClose={props.onClose}
       header={
         <>
           <span className="git-dialog-title">Push Commits</span>
-          <span className="spacer" />
-          <button className="icon-button" onClick={props.onClose} title="Close (Esc)" aria-label="Close">
-            <X size={15} />
-          </button>
         </>
       }
     >

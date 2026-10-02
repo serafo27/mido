@@ -3291,7 +3291,10 @@ body.web-dropping::after {
   border-color: var(--accent);
 }
 .scm-commit textarea::placeholder {
-  color: var(--text-faint);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* VS Code's Commit button: the action, and beside it a menu of the others. */
 .scm-split-button {
@@ -3987,7 +3990,12 @@ body.web-dropping::after {
 .scm-changes.closed {
   flex-grow: 0;
 }
+/* The branch, message and Commit button stay put; only the files below them scroll. */
+.scm-changes > * {
+  flex: none;
+}
 .scm-changes > .scm-scroll {
+  flex: 1 1 0;
   min-height: 0;
 }
 /* Folded views gather at the top: this takes the space below them. */
@@ -4154,7 +4162,7 @@ body.web-dropping::after {
   align-items: center;
   gap: 10px;
   height: 42px;
-  padding: 0 8px 0 18px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--border-soft);
 }
 .git-dialog-title {
@@ -4726,6 +4734,10 @@ body.resizing-row * {
   font-size: 12.5px;
   line-height: 1.5;
 }
+.commit-message::placeholder {
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+}
 .commit-message:focus,
 .commit-option-field input:focus {
   outline: none;
@@ -4827,4 +4839,61 @@ body.resizing-row * {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
+}
+
+/* ---------- a dialog's window buttons, as macOS draws them ---------- */
+.window-lights {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  margin-right: 6px;
+}
+.window-light {
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border-radius: 50%;
+  border: 0.5px solid rgba(0, 0, 0, 0.15);
+}
+.window-light.close {
+  background: #ff5f57;
+}
+.window-light.minimize {
+  background: #febc2e;
+}
+.window-light.zoom {
+  background: #28c840;
+}
+/* Like a sheet's: there's nothing to minimize to. */
+.window-light:disabled {
+  background: color-mix(in srgb, var(--text-faint) 45%, transparent);
+  border-color: transparent;
+}
+.window-light svg {
+  width: 8px;
+  height: 8px;
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0;
+}
+.window-lights:hover .window-light:not(:disabled) svg {
+  opacity: 1;
+}
+.window-light:active:not(:disabled) {
+  filter: brightness(0.85);
+}
+
+/* A group's title stays at the top of the list while its files scroll under it, as in VS Code. */
+.scm-scroll .scm-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-sidebar);
+}
+.scm-scroll .scm-group-header:hover {
+  background: color-mix(in srgb, var(--bg-sidebar) 100%, var(--text) 5%);
 }

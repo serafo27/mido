@@ -11,7 +11,6 @@ import {
   GitBranch,
   List,
   Undo2,
-  X,
 } from "lucide-react";
 import { api, type CommitOptions, type GitFileChange, type GitStatus } from "../lib/api";
 import type { Author } from "../lib/comments";
@@ -278,6 +277,7 @@ export default function CommitDialog(props: CommitDialogProps) {
       className="commit-dialog"
       label="Commit Changes"
       onKeyDown={onKey}
+      onClose={props.onClose}
       header={
         <>
           <span className="git-dialog-title">Commit Changes</span>
@@ -285,10 +285,6 @@ export default function CommitDialog(props: CommitDialogProps) {
             <GitBranch size={13} />
             {status.branch ?? "detached HEAD"}
           </span>
-          <span className="spacer" />
-          <button className="icon-button" onClick={props.onClose} title="Close (Esc)" aria-label="Close">
-            <X size={15} />
-          </button>
         </>
       }
     >

@@ -18,6 +18,8 @@ interface FloatingDialogProps {
   /** The title bar's content: dragging the bar moves the dialog. */
   header: ReactNode;
   children: ReactNode;
+  /** The red button, as on a macOS window. */
+  onClose: () => void;
   onKeyDown?: (e: KeyboardEvent) => void;
 }
 
@@ -52,6 +54,18 @@ export default function FloatingDialog(props: FloatingDialogProps) {
   const latest = useRef(bounds);
   latest.current = bounds;
   const dialog = useRef<HTMLDivElement>(null);
+  // Where the green button brings it back to after filling the window.
+  const beforeZoom = useRef<Bounds | null>(null);
+  const zoomed = bounds.width >= window.innerWidth - MARGIN * 2 && bounds.height >= window.innerHeight - MARGIN * 2;
+  const zoom = () => {
+    if (zoomed && beforeZoom.current) {
+      setStored(beforeZoom.current);
+      beforeZoom.current = null;
+    } else {
+      beforeZoom.current = latest.current;
+      setStored(fit({ x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }, props.minSize));
+    }
+  };
 
   // A smaller window brings the dialog back inside it.
   useEffect(() => {
@@ -118,6 +132,29 @@ export default function FloatingDialog(props: FloatingDialogProps) {
         style={{ left: bounds.x, top: bounds.y, width: bounds.width, height: bounds.height }}
       >
         <header className="git-dialog-header draggable" onPointerDown={startMove} onDoubleClick={() => setStored(null)}>
+          {/* The window buttons, on the left as on every macOS window: close, (no) minimize, zoom. */}
+          <div className="window-lights" onDoubleClick={(e) => e.stopPropagation()}>
+            <button className="window-light close" title="Close (Esc)" aria-label="Close" onClick={props.onClose}>
+              <svg viewBox="0 0 8 8" aria-hidden>
+                <path d="M2 2l4 4M6 2L2 6" />
+              </svg>
+            </button>
+            <button className="window-light minimize" disabled aria-label="Minimize" tabIndex={-1}>
+              <svg viewBox="0 0 8 8" aria-hidden>
+                <path d="M1.5 4h5" />
+              </svg>
+            </button>
+            <button
+              className="window-light zoom"
+              title={zoomed ? "Restore" : "Fill the Window"}
+              aria-label={zoomed ? "Restore" : "Fill the Window"}
+              onClick={zoom}
+            >
+              <svg viewBox="0 0 8 8" aria-hidden>
+                <path d={zoomed ? "M4.5 1v2.5H7M3.5 7V4.5H1" : "M1.5 4.5v2h2M6.5 3.5v-2h-2"} />
+              </svg>
+            </button>
+          </div>
           {props.header}
         </header>
         {props.children}

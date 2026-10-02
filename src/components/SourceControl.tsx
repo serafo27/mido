@@ -281,108 +281,110 @@ export default function SourceControl(props: SourceControlProps) {
           <ChevronDown size={13} className="scm-branch-chevron" />
         </button>
 
-        <div className="scm-scroll">
-          {props.error && (
-            <div className="scm-notice error" role="alert">
-              <pre>{props.error}</pre>
-              <RowAction title="Dismiss" onClick={props.onDismissError}>
-                <X size={13} />
-              </RowAction>
-            </div>
-          )}
+        {props.error && (
+          <div className="scm-notice error" role="alert">
+            <pre>{props.error}</pre>
+            <RowAction title="Dismiss" onClick={props.onDismissError}>
+              <X size={13} />
+            </RowAction>
+          </div>
+        )}
 
-          {status.operation ? (
-            <div className="scm-notice warning">
-              <TriangleAlert size={14} />
-              <div className="scm-notice-body">
-                <strong>{status.operation === "merge" ? "Merge in progress" : "Rebase in progress"}</strong>
-                <span>
-                  {conflicts.length > 0
-                    ? `Resolve the conflicts in ${plural(conflicts.length, "file")}, then ${status.operation === "merge" ? "commit the merge" : "continue"}.`
-                    : `Every conflict is resolved: ${status.operation === "merge" ? "commit the merge" : "continue the rebase"}.`}
-                </span>
-                <div className="scm-notice-actions">
-                  <button className="scm-button" disabled={!!busy || conflicts.length > 0} onClick={props.onContinue}>
-                    <Check size={14} />
-                    {status.operation === "merge" ? "Commit Merge" : "Continue Rebase"}
+        {status.operation ? (
+          <div className="scm-notice warning">
+            <TriangleAlert size={14} />
+            <div className="scm-notice-body">
+              <strong>{status.operation === "merge" ? "Merge in progress" : "Rebase in progress"}</strong>
+              <span>
+                {conflicts.length > 0
+                  ? `Resolve the conflicts in ${plural(conflicts.length, "file")}, then ${status.operation === "merge" ? "commit the merge" : "continue"}.`
+                  : `Every conflict is resolved: ${status.operation === "merge" ? "commit the merge" : "continue the rebase"}.`}
+              </span>
+              <div className="scm-notice-actions">
+                <button className="scm-button" disabled={!!busy || conflicts.length > 0} onClick={props.onContinue}>
+                  <Check size={14} />
+                  {status.operation === "merge" ? "Commit Merge" : "Continue Rebase"}
+                </button>
+                <button className="scm-button secondary" disabled={!!busy} onClick={props.onAbort}>
+                  <Undo2 size={14} />
+                  Abort
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="scm-commit">
+            <textarea
+              ref={input}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={onMessageKey}
+              // Short, so it fits on one line: the branch is right above.
+              placeholder={`Message (${isMac ? "⌘↵" : "Ctrl+Enter"} to commit)`}
+              title={`Committing on “${branch}”`}
+              rows={1}
+              spellCheck
+            />
+            <div className="scm-split-button" ref={commitMenuRef}>
+              <button
+                className="scm-button primary"
+                disabled={primary.disabled}
+                onClick={() => primary.run()}
+                title={primary.label === "Commit" && staged.length === 0 ? "Stage the changes to commit first" : undefined}
+              >
+                {primary.icon}
+                {primary.label}
+              </button>
+              <button
+                className="scm-button more"
+                disabled={!!busy}
+                onClick={() => setCommitMenu((m) => !m)}
+                title="More Actions…"
+                aria-label="More Actions"
+                aria-haspopup="menu"
+                aria-expanded={commitMenu}
+              >
+                <ChevronDown size={14} />
+              </button>
+              {commitMenu && (
+                <div className="context-menu scm-commit-menu" role="menu">
+                  <button className="menu-item" role="menuitem" disabled={!canCommit} onClick={() => commit()}>
+                    Commit
                   </button>
-                  <button className="scm-button secondary" disabled={!!busy} onClick={props.onAbort}>
-                    <Undo2 size={14} />
-                    Abort
+                  <button className="menu-item" role="menuitem" disabled={!status.hasCommits || conflicts.length > 0} onClick={amend}>
+                    Commit (Amend)
+                  </button>
+                  <div className="menu-sep" />
+                  <button
+                    className="menu-item"
+                    role="menuitem"
+                    disabled={!canCommit || status.remotes.length === 0}
+                    onClick={() => commit("push")}
+                  >
+                    Commit &amp; Push
+                  </button>
+                  <button
+                    className="menu-item"
+                    role="menuitem"
+                    disabled={!canCommit || !status.upstream}
+                    onClick={() => commit("sync")}
+                  >
+                    Commit &amp; Sync
                   </button>
                 </div>
-              </div>
+              )}
             </div>
-          ) : (
-            <div className="scm-commit">
-              <textarea
-                ref={input}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={onMessageKey}
-                placeholder={`Message (${isMac ? "⌘" : "Ctrl+"}Enter to commit on “${branch}”)`}
-                rows={1}
-                spellCheck
-              />
-              <div className="scm-split-button" ref={commitMenuRef}>
-                <button
-                  className="scm-button primary"
-                  disabled={primary.disabled}
-                  onClick={() => primary.run()}
-                  title={primary.label === "Commit" && staged.length === 0 ? "Stage the changes to commit first" : undefined}
-                >
-                  {primary.icon}
-                  {primary.label}
-                </button>
-                <button
-                  className="scm-button more"
-                  disabled={!!busy}
-                  onClick={() => setCommitMenu((m) => !m)}
-                  title="More Actions…"
-                  aria-label="More Actions"
-                  aria-haspopup="menu"
-                  aria-expanded={commitMenu}
-                >
-                  <ChevronDown size={14} />
-                </button>
-                {commitMenu && (
-                  <div className="context-menu scm-commit-menu" role="menu">
-                    <button className="menu-item" role="menuitem" disabled={!canCommit} onClick={() => commit()}>
-                      Commit
-                    </button>
-                    <button className="menu-item" role="menuitem" disabled={!status.hasCommits || conflicts.length > 0} onClick={amend}>
-                      Commit (Amend)
-                    </button>
-                    <div className="menu-sep" />
-                    <button
-                      className="menu-item"
-                      role="menuitem"
-                      disabled={!canCommit || status.remotes.length === 0}
-                      onClick={() => commit("push")}
-                    >
-                      Commit &amp; Push
-                    </button>
-                    <button
-                      className="menu-item"
-                      role="menuitem"
-                      disabled={!canCommit || !status.upstream}
-                      onClick={() => commit("sync")}
-                    >
-                      Commit &amp; Sync
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          </div>
+        )}
 
-          {busy && (
-            <div className="scm-progress" role="status">
-              <span className="scm-progress-bar" />
-              <span className="scm-progress-label">{busy}</span>
-            </div>
-          )}
+        {busy && (
+          <div className="scm-progress" role="status">
+            <span className="scm-progress-bar" />
+            <span className="scm-progress-label">{busy}</span>
+          </div>
+        )}
 
+        <div className="scm-scroll">
           {hidden.length > 0 && (
             <div className="scm-hidden-note">
               {`${plural(hidden.length, "other file")} changed`}
