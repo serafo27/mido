@@ -41,7 +41,7 @@ interface EditorProps {
 }
 
 // Colors come from CSS variables so the editor follows the app theme for free.
-const editorTheme = EditorView.theme({
+export const editorTheme = EditorView.theme({
   "&": {
     height: "100%",
     fontSize: "var(--editor-font-size)",
@@ -97,7 +97,7 @@ const editorTheme = EditorView.theme({
   },
 });
 
-const highlight = HighlightStyle.define([
+export const markdownHighlight = HighlightStyle.define([
   { tag: t.heading1, fontWeight: "700", fontSize: "1.3em", color: "var(--md-heading)" },
   { tag: t.heading2, fontWeight: "700", fontSize: "1.15em", color: "var(--md-heading)" },
   { tag: [t.heading3, t.heading4, t.heading5, t.heading6], fontWeight: "650", color: "var(--md-heading)" },
@@ -507,7 +507,7 @@ export default function Editor(props: EditorProps) {
         }),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         editorTheme,
-        syntaxHighlighting(highlight),
+        syntaxHighlighting(markdownHighlight),
         markdownKeys,
         highlightField,
         wrapCompartment.of(wrapRef.current ? EditorView.lineWrapping : []),

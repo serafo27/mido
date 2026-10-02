@@ -73,6 +73,9 @@ import SettingsPanel from "./components/SettingsPanel";
 import UpdateDialog, { type UpdateState } from "./components/UpdateDialog";
 import { CHECK_INTERVAL, checkForUpdates, PREPARE_RESTART, RESTART_READY, type RestartReady } from "./lib/updates";
 import { NoFile, Welcome } from "./components/Welcome";
+import SourceControl, { diffKey, type DiffTarget } from "./components/SourceControl";
+import DiffView from "./components/DiffView";
+import { changeLetter, useGit } from "./lib/useGit";
 
 interface Tab {
   path: string;
@@ -892,6 +895,163 @@ export default function App() {
     };
   }, []);
 
+  /* ---------- git ---------- */
+
+  // Only ever reads on its own: every git action below is a click away.
+  const git = useGit(root, tree);
+  const gitStatus = git.repo?.trusted ? git.repo.status : null;
+  const [gitOpen, setGitOpenState] = useState(false);
+  const gitOpenRef = useRef(gitOpen);
+  gitOpenRef.current = gitOpen;
+  const [gitError, setGitError] = useState<string | null>(null);
+  const [diff, setDiff] = useState<DiffTarget | null>(null);
+  useEffect(() => {
+    setDiff(null);
+    setGitError(null);
+  }, [root]);
+  // The search panel and the source control panel take the tree's place in turn.
+  const setGitOpen = useCallback((open: boolean) => {
+    setGitOpenState(open);
+    if (open) setSearchOpen(false);
+  }, []);
+  const changeSearchOpen = useCallback((open: boolean) => {
+    setSearchOpen(open);
+    if (open) setGitOpenState(false);
+  }, []);
+
+  const gitBadges = useMemo(
+    () => new Map((gitStatus?.files ?? []).filter((f) => f.local).map((f) => [f.local!, changeLetter(f)])),
+    [gitStatus],
+  );
+  const unsavedPaths = useMemo(() => new Set(tabs.filter(isDirty).map((t) => t.path)), [tabs]);
+  // Changes whenever the repository does, so an open diff loads both sides again.
+  const gitVersion = useMemo(() => JSON.stringify(gitStatus), [gitStatus]);
+
+  /** Runs a git action; its error stays in the panel, where there's room to read it. */
+  const gitAction = useCallback(
+    async (label: string, action: () => Promise<unknown>): Promise<boolean> => {
+      setGitError(null);
+      try {
+        await git.run(label, action);
+        return true;
+      } catch (e) {
+        setGitError(String(e));
+        setGitOpen(true);
+        return false;
+      }
+    },
+    [git, setGitOpen],
+  );
+
+  const trustRepo = useCallback(() => {
+    api.gitTrust().then(git.refresh, fail);
+  }, [git.refresh, fail]);
+
+  // Staging a file being compared shows its other side, which now holds the change.
+  const stage = useCallback(
+    async (paths: string[]) => {
+      if (!(await gitAction("Staging…", () => api.gitStage(paths)))) return;
+      setDiff((d) =>
+        d?.kind === "unstaged" && paths.includes(d.change.path)
+          ? { kind: "staged", change: { ...d.change, staged: d.change.unstaged === "?" ? "A" : d.change.unstaged, unstaged: null } }
+          : d,
+      );
+    },
+    [gitAction],
+  );
+  const unstage = useCallback(
+    async (paths: string[]) => {
+      if (!(await gitAction("Unstaging…", () => api.gitUnstage(paths)))) return;
+      setDiff((d) =>
+        d?.kind === "staged" && paths.includes(d.change.path)
+          ? { kind: "unstaged", change: { ...d.change, unstaged: d.change.staged === "A" ? "?" : d.change.staged, staged: null } }
+          : d,
+      );
+    },
+    [gitAction],
+  );
+
+  const commit = useCallback(
+    async (message: string) => {
+      const done = await gitAction("Committing…", () => api.gitCommit(message));
+      if (done) setDiff((d) => (d?.kind === "staged" ? null : d));
+      return done;
+    },
+    [gitAction],
+  );
+
+  const fetchRemote = useCallback(() => gitAction("Fetching…", api.gitFetch), [gitAction]);
+
+  const pull = useCallback(async () => {
+    const from = gitStatus?.upstream ?? "the remote";
+    const choice = await message(
+      `How should the commits from ${from} be combined with yours?\n\nMerge adds a merge commit when both sides have new commits. Rebase replays your commits on top of theirs.`,
+      { title: "Pull", kind: "info", buttons: { yes: "Merge", no: "Rebase", cancel: "Cancel" } },
+    );
+    const mode = choice === "Merge" || choice === "Yes" ? "merge" : choice === "Rebase" || choice === "No" ? "rebase" : null;
+    if (!mode) return;
+    await gitAction(mode === "merge" ? "Pulling (merge)…" : "Pulling (rebase)…", () => api.gitPull(mode));
+  }, [gitStatus, gitAction]);
+
+  const push = useCallback(async () => {
+    if (!gitStatus) return;
+    if (gitStatus.upstream) {
+      await gitAction("Pushing…", () => api.gitPush());
+      return;
+    }
+    const remote = gitStatus.remotes.includes("origin") ? "origin" : gitStatus.remotes[0];
+    if (!remote) return;
+    const publish = await ask(`“${gitStatus.branch}” isn't on ${remote} yet. Publish it there and push to it from now on?`, {
+      title: "Publish Branch",
+      kind: "info",
+      okLabel: "Publish",
+      cancelLabel: "Cancel",
+    });
+    if (publish) await gitAction("Publishing…", () => api.gitPush(remote));
+  }, [gitStatus, gitAction]);
+
+  const continueOperation = useCallback(() => gitAction("Continuing…", api.gitContinue), [gitAction]);
+
+  const abortOperation = useCallback(async () => {
+    const what = gitStatus?.operation === "rebase" ? "rebase" : "merge";
+    const sure = await ask(`Abort the ${what}? The files go back to how they were before it, and conflicts you resolved are lost.`, {
+      title: "Mido",
+      kind: "warning",
+      okLabel: `Abort ${what === "rebase" ? "Rebase" : "Merge"}`,
+      cancelLabel: "Cancel",
+    });
+    if (sure && (await gitAction("Aborting…", api.gitAbort))) setDiff(null);
+  }, [gitStatus, gitAction]);
+
+  const resolveConflict = useCallback(
+    async (path: string, content: string) => {
+      const done = await gitAction("Marking as resolved…", () => api.gitResolve(path, content));
+      if (done) setDiff(null);
+      return done;
+    },
+    [gitAction],
+  );
+
+  const openFromGit = useCallback(
+    (path: string) => {
+      setDiff(null);
+      openFile(path);
+    },
+    [openFile],
+  );
+
+  // A diff closes with Escape, unless the key is meant for a field or the conflict editor.
+  useEffect(() => {
+    if (!diff) return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (e.key !== "Escape" || target?.closest("input, textarea, .cm-editor")) return;
+      setDiff(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [diff]);
+
   /* ---------- updates ---------- */
 
   const [update, setUpdate] = useState<UpdateState | null>(null);
@@ -1058,6 +1218,13 @@ export default function App() {
         cycleTab(e.shiftKey ? -1 : 1);
         return;
       }
+      // Source control: ⌃⇧G, as in VS Code.
+      if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.code === "KeyG" && git.repo) {
+        e.preventDefault();
+        setSidebarOpen(true);
+        setGitOpen(!gitOpenRef.current);
+        return;
+      }
       const mod = isMac ? e.metaKey : e.ctrlKey;
       // On the desktop, Print is a menu item; the web version has no menu.
       if (isWeb && mod && e.altKey && e.code === "KeyP") {
@@ -1088,7 +1255,7 @@ export default function App() {
         } else if (e.code === "KeyF") {
           e.preventDefault();
           setSidebarOpen(true);
-          setSearchOpen(true);
+          changeSearchOpen(true);
           // Already showing: the panel only focuses itself when it appears.
           requestAnimationFrame(() => window.dispatchEvent(new Event("mido:focus-search")));
         } else if (e.code === "BracketRight" || e.code === "BracketLeft") {
@@ -1116,7 +1283,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive, openFolder, closeTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, printDocument, fail]);
+  }, [saveActive, openFolder, closeTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, printDocument, fail, git.repo, setGitOpen]);
 
   const dragResize = (e: ReactPointerEvent<HTMLDivElement>, onMove: (ev: PointerEvent) => void) => {
     e.preventDefault();
@@ -1348,8 +1515,36 @@ export default function App() {
               onTrash={trashEntry}
               onReveal={(p) => revealItemInDir(p).catch(fail)}
               searchOpen={searchOpen}
-              onSearchOpenChange={setSearchOpen}
+              onSearchOpenChange={changeSearchOpen}
               onOpenMatch={openMatch}
+              gitOpen={gitOpen && git.repo !== null}
+              onGitOpenChange={setGitOpen}
+              gitChanges={gitStatus?.files.length ?? 0}
+              gitBadges={gitBadges}
+              gitPanel={
+                git.repo && (
+                  <SourceControl
+                    visible
+                    repo={git.repo}
+                    busy={git.busy}
+                    unsaved={unsavedPaths}
+                    activeDiff={diff && diffKey(diff)}
+                    error={gitError}
+                    onDismissError={() => setGitError(null)}
+                    onTrust={trustRepo}
+                    onStage={stage}
+                    onUnstage={unstage}
+                    onCommit={commit}
+                    onFetch={fetchRemote}
+                    onPull={pull}
+                    onPush={push}
+                    onContinue={continueOperation}
+                    onAbort={abortOperation}
+                    onOpenDiff={setDiff}
+                    onOpenFile={openFromGit}
+                  />
+                )
+              }
             />
             <div
               className="resizer sidebar-resizer"
@@ -1369,7 +1564,16 @@ export default function App() {
               onMove={moveTab}
             />
           )}
-          {active ? (
+          {diff ? (
+            <DiffView
+              target={diff}
+              version={gitVersion}
+              busy={git.busy !== null}
+              onClose={() => setDiff(null)}
+              onOpenFile={openFromGit}
+              onResolve={resolveConflict}
+            />
+          ) : active ? (
             <>
               <div className="content-row">
                 <div
@@ -1464,6 +1668,18 @@ export default function App() {
                 autosave={settings.autosave}
                 onWrap={toggleWrap}
                 onAutosave={() => updateSettings({ autosave: !settings.autosave })}
+                git={
+                  gitStatus && {
+                    branch: gitStatus.branch,
+                    ahead: gitStatus.ahead,
+                    behind: gitStatus.behind,
+                    changes: gitStatus.files.length,
+                    onClick: () => {
+                      setSidebarOpen(true);
+                      setGitOpen(true);
+                    },
+                  }
+                }
               />
             </>
           ) : (

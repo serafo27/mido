@@ -34,6 +34,65 @@ export interface SearchResults {
   truncated: boolean;
 }
 
+/** git's one-letter status: M, A, D, R, C, T, or "?" for an untracked file. */
+export type GitCode = string;
+
+export interface GitFileChange {
+  /** Relative to the repository, with "/". */
+  path: string;
+  /** The path before a rename. */
+  origPath: string | null;
+  /** In the index: what the next commit would change. */
+  staged: GitCode | null;
+  /** In the working tree, not staged yet. */
+  unstaged: GitCode | null;
+  conflicted: boolean;
+  /** The file in the open folder, when it's inside it. */
+  local: string | null;
+}
+
+export interface GitStatus {
+  /** Null when HEAD is detached. */
+  branch: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  hasCommits: boolean;
+  /** A merge or rebase stopped on conflicts. */
+  operation: "merge" | "rebase" | null;
+  remotes: string[];
+  files: GitFileChange[];
+}
+
+export interface GitRepo {
+  /** The repository's top folder. */
+  root: string;
+  /** Whether the user let Mido run git here; until then there's no status. */
+  trusted: boolean;
+  status: GitStatus | null;
+}
+
+export interface GitCommit {
+  hash: string;
+  short: string;
+  author: string;
+  email: string;
+  /** ISO 8601. */
+  date: string;
+  subject: string;
+}
+
+/** Which two versions a diff compares. */
+export type DiffKind = "unstaged" | "staged" | "commit";
+
+export interface FileVersions {
+  /** Null when the file doesn't exist on that side (added or deleted). */
+  original: string | null;
+  modified: string | null;
+  /** Not text, or too big to show. */
+  binary: boolean;
+}
+
 export const api = {
   /** Opens `root` as the workspace (file commands are limited to it) and returns its tree. */
   openFolder: (root: string) => invoke<FileNode[]>("open_folder", { root }),
@@ -82,6 +141,25 @@ export const api = {
   /** Writes `name`, holding every event of the files in `replaces`, then removes those files. */
   compactCommentThread: (document: string, thread: string, name: string, content: string, replaces: string[]) =>
     invoke<void>("compact_comment_thread", { document, thread, name, content, replaces }),
+  /** The repository the open folder is in, with its status once trusted; null outside one or without git. */
+  gitInfo: () => invoke<GitRepo | null>("git_info"),
+  /** Asks in a native prompt whether Mido may run git in the repository; resolves to the answer. */
+  gitTrust: () => invoke<boolean>("git_trust"),
+  gitLog: (limit: number, path: string | null = null) => invoke<GitCommit[]>("git_log", { limit, path }),
+  gitCommitFiles: (hash: string) => invoke<GitFileChange[]>("git_commit_files", { hash }),
+  gitFileVersions: (kind: DiffKind, path: string, origPath: string | null, commit: string | null) =>
+    invoke<FileVersions>("git_file_versions", { kind, path, origPath, commit }),
+  gitStage: (paths: string[]) => invoke<void>("git_stage", { paths }),
+  gitUnstage: (paths: string[]) => invoke<void>("git_unstage", { paths }),
+  gitCommit: (message: string) => invoke<string>("git_commit", { message }),
+  /** `setUpstream`: publishes the branch to that remote and tracks it. */
+  gitPush: (setUpstream: string | null = null) => invoke<string>("git_push", { setUpstream }),
+  gitPull: (mode: "merge" | "rebase") => invoke<string>("git_pull", { mode }),
+  gitFetch: () => invoke<string>("git_fetch"),
+  /** Writes the resolved contents of a conflicted file and stages it. */
+  gitResolve: (path: string, content: string) => invoke<void>("git_resolve", { path, content }),
+  gitContinue: () => invoke<string>("git_continue"),
+  gitAbort: () => invoke<string>("git_abort"),
   /** The git user of the open folder, who comments are signed by; null without one. */
   gitIdentity: () => invoke<Author | null>("git_identity"),
 };

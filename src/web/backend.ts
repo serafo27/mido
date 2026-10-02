@@ -183,6 +183,22 @@ export const commands: Record<string, (args: Record<string, unknown>) => unknown
     return files;
   },
 
+  /** Git needs the desktop app: the web version shows no repository. */
+  git_info: () => null,
+  git_trust: desktopOnly,
+  git_log: desktopOnly,
+  git_commit_files: desktopOnly,
+  git_file_versions: desktopOnly,
+  git_stage: desktopOnly,
+  git_unstage: desktopOnly,
+  git_commit: desktopOnly,
+  git_push: desktopOnly,
+  git_pull: desktopOnly,
+  git_fetch: desktopOnly,
+  git_resolve: desktopOnly,
+  git_continue: desktopOnly,
+  git_abort: desktopOnly,
+
   /** Comments can't be written here, so nobody needs to sign them. */
   git_identity: () => null,
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import {
   ChevronRight,
   FilePlus,
@@ -6,6 +6,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  GitBranch,
   Pencil,
   RefreshCw,
   Search,
@@ -53,6 +54,15 @@ interface SidebarProps {
   searchOpen: boolean;
   onSearchOpenChange: (open: boolean) => void;
   onOpenMatch: (path: string, line: number) => void;
+  /** Shows the source control panel instead of the file tree; only offered in a git repository. */
+  gitOpen: boolean;
+  onGitOpenChange: (open: boolean) => void;
+  /** Null outside a git repository. */
+  gitPanel: ReactNode | null;
+  /** How many files have changed, shown on the panel's button. */
+  gitChanges: number;
+  /** The git letter of each changed file in the folder (M, A, D, U, !), by path. */
+  gitBadges: Map<string, string>;
 }
 
 function filterTree(nodes: FileNode[], query: string): FileNode[] {
@@ -237,6 +247,7 @@ export default function Sidebar(props: SidebarProps) {
         >
           <FileText size={15} className="icon" />
           <span className="name">{highlightMatch(node.name, query)}</span>
+          {props.gitBadges.has(node.path) && <GitBadge letter={props.gitBadges.get(node.path)!} />}
         </button>
       );
     });
@@ -265,6 +276,16 @@ export default function Sidebar(props: SidebarProps) {
           >
             <Search size={14} />
           </IconButton>
+          {props.gitPanel !== null && (
+            <IconButton
+              title={`Source control (${isMac ? "⌃⇧G" : "Ctrl+Shift+G"})`}
+              active={props.gitOpen}
+              onClick={() => props.onGitOpenChange(!props.gitOpen)}
+            >
+              <GitBranch size={14} />
+              {props.gitChanges > 0 && <span className="icon-badge">{props.gitChanges > 99 ? "99+" : props.gitChanges}</span>}
+            </IconButton>
+          )}
         </div>
       </div>
 
@@ -275,8 +296,10 @@ export default function Sidebar(props: SidebarProps) {
         onNewWindow={props.onNewWindow}
       />
 
+      {props.gitOpen && props.gitPanel}
+
       <SearchPanel
-        visible={props.searchOpen}
+        visible={props.searchOpen && !props.gitOpen}
         root={root}
         tree={tree}
         activePath={activePath}
@@ -284,7 +307,7 @@ export default function Sidebar(props: SidebarProps) {
         onClose={() => props.onSearchOpenChange(false)}
       />
 
-      <div className="filter" hidden={props.searchOpen}>
+      <div className="filter" hidden={props.searchOpen || props.gitOpen}>
         <Search size={13} className="filter-icon" />
         <input
           ref={filterRef}
@@ -301,7 +324,7 @@ export default function Sidebar(props: SidebarProps) {
         )}
       </div>
 
-      <nav className="tree" hidden={props.searchOpen} onContextMenu={(e) => openMenu(e, null)}>
+      <nav className="tree" hidden={props.searchOpen || props.gitOpen} onContextMenu={(e) => openMenu(e, null)}>
         {renderPendingNew(root, 0)}
         {renderNodes(visible, 0)}
         {visible.length === 0 && !pending && (
@@ -405,6 +428,22 @@ function InlineInput(props: {
         onBlur={() => finish(true)}
       />
     </div>
+  );
+}
+
+function GitBadge({ letter }: { letter: string }) {
+  const meaning: Record<string, string> = {
+    M: "Modified",
+    A: "Added",
+    D: "Deleted",
+    R: "Renamed",
+    U: "Untracked",
+    "!": "Conflict",
+  };
+  return (
+    <span className={`git-letter git-letter-${letter === "!" ? "conflict" : letter}`} title={meaning[letter] ?? "Changed"}>
+      {letter}
+    </span>
   );
 }
 

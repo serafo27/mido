@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { ArrowDown, ArrowUp, GitBranch } from "lucide-react";
 import { documentStats } from "../lib/markdown";
 import { isWeb, requireDesktop } from "../lib/platform";
 
@@ -10,6 +11,8 @@ interface StatusBarProps {
   autosave: boolean;
   onWrap: () => void;
   onAutosave: () => void;
+  /** The repository's branch, when the folder is in one Mido may use git in. */
+  git?: { branch: string | null; ahead: number; behind: number; changes: number; onClick: () => void } | null;
 }
 
 export default function StatusBar(props: StatusBarProps) {
@@ -23,6 +26,25 @@ export default function StatusBar(props: StatusBarProps) {
       <span>{stats.lines.toLocaleString()} lines</span>
       <span>{stats.minutes} min read</span>
       <span className="spacer" />
+      {props.git && (
+        <button className="statusbar-git" onClick={props.git.onClick} title="Source control">
+          <GitBranch size={12} />
+          {props.git.branch ?? "Detached"}
+          {props.git.changes > 0 && <span className="statusbar-git-dirty">*</span>}
+          {props.git.behind > 0 && (
+            <>
+              <ArrowDown size={11} />
+              {props.git.behind}
+            </>
+          )}
+          {props.git.ahead > 0 && (
+            <>
+              <ArrowUp size={11} />
+              {props.git.ahead}
+            </>
+          )}
+        </button>
+      )}
       <button onClick={props.onWrap}>{props.wrap ? "Wrap" : "No wrap"}</button>
       {isWeb ? (
         <button className="read-only-badge" onClick={() => requireDesktop("Editing")} title="Get the desktop app to edit">

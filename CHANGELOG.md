@@ -9,6 +9,14 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Added
+
+- **Source control** for folders in a git repository (the folder itself or one above it), in the sidebar (⌃⇧G): the branch and how far it is from the remote, the changed files, staging them one by one, a commit message and **Commit**, then **Fetch**, **Pull** (asking whether to merge or rebase each time) and **Push**, which offers to publish a new branch. Nothing happens on its own: Mido only does what you click.
+- Changed files show their git letter (M, A, D, U) in the file tree, and the branch shows in the status bar.
+- Diffs of a change, a staged change or a file in a commit, side by side or inline, from the panel's changes and history.
+- Merge and rebase conflicts: each conflict offers to keep the current side, the incoming one or both, the text stays editable, and **Mark as Resolved** stages the file. Then **Commit Merge** (or **Continue Rebase**) finishes, and **Abort** goes back.
+- Git runs as it does in Terminal, with your keys, credentials, hooks and settings, and only in a repository you've allowed it in.
+
 ## [0.11.0] - 2026-10-02
 
 ### Added
