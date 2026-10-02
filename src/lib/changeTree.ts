@@ -20,7 +20,10 @@ export interface ChangeFile<T> {
 
 export type ChangeNode<T> = ChangeFolder<T> | ChangeFile<T>;
 
-const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+/** By name, with hidden folders (`.mido`) after the rest: the documents come first. */
+const byName = (a: { name: string }, b: { name: string }) =>
+  Number(a.name.startsWith(".")) - Number(b.name.startsWith(".")) ||
+  a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
 
 export function changeTree<T>(items: T[], pathOf: (item: T) => string): ChangeNode<T>[] {
   const root: ChangeFolder<T> = { kind: "folder", name: "", path: "", children: [] };

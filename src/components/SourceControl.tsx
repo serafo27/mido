@@ -2,12 +2,15 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
+  Braces,
   Check,
   ChevronDown,
   ChevronRight,
   ListChecks,
   CloudUpload,
+  File,
   FileSymlink,
+  FileText,
   GitBranch,
   Minus,
   Plus,
@@ -448,6 +451,13 @@ const STATUS_NAMES: Record<string, string> = {
   "!": "Conflict",
 };
 
+/** The file's kind at a glance, as VS Code shows its icon: documents, data, anything else. */
+export function FileIcon({ path }: { path: string }) {
+  const name = path.toLowerCase();
+  const Icon = /\.(md|markdown|mdown|mkd|mdx|txt)$/.test(name) ? FileText : /\.(json|ya?ml|toml)$/.test(name) ? Braces : File;
+  return <Icon size={14} className="scm-file-icon" aria-hidden />;
+}
+
 function FileRow(props: {
   change: GitFileChange;
   letter: string;
@@ -468,6 +478,7 @@ function FileRow(props: {
       onDoubleClick={() => props.onOpen(true)}
       title={`${change.origPath ? `${change.origPath} → ` : ""}${change.path} • ${STATUS_NAMES[letter] ?? "Changed"}${props.unsaved ? " • unsaved edits not in git yet" : ""}`}
     >
+      <FileIcon path={change.path} />
       <span className="scm-file-name">{basename(change.path)}</span>
       {folder !== change.path && folder !== "" && <span className="scm-file-folder">{folder}</span>}
       <span className="scm-file-actions">{props.actions}</span>
@@ -547,6 +558,7 @@ function Graph(props: {
               title={`${commit.subject}\n\n${commit.author}${commit.email ? ` <${commit.email}>` : ""}\n${new Date(commit.date).toLocaleString()}\n${commit.short}`}
             >
               <span className={`scm-node ${i === 0 ? "head" : ""}`} />
+              {/* The message first, as VS Code shows it: the author is in the details and the tooltip. */}
               <span className="scm-commit-subject">{commit.subject}</span>
               {i === 0 && props.branch && (
                 <span className="scm-ref" title={props.upstream ? `Tracking ${props.upstream}` : undefined}>
@@ -554,12 +566,11 @@ function Graph(props: {
                   {props.branch}
                 </span>
               )}
-              <span className="scm-commit-author">{commit.author}</span>
             </div>
             {expanded === commit.hash && (
               <div className="scm-commit-details">
                 <span className="scm-commit-meta">
-                  {ago(commit.date)} · <code>{commit.short}</code>
+                  {commit.author} · {ago(commit.date)} · <code>{commit.short}</code>
                 </span>
                 {files.map((change) => {
                   const target: DiffTarget = { kind: "commit", change, commit };

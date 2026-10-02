@@ -205,6 +205,7 @@ export default function DiffView(props: DiffViewProps) {
         <Comparison
           original={versions.original ?? ""}
           modified={versions.modified ?? ""}
+          whole={versions.original === null || versions.modified === null}
           layout={layout}
           navigator={navigator}
         />
@@ -231,6 +232,8 @@ function DiffAction(props: { title: string; disabled?: boolean; onClick: () => v
 function Comparison(props: {
   original: string;
   modified: string;
+  /** The file is new or gone: every line changed, so words aren't highlighted on top. */
+  whole: boolean;
   layout: "split" | "unified";
   navigator: { current: EditorView | null };
 }) {
@@ -249,6 +252,7 @@ function Comparison(props: {
         b: { doc: props.modified, extensions: editorExtensions(false, true) },
         parent,
         gutter: true,
+        highlightChanges: !props.whole,
         collapseUnchanged,
       });
       view = merge.b;
@@ -260,7 +264,13 @@ function Comparison(props: {
           doc: props.modified,
           extensions: [
             editorExtensions(false, true),
-            unifiedMergeView({ original: props.original, mergeControls: false, gutter: true, collapseUnchanged }),
+            unifiedMergeView({
+              original: props.original,
+              mergeControls: false,
+              gutter: true,
+              highlightChanges: !props.whole,
+              collapseUnchanged,
+            }),
           ],
         }),
       });
@@ -274,7 +284,7 @@ function Comparison(props: {
       props.navigator.current = null;
       destroy();
     };
-  }, [props.original, props.modified, props.layout, identical]);
+  }, [props.original, props.modified, props.layout, props.whole, identical]);
 
   if (identical) return <p className="diff-message">No changes.</p>;
   return <div className={`diff-body ${props.layout}`} ref={host} />;

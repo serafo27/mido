@@ -3103,10 +3103,13 @@ body.web-dropping::after {
   --git-deleted: #ad0707;
   --git-conflict: #ad0707;
   --git-renamed: #007100;
-  --diff-inserted-line: rgba(155, 185, 85, 0.2);
-  --diff-inserted-text: rgba(156, 204, 44, 0.4);
-  --diff-removed-line: rgba(255, 0, 0, 0.12);
-  --diff-removed-text: rgba(255, 0, 0, 0.3);
+  /* Softer than VS Code's, so a long review is easy on the eyes. */
+  --diff-inserted-line: rgba(88, 140, 60, 0.07);
+  --diff-inserted-text: rgba(88, 140, 60, 0.16);
+  --diff-removed-line: rgba(190, 60, 50, 0.06);
+  --diff-removed-text: rgba(190, 60, 50, 0.14);
+  --diff-gutter-inserted: rgba(88, 140, 60, 0.55);
+  --diff-gutter-removed: rgba(190, 60, 50, 0.5);
   --conflict-current-header: rgba(64, 200, 174, 0.5);
   --conflict-current: rgba(64, 200, 174, 0.2);
   --conflict-incoming-header: rgba(64, 166, 255, 0.5);
@@ -3120,10 +3123,12 @@ body.web-dropping::after {
   --git-deleted: #c74e39;
   --git-conflict: #e4676b;
   --git-renamed: #73c991;
-  --diff-inserted-line: rgba(155, 185, 85, 0.13);
-  --diff-inserted-text: rgba(156, 204, 44, 0.25);
-  --diff-removed-line: rgba(255, 0, 0, 0.13);
-  --diff-removed-text: rgba(255, 0, 0, 0.3);
+  --diff-inserted-line: rgba(129, 184, 139, 0.07);
+  --diff-inserted-text: rgba(129, 184, 139, 0.16);
+  --diff-removed-line: rgba(220, 110, 95, 0.07);
+  --diff-removed-text: rgba(220, 110, 95, 0.16);
+  --diff-gutter-inserted: rgba(129, 184, 139, 0.6);
+  --diff-gutter-removed: rgba(220, 110, 95, 0.55);
 }
 
 .icon-button {
@@ -3425,10 +3430,10 @@ body.web-dropping::after {
   align-items: center;
   gap: 6px;
   height: 22px;
-  padding: 0 12px 0 32px;
+  padding: 0 12px 0 28px;
   cursor: default;
   white-space: nowrap;
-  color: var(--git-modified);
+  color: var(--text);
 }
 .scm-file.indent {
   padding-left: 44px;
@@ -3439,22 +3444,40 @@ body.web-dropping::after {
 .scm-file.active {
   background: var(--bg-active);
 }
-.scm-file.tone-A {
+/* Names stay in the text colour, as in VS Code: only the letter says what changed. */
+.scm-file .scm-letter,
+.commit-file .scm-letter {
+  color: var(--git-modified);
+}
+.scm-file.tone-A .scm-letter,
+.commit-file.tone-A .scm-letter {
   color: var(--git-added);
 }
-.scm-file.tone-U,
-.scm-file.tone-R,
-.scm-file.tone-C {
+.scm-file.tone-U .scm-letter,
+.scm-file.tone-R .scm-letter,
+.scm-file.tone-C .scm-letter,
+.commit-file.tone-U .scm-letter,
+.commit-file.tone-R .scm-letter,
+.commit-file.tone-C .scm-letter {
   color: var(--git-untracked);
 }
-.scm-file.tone-D {
+.scm-file.tone-D .scm-letter,
+.commit-file.tone-D .scm-letter {
   color: var(--git-deleted);
 }
-.scm-file.tone-D .scm-file-name {
-  text-decoration: line-through;
-}
-.scm-file.tone-conflict {
+.scm-file.tone-conflict .scm-letter,
+.commit-file.tone-conflict .scm-letter {
   color: var(--git-conflict);
+}
+.scm-file.tone-D .scm-file-name,
+.commit-file.tone-D .scm-file-name {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--text-faint);
+}
+.scm-file-icon {
+  flex: none;
+  color: var(--text-faint);
 }
 .scm-file-name {
   flex: none;
@@ -3495,8 +3518,10 @@ body.web-dropping::after {
   flex: none;
   width: 12px;
   margin-left: auto;
-  font-size: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
   text-align: center;
+  opacity: 0.85;
 }
 .scm-unsaved + .scm-letter,
 .scm-file:hover .scm-letter {
@@ -3510,12 +3535,12 @@ body.web-dropping::after {
 .scm-graph-item::before {
   content: "";
   position: absolute;
-  left: 27px;
+  left: 25.5px;
   top: 0;
   bottom: 0;
-  width: 2px;
-  background: var(--accent);
-  opacity: 0.55;
+  width: 1.5px;
+  background: var(--text-faint);
+  opacity: 0.6;
 }
 .scm-graph-item:first-child::before {
   top: 11px;
@@ -3542,17 +3567,23 @@ body.web-dropping::after {
 }
 .scm-node {
   flex: none;
-  width: 12px;
-  height: 12px;
+  width: 9px;
+  height: 9px;
+  margin: 0 1.5px;
   border-radius: 50%;
-  border: 2px solid var(--accent);
+  border: 1.5px solid var(--text-muted);
   background: var(--bg-sidebar);
   z-index: 1;
 }
+/* The branch's tip: a ring, as VS Code draws it. */
 .scm-node.head {
-  background: var(--accent);
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  border: 2px solid var(--accent);
 }
 .scm-commit-subject {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3566,16 +3597,12 @@ body.web-dropping::after {
   height: 16px;
   padding: 0 6px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
-  color: var(--text);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
   font-size: 10.5px;
-}
-.scm-commit-author {
-  flex: none;
-  margin-left: auto;
-  padding-left: 4px;
-  font-size: 11.5px;
-  color: var(--text-faint);
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .scm-commit-details {
   padding: 2px 0 4px;
@@ -3740,11 +3767,11 @@ body.web-dropping::after {
   padding: 0;
 }
 .diff-body .cm-changedLineGutter {
-  background: var(--git-untracked);
+  background: var(--diff-gutter-inserted);
 }
 .diff-body .cm-mergeViewEditor:first-child .cm-changedLineGutter,
 .diff-body .cm-deletedLineGutter {
-  background: var(--git-deleted);
+  background: var(--diff-gutter-removed);
 }
 .diff-body .cm-collapsedLines {
   padding: 2px 0;
@@ -4138,7 +4165,7 @@ body.web-dropping::after {
   padding: 0 12px;
   cursor: default;
   white-space: nowrap;
-  color: var(--git-modified);
+  color: var(--text);
   font-size: 13px;
 }
 .commit-file:hover {
@@ -4146,20 +4173,6 @@ body.web-dropping::after {
 }
 .commit-file.selected {
   background: var(--bg-active);
-}
-.commit-file.tone-A {
-  color: var(--git-added);
-}
-.commit-file.tone-U,
-.commit-file.tone-R,
-.commit-file.tone-C {
-  color: var(--git-untracked);
-}
-.commit-file.tone-D {
-  color: var(--git-deleted);
-}
-.commit-file.tone-D .scm-file-name {
-  text-decoration: line-through;
 }
 .commit-file-discard {
   display: none;

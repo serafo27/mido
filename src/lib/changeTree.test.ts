@@ -12,8 +12,8 @@ describe("changeTree", () => {
 
   it("joins a chain of single folders into one row", () => {
     const tree = changeTree([".mido/comments/pricing/t1/a.json", ".mido/comments/pricing/t1/b.json", "docs/x.md"], (p) => p);
-    expect(shape(tree)).toEqual([{ ".mido/comments/pricing/t1": ["a.json", "b.json"] }, { docs: ["x.md"] }]);
-    const folder = tree[0];
+    expect(shape(tree)).toEqual([{ docs: ["x.md"] }, { ".mido/comments/pricing/t1": ["a.json", "b.json"] }]);
+    const folder = tree[1];
     expect(folder.kind === "folder" && folder.path).toBe(".mido/comments/pricing/t1");
   });
 
@@ -25,5 +25,12 @@ describe("changeTree", () => {
   it("lists every item under a folder", () => {
     const tree = changeTree(["docs/a.md", "docs/deep/b.md", "c.md"], (p) => p);
     expect(itemsIn(tree[0]).sort()).toEqual(["docs/a.md", "docs/deep/b.md"]);
+  });
+});
+
+describe("changeTree order", () => {
+  it("puts hidden folders after the others, so documents come first", () => {
+    const tree = changeTree([".mido/comments/a.json", "docs/b.md", "c.md"], (p) => p);
+    expect(shape(tree)).toEqual([{ docs: ["b.md"] }, { ".mido/comments": ["a.json"] }, "c.md"]);
   });
 });

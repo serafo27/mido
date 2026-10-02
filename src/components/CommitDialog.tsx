@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { ChevronRight, ChevronsDownUp, ChevronsUpDown, Folder, FolderTree, GitBranch, List, Undo2, X } from "lucide-react";
+import { ChevronRight, ChevronsDownUp, ChevronsUpDown, FileSymlink, Folder, FolderTree, GitBranch, List, Undo2, X } from "lucide-react";
 import type { GitFileChange, GitStatus } from "../lib/api";
 import { changeTree, itemsIn, type ChangeNode } from "../lib/changeTree";
 import { basename, dirname } from "../lib/paths";
@@ -8,7 +8,7 @@ import { isMac } from "../lib/platform";
 import { useStoredState } from "../lib/useStoredState";
 import DiffView from "./DiffView";
 import FloatingDialog from "./FloatingDialog";
-import type { DiffTarget } from "./SourceControl";
+import { FileIcon, type DiffTarget } from "./SourceControl";
 
 interface CommitDialogProps {
   status: GitStatus;
@@ -124,9 +124,23 @@ export default function CommitDialog(props: CommitDialogProps) {
         title={f.path}
       >
         <Checkbox state={checkOf(f)} onChange={() => toggle([f])} disabled={!!busy} />
+        <FileIcon path={f.path} />
         <span className="scm-file-name">{basename(f.path)}</span>
         {showFolder && dirname(f.path) !== f.path && <span className="scm-file-folder">{dirname(f.path)}</span>}
         <span className="commit-file-end">
+          {f.local && letter !== "D" && (
+            <button
+              className="scm-action commit-file-discard"
+              title="Open File"
+              aria-label="Open File"
+              onClick={(e) => {
+                e.stopPropagation();
+                props.onOpenFile(f.local!);
+              }}
+            >
+              <FileSymlink size={13} />
+            </button>
+          )}
           {f.unstaged && (
             <button
               className="scm-action commit-file-discard"
