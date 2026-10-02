@@ -51,7 +51,7 @@ export const editorTheme = EditorView.theme({
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": {
     fontFamily: "var(--md-font-code)",
-    lineHeight: "1.75",
+    lineHeight: "var(--editor-line-height, 1.75)",
   },
   ".cm-content": {
     padding: "40px 36px 50vh",

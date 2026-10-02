@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blocksImage, DEFAULT_SETTINGS, migrateDefaults, zoomText } from "./settings";
+import { blocksImage, DEFAULT_SETTINGS, migrateDefaults, spaceLines, zoomText } from "./settings";
 
 describe("blocksImage", () => {
   it("loads everything with all, only https with secure, nothing remote with none", () => {
@@ -59,6 +59,18 @@ describe("zoomText", () => {
     expect(zoomText({ ...DEFAULT_SETTINGS, fontSize: 20, editorFontSize: 19 }, 0)).toEqual({
       fontSize: DEFAULT_SETTINGS.fontSize,
       editorFontSize: DEFAULT_SETTINGS.editorFontSize,
+    });
+  });
+});
+
+describe("spaceLines", () => {
+  it("opens up or tightens both line heights by a tenth, within their ranges", () => {
+    const settings = { ...DEFAULT_SETTINGS, lineHeight: 1.58, editorLineHeight: 1.75 };
+    expect(spaceLines(settings, 1)).toEqual({ lineHeight: 1.68, editorLineHeight: 1.85 });
+    expect(spaceLines(settings, -1)).toEqual({ lineHeight: 1.48, editorLineHeight: 1.65 });
+    expect(spaceLines({ ...settings, lineHeight: 2.15, editorLineHeight: 2.4 }, 1)).toEqual({
+      lineHeight: 2.2,
+      editorLineHeight: 2.4,
     });
   });
 });

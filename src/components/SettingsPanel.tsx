@@ -6,7 +6,9 @@ import {
   ACCENTS,
   DEFAULT_SETTINGS,
   EDITOR_FONT_SIZE,
+  EDITOR_LINE_HEIGHT,
   FONT_CHOICES,
+  LINE_HEIGHT,
   PRESETS,
   TEXT_SIZE,
   activeTheme,
@@ -109,8 +111,8 @@ export default function SettingsPanel(props: SettingsPanelProps) {
           <Slider
             label="Line height"
             value={settings.lineHeight}
-            min={1.3}
-            max={2.2}
+            min={LINE_HEIGHT.min}
+            max={LINE_HEIGHT.max}
             step={0.02}
             format={(v) => v.toFixed(2)}
             onChange={(lineHeight) => onChange({ lineHeight })}
@@ -172,6 +174,15 @@ export default function SettingsPanel(props: SettingsPanelProps) {
               step={0.5}
               format={(v) => `${v}px`}
               onChange={(editorFontSize) => onChange({ editorFontSize })}
+            />
+            <Slider
+              label="Line height"
+              value={settings.editorLineHeight}
+              min={EDITOR_LINE_HEIGHT.min}
+              max={EDITOR_LINE_HEIGHT.max}
+              step={0.05}
+              format={(v) => v.toFixed(2)}
+              onChange={(editorLineHeight) => onChange({ editorLineHeight })}
             />
             <Toggle label="Autosave" checked={settings.autosave} onChange={(autosave) => onChange({ autosave })} />
             <Toggle

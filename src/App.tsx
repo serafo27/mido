@@ -23,6 +23,7 @@ import {
   DEFAULT_SETTINGS,
   applySettings,
   lightThemeVariables,
+  spaceLines,
   zoomText,
   type RemoteImages,
   type Settings,
@@ -948,7 +949,7 @@ export default function App() {
 
   useEffect(() => applySettings(settings, systemDark), [settings, systemDark]);
 
-  useEditorRemeasure([settings.codeFont, settings.customCodeFont, settings.editorFontSize]);
+  useEditorRemeasure([settings.codeFont, settings.customCodeFont, settings.editorFontSize, settings.editorLineHeight]);
 
   // Native "Settings…" menu item (macOS).
   useEffect(() => {
@@ -1542,9 +1543,18 @@ export default function App() {
         return;
       }
       if (!mod || e.altKey) return;
-      // Text size: ⌘+ and ⌘− (with or without ⇧, for any keyboard layout), ⌘0 back to the default.
+      // Line spacing: ⌘⇧+ and ⌘⇧− (⇧+ is * on Italian keyboards, ⇧− is _ on most).
+      const spacing = !e.shiftKey ? null : ["+", "*", "="].includes(e.key) ? 1 : ["_", "-"].includes(e.key) ? -1 : null;
+      if (spacing !== null) {
+        e.preventDefault();
+        const next = spaceLines(live.current.settings, spacing);
+        updateSettings(next);
+        setToast(`Line height ${next.lineHeight.toFixed(2)} · editor ${next.editorLineHeight.toFixed(2)}`);
+        return;
+      }
+      // Text size: ⌘+ and ⌘− (⌘= too, as on US keyboards), ⌘0 back to the default.
       // The web version leaves these to the browser's own zoom.
-      const zoom = ["+", "="].includes(e.key) ? 1 : ["-", "_"].includes(e.key) ? -1 : e.key === "0" ? 0 : null;
+      const zoom = e.shiftKey ? null : ["+", "="].includes(e.key) ? 1 : e.key === "-" ? -1 : e.key === "0" ? 0 : null;
       if (zoom !== null && !isWeb) {
         e.preventDefault();
         const next = zoomText(live.current.settings, zoom);

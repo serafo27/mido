@@ -37,6 +37,7 @@ export interface Settings {
   justify: boolean;
   showFrontmatter: boolean;
   editorFontSize: number;
+  editorLineHeight: number;
   wrap: boolean;
   autosave: boolean;
   /** The writing tools over the editor in Edit mode. */
@@ -73,6 +74,7 @@ export const DEFAULT_SETTINGS: Settings = {
   justify: false,
   showFrontmatter: true,
   editorFontSize: 14,
+  editorLineHeight: 1.75,
   wrap: true,
   autosave: true,
   formatBar: true,
@@ -263,6 +265,7 @@ export function applySettings(settings: Settings, systemDark: boolean) {
     "--md-line-height": String(settings.lineHeight),
     "--md-width": settings.contentWidth ? `${settings.contentWidth}px` : "none",
     "--editor-font-size": `${settings.editorFontSize}px`,
+    "--editor-line-height": String(settings.editorLineHeight),
   };
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
 }
@@ -271,6 +274,9 @@ export function applySettings(settings: Settings, systemDark: boolean) {
 /** The text sizes' ranges, as Settings offers them. */
 export const TEXT_SIZE = { min: 13, max: 24 };
 export const EDITOR_FONT_SIZE = { min: 11, max: 22 };
+export const LINE_HEIGHT = { min: 1.3, max: 2.2 };
+export const EDITOR_LINE_HEIGHT = { min: 1.3, max: 2.4 };
+const LINE_HEIGHT_STEP = 0.1;
 
 /**
  * Both text sizes (the document's and the editor's) `steps` pixels bigger
@@ -282,6 +288,19 @@ export function zoomText(settings: Settings, steps: number): Pick<Settings, "fon
   return {
     fontSize: clamp(settings.fontSize + steps, TEXT_SIZE),
     editorFontSize: clamp(settings.editorFontSize + steps, EDITOR_FONT_SIZE),
+  };
+}
+
+/**
+ * Both line heights (the document's and the editor's) `steps` tenths more
+ * or less, within their ranges.
+ */
+export function spaceLines(settings: Settings, steps: number): Pick<Settings, "lineHeight" | "editorLineHeight"> {
+  const next = (v: number, { min, max }: { min: number; max: number }) =>
+    Math.round(Math.min(max, Math.max(min, v + steps * LINE_HEIGHT_STEP)) * 100) / 100;
+  return {
+    lineHeight: next(settings.lineHeight, LINE_HEIGHT),
+    editorLineHeight: next(settings.editorLineHeight, EDITOR_LINE_HEIGHT),
   };
 }
 
