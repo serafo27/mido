@@ -3503,14 +3503,15 @@ body.web-dropping::after {
   flex: none;
   color: var(--text-faint);
 }
+/* A long name shortens (its folder first) rather than push the actions and the letter out of the row. */
 .scm-file-name {
-  flex: none;
-  max-width: 75%;
+  flex: 0 1 auto;
+  min-width: 2em;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .scm-file-folder {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3518,14 +3519,12 @@ body.web-dropping::after {
   color: var(--text-faint);
 }
 .scm-file-actions {
+  flex: none;
   display: none;
   margin-left: auto;
 }
 .scm-file:hover .scm-file-actions {
   display: flex;
-}
-.scm-file:hover .scm-file-folder {
-  flex: 0 1 auto;
 }
 .scm-unsaved {
   flex: none;
