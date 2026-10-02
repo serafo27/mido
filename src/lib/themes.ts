@@ -138,6 +138,110 @@ export const BUILTIN_THEMES: Theme[] = [
 
 export const DEFAULT_THEME: Record<ThemeKind, string> = { light: "mido-light", dark: "mido-dark" };
 
+/** The terminal's sixteen ANSI colours. */
+export interface AnsiColors {
+  black: string;
+  red: string;
+  green: string;
+  yellow: string;
+  blue: string;
+  magenta: string;
+  cyan: string;
+  white: string;
+  brightBlack: string;
+  brightRed: string;
+  brightGreen: string;
+  brightYellow: string;
+  brightBlue: string;
+  brightMagenta: string;
+  brightCyan: string;
+  brightWhite: string;
+}
+
+export const ANSI_KEYS = [
+  "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
+  "brightBlack", "brightRed", "brightGreen", "brightYellow", "brightBlue", "brightMagenta", "brightCyan", "brightWhite",
+] as const satisfies readonly (keyof AnsiColors)[];
+
+/** The CSS variable holding an ANSI colour: `brightBlack` → `--ansi-bright-black`. */
+export const ansiVariable = (key: keyof AnsiColors) => `--ansi-${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
+
+const ansi = (...colors: string[]): AnsiColors =>
+  Object.fromEntries(ANSI_KEYS.map((key, i) => [key, colors[i]])) as unknown as AnsiColors;
+
+/**
+ * Themes that copy an editor or a well-known palette keep its own terminal
+ * colours, as VS Code's themes do with `terminal.ansi*`. The others (and custom
+ * themes) get colours drawn from their palette: see `terminalColors`.
+ */
+const BUILTIN_ANSI: Record<string, AnsiColors> = {
+  "vscode-light": ansi(
+    "#000000", "#cd3131", "#00bc00", "#949800", "#0451a5", "#bc05bc", "#0598bc", "#555555",
+    "#666666", "#cd3131", "#14ce14", "#b5ba00", "#0451a5", "#bc05bc", "#0598bc", "#a5a5a5",
+  ),
+  "vscode-dark": ansi(
+    "#000000", "#cd3131", "#0dbc79", "#e5e510", "#2472c8", "#bc3fbc", "#11a8cd", "#e5e5e5",
+    "#666666", "#f14c4c", "#23d18b", "#f5f543", "#3b8eea", "#d670d6", "#29b8db", "#e5e5e5",
+  ),
+  // IntelliJ's console colours.
+  "intellij-light": ansi(
+    "#000000", "#c7222d", "#067d17", "#9e880d", "#0033b3", "#871094", "#00627a", "#6c707e",
+    "#8c8c8c", "#e3353f", "#2e9b3a", "#b8a000", "#3574f0", "#a63ab5", "#1a8ca8", "#a8adbd",
+  ),
+  "intellij-darcula": ansi(
+    "#1f2022", "#ff6b68", "#a8c023", "#d6bf55", "#5394ec", "#ae8abe", "#299999", "#a9b7c6",
+    "#606366", "#ff8785", "#bfd34a", "#e3d27a", "#7eaef1", "#c4a6d1", "#5ebcbc", "#d4d8dd",
+  ),
+  "solarized-light": ansi(
+    "#073642", "#dc322f", "#859900", "#b58900", "#268bd2", "#d33682", "#2aa198", "#93a1a1",
+    "#586e75", "#cb4b16", "#859900", "#b58900", "#268bd2", "#6c71c4", "#2aa198", "#93a1a1",
+  ),
+  nord: ansi(
+    "#3b4252", "#bf616a", "#a3be8c", "#ebcb8b", "#81a1c1", "#b48ead", "#88c0d0", "#e5e9f0",
+    "#616e88", "#bf616a", "#a3be8c", "#ebcb8b", "#81a1c1", "#b48ead", "#8fbcbb", "#eceff4",
+  ),
+  dracula: ansi(
+    "#21222c", "#ff5555", "#50fa7b", "#f1fa8c", "#bd93f9", "#ff79c6", "#8be9fd", "#f8f8f2",
+    "#6272a4", "#ff6e6e", "#69ff94", "#ffffa5", "#d6acff", "#ff92df", "#a4ffff", "#ffffff",
+  ),
+};
+
+/**
+ * The terminal's ANSI colours for a theme. Without a palette of its own, the
+ * colours come from the theme's code colours (green from strings, blue from
+ * functions, magenta from keywords, cyan from types), with red and yellow
+ * leaning towards its highlight colour, so the terminal reads as part of it.
+ */
+export function terminalColors(t: Theme): AnsiColors {
+  const builtin = !t.custom && BUILTIN_ANSI[t.id];
+  if (builtin) return builtin;
+  const p = t.palette;
+  const dark = t.kind === "dark";
+  const red = mix(dark ? "#e0675f" : "#c03f36", p.warm, 0.7);
+  const yellow = mix(dark ? "#e2c46a" : "#a07c0a", p.warm, 0.65);
+  // Bright colours step towards the headings: lighter on dark themes, deeper on light ones.
+  const bright = (c: string) => mix(c, p.heading, 0.78);
+  return {
+    black: dark ? p.border : p.heading,
+    red,
+    green: p.string,
+    yellow,
+    blue: p.function,
+    magenta: p.keyword,
+    cyan: p.type,
+    white: dark ? p.text : p.muted,
+    // Dim text (zsh's suggestions, git's hints): the theme's faint colour.
+    brightBlack: dark ? p.faint : mix(p.muted, p.faint, 0.5),
+    brightRed: bright(red),
+    brightGreen: bright(p.string),
+    brightYellow: bright(yellow),
+    brightBlue: bright(p.function),
+    brightMagenta: bright(p.keyword),
+    brightCyan: bright(p.type),
+    brightWhite: dark ? p.heading : p.faint,
+  };
+}
+
 export function findTheme(id: string, custom: Theme[], kind: ThemeKind): Theme {
   return (
     custom.find((t) => t.id === id) ??
@@ -155,6 +259,7 @@ export function themeVariables(t: Theme, accentOverride?: string): Record<string
   const p = t.palette;
   const dark = t.kind === "dark";
   const accent = accentOverride ?? p.accent;
+  const terminal = terminalColors(t);
   return {
     "--bg": p.bg,
     "--bg-editor": mix(p.bg, p.elevated, 0.85),
@@ -194,6 +299,8 @@ export function themeVariables(t: Theme, accentOverride?: string): Record<string
     "--hl-type": p.type,
     "--hl-attr": p.attr,
     "--hl-meta": p.muted,
+    // The terminal's colours.
+    ...Object.fromEntries(ANSI_KEYS.map((key) => [ansiVariable(key), terminal[key]])),
   };
 }
 

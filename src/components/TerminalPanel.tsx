@@ -6,6 +6,7 @@ import "@xterm/xterm/css/xterm.css";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { killTerminal, resizeTerminal, spawnTerminal, writeTerminal } from "../lib/terminal";
 import { isMac } from "../lib/platform";
+import { ANSI_KEYS, ansiVariable } from "../lib/themes";
 
 /** What the app asks of the panel: from the Terminal menu and its shortcuts. */
 export interface TerminalPanelHandle {
@@ -22,57 +23,42 @@ interface Session {
   title: string;
 }
 
-// VS Code's ANSI colours, for dark and light themes.
-const ANSI_DARK = {
-  black: "#000000",
-  red: "#cd3131",
-  green: "#0dbc79",
-  yellow: "#e5e510",
-  blue: "#2472c8",
-  magenta: "#bc3fbc",
-  cyan: "#11a8cd",
-  white: "#e5e5e5",
-  brightBlack: "#666666",
-  brightRed: "#f14c4c",
-  brightGreen: "#23d18b",
-  brightYellow: "#f5f543",
-  brightBlue: "#3b8eea",
-  brightMagenta: "#d670d6",
-  brightCyan: "#29b8db",
-  brightWhite: "#e5e5e5",
-};
-const ANSI_LIGHT = {
-  black: "#000000",
-  red: "#cd3131",
-  green: "#00bc00",
-  yellow: "#949800",
-  blue: "#0451a5",
-  magenta: "#bc05bc",
-  cyan: "#0598bc",
-  white: "#555555",
-  brightBlack: "#666666",
-  brightRed: "#cd3131",
-  brightGreen: "#14ce14",
-  brightYellow: "#b5ba00",
-  brightBlue: "#0451a5",
-  brightMagenta: "#bc05bc",
-  brightCyan: "#0598bc",
-  brightWhite: "#a5a5a5",
-};
+/**
+ * A theme colour as xterm.js can read it. Theme variables may be any CSS colour,
+ * including color-mix(), which xterm.js doesn't parse: painting it on a pixel
+ * gives the plain colour back, as #rrggbb (or #rrggbbaa when see-through).
+ */
+let probe: CanvasRenderingContext2D | null | undefined;
+function plainColor(css: string): string | undefined {
+  if (!css) return undefined;
+  probe ??= Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d", {
+    willReadFrequently: true,
+  });
+  if (!probe) return css;
+  probe.clearRect(0, 0, 1, 1);
+  probe.fillStyle = "#000";
+  probe.fillStyle = css;
+  probe.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = probe.getImageData(0, 0, 1, 1).data;
+  const hex = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${hex(r)}${hex(g)}${hex(b)}${a === 255 ? "" : hex(a)}`;
+}
 
-/** The terminal's colours and font, from the app theme. */
+/** The terminal's colours and font, from the app theme (its --ansi-* colours come from lib/themes). */
 function appearance() {
   const style = getComputedStyle(document.documentElement);
   const v = (name: string) => style.getPropertyValue(name).trim();
-  const dark = document.documentElement.dataset.theme === "dark";
+  const color = (name: string) => plainColor(v(name));
+  const ansi = Object.fromEntries(ANSI_KEYS.map((key) => [key, color(ansiVariable(key))]));
   return {
     theme: {
-      ...(dark ? ANSI_DARK : ANSI_LIGHT),
-      background: v("--bg") || (dark ? "#1e1e1e" : "#ffffff"),
-      foreground: v("--text") || (dark ? "#cccccc" : "#333333"),
-      cursor: v("--accent") || undefined,
-      cursorAccent: v("--bg") || undefined,
-      selectionBackground: v("--selection") || undefined,
+      ...ansi,
+      background: color("--bg"),
+      foreground: color("--text"),
+      cursor: color("--accent"),
+      cursorAccent: color("--bg"),
+      selectionBackground: color("--selection"),
+      scrollbarSliderBackground: color("--bg-hover"),
     },
     fontFamily: v("--md-font-code") || v("--font-mono") || "Menlo, monospace",
     fontSize: Math.max(10, Math.round((parseFloat(v("--editor-font-size")) || 14) - 1)),
@@ -108,10 +94,11 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
 
     (async () => {
       // xterm.js is only loaded once a terminal is opened.
-      const [{ Terminal }, { FitAddon }, { WebLinksAddon }] = await Promise.all([
+      const [{ Terminal }, { FitAddon }, { WebLinksAddon }, { WebglAddon }] = await Promise.all([
         import("@xterm/xterm"),
         import("@xterm/addon-fit"),
         import("@xterm/addon-web-links"),
+        import("@xterm/addon-webgl"),
       ]);
       if (disposed || !hostRef.current) return;
       term = new Terminal({
@@ -120,12 +107,25 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
         allowProposedApi: false,
         scrollback: 5000,
         macOptionClickForcesSelection: true,
+        // As VS Code: colours a program picks that would be hard to read on this background are adjusted.
+        minimumContrastRatio: 4.5,
+        // Box drawing, block and Powerline characters are drawn to fill their cell, so prompts join up.
+        customGlyphs: true,
       });
       fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
       term.loadAddon(new WebLinksAddon((_event, uri) => void openUrl(uri)));
       term.attachCustomKeyEventHandler((e) => !isAppShortcut(e));
       term.open(hostRef.current);
+      // Drawn on the GPU, as in VS Code: crisp, evenly spaced text. When WebGL isn't
+      // available, or the GPU drops its context, the terminal falls back to the DOM renderer.
+      try {
+        const webgl = new WebglAddon();
+        webgl.onContextLoss(() => webgl.dispose());
+        term.loadAddon(webgl);
+      } catch {
+        // No WebGL here: the DOM renderer stays.
+      }
 
       const fit = () => {
         const host = hostRef.current;

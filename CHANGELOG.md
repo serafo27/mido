@@ -9,6 +9,10 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Changed
+
+- The **terminal** (experimental) takes its colours from the theme: Nord, Dracula, Solarized, VS Code and IntelliJ keep their own terminal palettes, and the other themes, custom ones included, draw theirs from their code colours. It's drawn on the GPU, as in VS Code, for crisper, evenly spaced text; Powerline arrows and box lines join up, and colours too faint for the background are made readable.
+
 ## [0.14.0] - 2026-10-02
 
 ### Changed
