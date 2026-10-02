@@ -962,7 +962,7 @@ export default function App() {
   /* ---------- git ---------- */
 
   // Only ever reads on its own: every git action below is a click away.
-  const git = useGit(root, tree);
+  const git = useGit(root, tree, settings.experimentalGit);
   const gitStatus = git.repo?.trusted ? git.repo.status : null;
   const [gitOpen, setGitOpenState] = useState(false);
   const gitOpenRef = useRef(gitOpen);
@@ -1461,6 +1461,12 @@ export default function App() {
 
   const hideTerminal = useCallback(() => setTerminalOpen(false), []);
 
+  // The terminal is experimental: the Terminal menu is only there while it's turned on.
+  useEffect(() => {
+    if (!settings.experimentalTerminal) setTerminalOpen(false);
+    if (!isWeb) api.setTerminalMenu(settings.experimentalTerminal).catch(() => {});
+  }, [settings.experimentalTerminal]);
+
   // The Terminal menu (macOS).
   useEffect(() => {
     const unlisteners = [
@@ -1489,7 +1495,8 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Terminal: ⌃` shows or hides it, ⌃⇧` opens a new one, as in VS Code.
-      if (e.ctrlKey && !e.metaKey && !e.altKey && (e.code === "Backquote" || e.code === "IntlBackslash")) {
+      const terminalKey = e.code === "Backquote" || e.code === "IntlBackslash";
+      if (live.current.settings.experimentalTerminal && e.ctrlKey && !e.metaKey && !e.altKey && terminalKey) {
         e.preventDefault();
         if (e.shiftKey) newTerminal();
         else toggleTerminal();
@@ -1508,7 +1515,7 @@ export default function App() {
         return;
       }
       // Source control: ⌃⇧G, as in VS Code.
-      if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.code === "KeyG" && isWeb) {
+      if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.code === "KeyG" && isWeb && live.current.settings.experimentalGit) {
         e.preventDefault();
         requireDesktop("Source control");
         return;
@@ -1881,6 +1888,7 @@ export default function App() {
               onSearchOpenChange={changeSearchOpen}
               onOpenMatch={openMatch}
               gitOpen={gitOpen && git.repo !== null}
+              gitOffered={settings.experimentalGit}
               onGitOpenChange={setGitOpen}
               gitChanges={gitChangeCount}
               gitBadges={gitBadges}
@@ -2036,9 +2044,9 @@ export default function App() {
               </div>
             </>
           ) : (
-            <NoFile />
+            <NoFile git={settings.experimentalGit} />
           )}
-          {!isWeb && (
+          {!isWeb && settings.experimentalTerminal && (
             <TerminalPanel
               ref={terminalRef}
               visible={terminalOpen}
@@ -2058,7 +2066,7 @@ export default function App() {
               onWrap={toggleWrap}
               onAutosave={() => updateSettings({ autosave: !settings.autosave })}
               terminalOpen={terminalOpen}
-              onTerminal={toggleTerminal}
+              onTerminal={settings.experimentalTerminal ? toggleTerminal : undefined}
               git={
                 gitStatus && {
                   branch: gitStatus.branch,

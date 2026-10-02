@@ -12,8 +12,8 @@ interface StatusBarProps {
   onWrap: () => void;
   onAutosave: () => void;
   terminalOpen: boolean;
-  /** Shows or hides the terminal (in the web version, asks for the desktop app). */
-  onTerminal: () => void;
+  /** Shows or hides the terminal (in the web version, asks for the desktop app); absent while it's turned off. */
+  onTerminal?: () => void;
   /** The repository's branch, when the folder is in one Mido may use git in. */
   git?: { branch: string | null; ahead: number; behind: number; changes: number; onClick: () => void } | null;
 }
@@ -48,15 +48,17 @@ export default function StatusBar(props: StatusBarProps) {
           )}
         </button>
       )}
-      <button
-        className={`statusbar-terminal ${props.terminalOpen ? "active" : ""}`}
-        onClick={props.onTerminal}
-        title="Terminal (⌃`)"
-        aria-pressed={props.terminalOpen}
-      >
-        <SquareTerminal size={12} />
-        Terminal
-      </button>
+      {props.onTerminal && (
+        <button
+          className={`statusbar-terminal ${props.terminalOpen ? "active" : ""}`}
+          onClick={props.onTerminal}
+          title="Terminal (⌃`)"
+          aria-pressed={props.terminalOpen}
+        >
+          <SquareTerminal size={12} />
+          Terminal
+        </button>
+      )}
       <button onClick={props.onWrap}>{props.wrap ? "Wrap" : "No wrap"}</button>
       {isWeb ? (
         <button className="read-only-badge" onClick={() => requireDesktop("Editing")} title="Get the desktop app to edit">

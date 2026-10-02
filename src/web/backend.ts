@@ -240,6 +240,8 @@ export const commands: Record<string, (args: Record<string, unknown>, options?: 
     return download(path.split("/").pop() || "document.docx", new Blob([bytes as unknown as Uint8Array<ArrayBuffer>], { type }));
   },
 
+  /** No menu bar here. */
+  set_terminal_menu: () => {},
   pty_spawn: desktopOnly,
   pty_write: desktopOnly,
   pty_resize: desktopOnly,

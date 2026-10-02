@@ -54,6 +54,8 @@ interface SidebarProps {
   searchOpen: boolean;
   onSearchOpenChange: (open: boolean) => void;
   onOpenMatch: (path: string, line: number) => void;
+  /** The web version shows the source control button anyway (to say it needs the desktop app), when it's turned on. */
+  gitOffered?: boolean;
   /** Shows the source control panel instead of the file tree; only offered in a git repository. */
   gitOpen: boolean;
   onGitOpenChange: (open: boolean) => void;
@@ -276,8 +278,7 @@ export default function Sidebar(props: SidebarProps) {
           >
             <Search size={14} />
           </IconButton>
-          {/* The web version shows it too, to say source control needs the desktop app. */}
-          {(props.gitPanel !== null || isWeb) && (
+          {(props.gitPanel !== null || (isWeb && props.gitOffered)) && (
             <IconButton
               title={`Source control (${isMac ? "⌃⇧G" : "Ctrl+Shift+G"})`}
               active={props.gitOpen}

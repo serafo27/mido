@@ -52,6 +52,10 @@ export interface Settings {
   tabStyle: TabStyle;
   /** Source control lists every changed file and commit, not only Markdown documents. */
   gitShowAllFiles: boolean;
+  /** Experimental: a terminal under the document, and the Terminal menu. */
+  experimentalTerminal: boolean;
+  /** Experimental: source control (git) for the open folder. */
+  experimentalGit: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -84,6 +88,8 @@ export const DEFAULT_SETTINGS: Settings = {
   remoteImages: "secure",
   tabStyle: "rounded",
   gitShowAllFiles: false,
+  experimentalTerminal: false,
+  experimentalGit: false,
 };
 
 /**

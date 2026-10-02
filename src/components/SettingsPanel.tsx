@@ -193,7 +193,7 @@ export default function SettingsPanel(props: SettingsPanelProps) {
           </Section>
         )}
 
-        {!isWeb && (
+        {!isWeb && settings.experimentalGit && (
           <Section title="Source Control">
             <Toggle
               label="Show all files, not only Markdown"
@@ -282,6 +282,20 @@ export default function SettingsPanel(props: SettingsPanelProps) {
             </div>
           </Section>
         )}
+
+        <Section title="Experimental">
+          <p className="settings-note">Features still being worked on. They may change, or not always work.</p>
+          <Toggle
+            label="Terminal"
+            checked={settings.experimentalTerminal}
+            onChange={(experimentalTerminal) => onChange({ experimentalTerminal })}
+          />
+          <Toggle
+            label="Source control (git)"
+            checked={settings.experimentalGit}
+            onChange={(experimentalGit) => onChange({ experimentalGit })}
+          />
+        </Section>
 
         {/* Custom themes are user content, not a setting: keep them. */}
         <button
