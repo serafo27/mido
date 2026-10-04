@@ -9,6 +9,12 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-04
+
+### Added
+
+- **Anonymous usage statistics**, to learn how many people use Mido and which features matter: at most once a day, the app and the web version send that Mido was used, its version, platform and processor, the theme, and whether git and the terminal were used, under a random id that identifies nobody. Never files, their names, paths or contents; IP addresses aren't stored. They go to PostHog on EU servers. Turn them off in the new **Settings → Privacy**.
+
 ## [0.15.0] - 2026-10-02
 
 ### Changed
@@ -238,7 +244,8 @@ The first release of Mido, for macOS (Apple Silicon and Intel).
 - Custom themes with a colour editor and JSON import and export.
 - Auto, light and dark modes, with an optional accent colour.
 
-[Unreleased]: https://github.com/serafo27/mido/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/serafo27/mido/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/serafo27/mido/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/serafo27/mido/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/serafo27/mido/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/serafo27/mido/compare/v0.12.0...v0.13.0
