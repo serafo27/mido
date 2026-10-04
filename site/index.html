@@ -394,13 +394,37 @@
           </article>
         </div>
 
+        <!-- Without this macOS won't open the app, so it stays in plain sight under the buttons. -->
+        <div class="first-launch" aria-labelledby="first-launch-title">
+          <div class="first-launch-head">
+            <span class="first-launch-icon" aria-hidden="true">!</span>
+            <h3 id="first-launch-title">Opening Mido the first time</h3>
+          </div>
+          <p>Mido isn't code-signed by Apple yet, so macOS stops it the first time. Once, after installing:</p>
+          <ol>
+            <li>In <em>Applications</em>, right-click Mido, choose <strong>Open</strong>, then <strong>Open</strong> again.</li>
+            <li>
+              If macOS still won't open it: <em>System Settings → Privacy &amp; Security</em>, scroll down and click
+              <strong>Open Anyway</strong>.
+            </li>
+            <li>
+              Or paste this in Terminal:
+              <span class="command">
+                <code id="unquarantine">xattr -cr /Applications/Mido.app</code>
+                <button class="copy-button" type="button" data-copy="unquarantine">Copy</button>
+              </span>
+            </li>
+          </ol>
+          <p class="first-launch-after">From then on, updates install from inside the app and don't ask again.</p>
+        </div>
+
         <p class="other-platforms">
           Just want to read? <a href="app/" data-track="open-web-app" data-track-from="download">Open Mido in your browser</a>: no install, read-only, and your files
           never leave your computer.
         </p>
         <p class="other-platforms">Windows and Linux versions are on the way.</p>
 
-        <details class="unsigned-note">
+        <details class="fine-print">
           <summary>Privacy</summary>
           <p>
             Your documents stay on your computer: Mido never uploads files, their names or contents. To learn how many
@@ -410,14 +434,6 @@
           </p>
         </details>
 
-        <details class="unsigned-note">
-          <summary>First launch on macOS</summary>
-          <p>
-            Mido isn't code-signed yet. The first time, right-click the app and choose <em>Open</em>, or allow it in
-            <em>System Settings → Privacy &amp; Security</em>, or run <code>xattr -cr /Applications/Mido.app</code> in
-            Terminal. Updates install from inside the app and don't ask again.
-          </p>
-        </details>
       </section>
     </main>
 

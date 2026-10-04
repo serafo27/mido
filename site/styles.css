@@ -796,7 +796,105 @@ code {
   gap: 10px;
 }
 
-.unsigned-note {
+/* What to do before the first launch: macOS won't open the unsigned app otherwise. */
+.first-launch {
+  max-width: 560px;
+  margin: 22px auto 0;
+  padding: 22px 24px;
+  border: 1px solid color-mix(in srgb, var(--warm) 55%, var(--border));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--warm) 9%, var(--surface));
+  text-align: left;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.first-launch-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.first-launch-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--warm);
+  color: #1d1b17;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.first-launch h3 {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--heading);
+}
+
+.first-launch ol {
+  margin: 12px 0;
+  padding-left: 22px;
+}
+
+.first-launch li + li {
+  margin-top: 8px;
+}
+
+.first-launch li::marker {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.first-launch strong {
+  color: var(--heading);
+}
+
+.first-launch-after {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.command {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.command code {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 13.5px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.copy-button {
+  flex: none;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: 500 13px var(--font-sans);
+  cursor: pointer;
+}
+
+.copy-button:hover {
+  border-color: var(--muted);
+}
+
+/* Smaller print further down the download section. */
+.fine-print {
   max-width: 640px;
   margin: 36px auto 0;
   padding: 14px 18px;
@@ -807,13 +905,13 @@ code {
   color: var(--muted);
 }
 
-.unsigned-note summary {
+.fine-print summary {
   font-weight: 600;
   color: var(--text);
   cursor: pointer;
 }
 
-.unsigned-note p {
+.fine-print p {
   margin-top: 10px;
 }
 

@@ -31,7 +31,7 @@
   document.querySelectorAll(".themes, .grid-section, .download").forEach((section) => {
     track(section.querySelectorAll(":scope > .eyebrow, :scope > h2, :scope > .section-lede"), "up", 0.1);
   });
-  track(document.querySelectorAll(".theme-tabs, .platforms, .download > .other-platforms, .unsigned-note"), "up");
+  track(document.querySelectorAll(".theme-tabs, .platforms, .download > .other-platforms, .first-launch, .fine-print"), "up");
   track(document.querySelectorAll(".theme-shot"), "settle");
   track(document.querySelectorAll(".card"), "up", 0.08);
 
@@ -165,3 +165,16 @@
     link.querySelector(".asset-meta").textContent = `.dmg · ${R.size(asset.size)}`;
   });
 })();
+
+// Copy buttons: put the text of the element named by data-copy on the clipboard.
+document.querySelectorAll("[data-copy]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(document.getElementById(button.dataset.copy).textContent);
+      button.textContent = "Copied";
+    } catch {
+      button.textContent = "Select and copy";
+    }
+    setTimeout(() => (button.textContent = "Copy"), 1600);
+  });
+});
