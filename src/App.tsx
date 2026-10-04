@@ -17,9 +17,11 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorView } from "@codemirror/view";
 import { api, type FileNode, type OpenRequest } from "./lib/api";
 import { basename, dirname, isInside, isMarkdown, join } from "./lib/paths";
+import { recordActiveDay, recordFeature, setUsageStats } from "./lib/analytics";
 import { DOWNLOAD_URL, isMac, isMainWindow, isWeb, requireDesktop, WEB_ACCESS_NEEDED } from "./lib/platform";
 import { useStoredState } from "./lib/useStoredState";
 import {
+  activeTheme,
   DEFAULT_SETTINGS,
   applySettings,
   lightThemeVariables,
@@ -949,6 +951,23 @@ export default function App() {
 
   useEffect(() => applySettings(settings, systemDark), [settings, systemDark]);
 
+  // Anonymous usage statistics (Settings → Privacy): once a day, that Mido was
+  // used and with which theme. Checked hourly, as the app stays open for days.
+  useEffect(() => setUsageStats(settings.usageStats), [settings.usageStats]);
+  useEffect(() => {
+    if (!isMainWindow || !settings.usageStats) return;
+    const record = () => {
+      const { settings } = live.current;
+      recordActiveDay(settings, activeTheme(settings, matchMedia("(prefers-color-scheme: dark)").matches));
+    };
+    const first = window.setTimeout(record, 5000);
+    const hourly = window.setInterval(record, 60 * 60 * 1000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(hourly);
+    };
+  }, [settings.usageStats]);
+
   useEditorRemeasure([settings.codeFont, settings.customCodeFont, settings.editorFontSize, settings.editorLineHeight]);
 
   // Native "Settings…" menu item (macOS).
@@ -968,6 +987,12 @@ export default function App() {
   const gitOpenRef = useRef(gitOpen);
   gitOpenRef.current = gitOpen;
   const gitShortcutsRef = useRef(false);
+  useEffect(() => {
+    if (git.repo) recordFeature("git-repo");
+  }, [git.repo]);
+  useEffect(() => {
+    if (gitOpen) recordFeature("source-control");
+  }, [gitOpen]);
   const [gitError, setGitError] = useState<string | null>(null);
   // One commit message, in the panel and in the commit dialog.
   const [commitMessage, setCommitMessage] = useState("");
@@ -1097,7 +1122,10 @@ export default function App() {
   const commit = useCallback(
     async (message: string, options?: CommitOptions) => {
       const done = await gitAction(options?.amend ? "Amending…" : "Committing…", () => api.gitCommit(message, options));
-      if (done) setCommitMessage("");
+      if (done) {
+        setCommitMessage("");
+        recordFeature("git-commit");
+      }
       return done;
     },
     [gitAction],
@@ -1157,7 +1185,10 @@ export default function App() {
   );
 
   const pushFromDialog = useCallback(
-    (remote: string | null) => gitAction(remote ? "Publishing…" : "Pushing…", () => api.gitPush(remote)),
+    (remote: string | null) => {
+      recordFeature("git-push");
+      return gitAction(remote ? "Publishing…" : "Pushing…", () => api.gitPush(remote));
+    },
     [gitAction],
   );
   const commitFromDialog = useCallback(
@@ -1188,11 +1219,13 @@ export default function App() {
     );
     const mode = choice === "Merge" || choice === "Yes" ? "merge" : choice === "Rebase" || choice === "No" ? "rebase" : null;
     if (!mode) return false;
+    recordFeature("git-pull");
     return gitAction(mode === "merge" ? "Pulling (merge)…" : "Pulling (rebase)…", () => api.gitPull(mode));
   }, [gitStatus, gitAction]);
 
   const push = useCallback(async () => {
     if (!gitStatus) return;
+    recordFeature("git-push");
     if (gitStatus.upstream) {
       await gitAction("Pushing…", () => api.gitPush());
       return;
@@ -1467,6 +1500,9 @@ export default function App() {
   }, [newTerminal]);
 
   const hideTerminal = useCallback(() => setTerminalOpen(false), []);
+  useEffect(() => {
+    if (terminalOpen) recordFeature("terminal");
+  }, [terminalOpen]);
 
   // The Terminal menu (macOS).
   useEffect(() => {

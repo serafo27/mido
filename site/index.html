@@ -102,7 +102,7 @@
             <span class="button-icon" aria-hidden="true">↓</span>
             <span id="hero-download-label">Download for macOS</span>
           </a>
-          <a class="button secondary" href="app/">Try it in your browser</a>
+          <a class="button secondary" href="app/" data-track="open-web-app" data-track-from="hero">Try it in your browser</a>
           <a class="button secondary" href="https://github.com/serafo27/mido">View on GitHub</a>
         </div>
         <p class="cta-note" id="hero-note">Free · Your files stay plain Markdown on your disk</p>
@@ -384,10 +384,10 @@
               <span class="version-badge" id="release-version" hidden></span>
             </div>
             <p class="platform-sub">Apple Silicon and Intel</p>
-            <a class="button primary block" data-asset="mac-arm" href="https://github.com/serafo27/mido/releases/latest">
+            <a class="button primary block" data-asset="mac-arm" data-track="download" data-track-arch="apple-silicon" href="https://github.com/serafo27/mido/releases/latest">
               Apple Silicon <span class="asset-meta">.dmg</span>
             </a>
-            <a class="button secondary block" data-asset="mac-intel" href="https://github.com/serafo27/mido/releases/latest">
+            <a class="button secondary block" data-asset="mac-intel" data-track="download" data-track-arch="intel" href="https://github.com/serafo27/mido/releases/latest">
               Intel <span class="asset-meta">.dmg</span>
             </a>
             <a class="whats-new" id="whats-new" href="changelog.html" hidden></a>
@@ -395,10 +395,20 @@
         </div>
 
         <p class="other-platforms">
-          Just want to read? <a href="app/">Open Mido in your browser</a>: no install, read-only, and your files
+          Just want to read? <a href="app/" data-track="open-web-app" data-track-from="download">Open Mido in your browser</a>: no install, read-only, and your files
           never leave your computer.
         </p>
         <p class="other-platforms">Windows and Linux versions are on the way.</p>
+
+        <details class="unsigned-note">
+          <summary>Privacy</summary>
+          <p>
+            Your documents stay on your computer: Mido never uploads files, their names or contents. To learn how many
+            people use it, the app sends anonymous statistics at most once a day (the version, the theme, and whether git
+            and the terminal were used), under a random id and without storing IP addresses. Turn it off in
+            <em>Settings → Privacy</em>. This site counts visits and downloads the same way, without cookies.
+          </p>
+        </details>
 
         <details class="unsigned-note">
           <summary>First launch on macOS</summary>
@@ -429,5 +439,6 @@
     <script src="theme.js"></script>
     <script src="releases.js"></script>
     <script src="main.js"></script>
+    <script src="analytics.js"></script>
   </body>
 </html>

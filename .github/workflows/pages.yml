@@ -41,6 +41,9 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - name: Build the web version
+        env:
+          # Anonymous usage statistics (src/lib/analytics.ts): the key lives only in the secret.
+          VITE_POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
         run: |
           pnpm install --frozen-lockfile
           pnpm build:web
@@ -57,6 +60,12 @@ jobs:
             --jq '[.[] | select(.draft | not) | {tag_name, published_at, html_url, body_html,
                    assets: [.assets[] | {name, size, browser_download_url}]}]' > site/releases.json
           jq -r '.[] | "\(.tag_name): \([.assets[].name] | join(", "))"' site/releases.json
+      # The site's own statistics (site/analytics.js) get the same key.
+      - name: Statistics key
+        env:
+          POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
+        run: sed -i "s/__POSTHOG_KEY__/${POSTHOG_KEY}/" site/analytics.js
+
       # Pages caches files for 10 minutes: versioned URLs make every deploy
       # load its own CSS and JS instead of a stale copy.
       - name: Version asset URLs

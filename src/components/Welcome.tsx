@@ -81,7 +81,7 @@ function WebWelcome(props: { recents: string[]; onOpen: (path?: string) => void 
       <p className="web-drop-hint">or drop a folder or Markdown files anywhere on this page</p>
       <p className="web-privacy">
         <Lock size={13} />
-        Your files never leave your computer: Mido reads them in this browser and uploads nothing.
+        Your files never leave your computer: Mido reads them in this browser and never uploads them.
       </p>
       {!canReadFolders && (
         <p className="web-browser-note">

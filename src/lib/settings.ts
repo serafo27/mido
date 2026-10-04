@@ -54,6 +54,8 @@ export interface Settings {
   gitShowAllFiles: boolean;
   /** An installed font for the terminal (a Nerd Font for a fancy prompt); empty: the system's, as in Terminal. */
   terminalFont: string;
+  /** Anonymous usage statistics, once a day: see lib/analytics.ts. */
+  usageStats: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -87,6 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tabStyle: "rounded",
   gitShowAllFiles: false,
   terminalFont: "",
+  usageStats: true,
 };
 
 /**

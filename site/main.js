@@ -160,6 +160,7 @@
       return;
     }
     link.href = asset.browser_download_url;
+    link.dataset.trackVersion = version;
     link.title = asset.name;
     link.querySelector(".asset-meta").textContent = `.dmg · ${R.size(asset.size)}`;
   });

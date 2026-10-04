@@ -298,6 +298,18 @@ export default function SettingsPanel(props: SettingsPanelProps) {
           </Section>
         )}
 
+        <Section title="Privacy">
+          <Toggle
+            label="Share anonymous usage statistics"
+            checked={settings.usageStats}
+            onChange={(usageStats) => onChange({ usageStats })}
+          />
+          <p className="settings-note">
+            Once a day, under a random id: that Mido was used, its version, your theme, and whether you used git or the
+            terminal. Never file names, paths or what you write.
+          </p>
+        </Section>
+
         {/* Custom themes are user content, not a setting: keep them. */}
         <button
           className="reset-button"

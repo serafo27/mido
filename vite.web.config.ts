@@ -33,7 +33,7 @@ function contentSecurityPolicy(): Plugin {
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' blob: data: https: http:",
           "font-src 'self' data:",
-          "connect-src 'self' blob: data:",
+          "connect-src 'self' blob: data: https://eu.i.posthog.com",
           "object-src 'none'",
           "base-uri 'none'",
           "form-action 'none'",

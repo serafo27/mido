@@ -34,6 +34,10 @@ Just want to read? [Mido for the web](https://serafo27.github.io/mido/app/) open
 
 Mido isn't code-signed yet: the first time, right-click the app and choose **Open**, or allow it in **System Settings → Privacy & Security** (or run `xattr -cr /Applications/Mido.app`). Updates install from inside the app and don't ask again.
 
+## Privacy
+
+Your documents stay on your computer: Mido never uploads files, their names, paths or contents. To learn how many people use it and which features matter, the desktop app and the web version send anonymous usage statistics to [PostHog](https://posthog.com) (EU servers), at most once a day: that Mido was used, its version, platform and processor, the theme, and whether git and the terminal were used, under a random id that identifies nobody. IP addresses aren't stored. Turn it off in **Settings → Privacy**. The website counts page views and download clicks the same way, without cookies.
+
 ## Features
 
 - **Folder sidebar** — a tree of the Markdown files in any folder, with a name filter, create / rename / move to trash from the context menu, and live refresh when files change on disk.
