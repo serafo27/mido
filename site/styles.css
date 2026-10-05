@@ -1104,6 +1104,12 @@ code {
   padding-bottom: 8px;
 }
 
+/* Older versions show when asked for, under the timeline. */
+.releases-more {
+  margin-top: 20px;
+  padding-left: 34px;
+}
+
 /* Timeline dot. */
 .release::before {
   content: "";

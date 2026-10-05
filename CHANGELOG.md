@@ -9,6 +9,10 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Changed
+
+- The website's changelog shows the latest three versions, with older ones a few at a time under **Show older versions**. A link to an older version still opens at it.
+
 ## [0.19.0] - 2026-10-05
 
 ### Added
