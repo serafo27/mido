@@ -38,7 +38,6 @@ import QuickSearch from "./components/QuickSearch";
 import DesktopOnly from "./components/DesktopOnly";
 import FormatBar from "./components/FormatBar";
 import TerminalPanel, { isAppShortcut, type TerminalPanelHandle } from "./components/TerminalPanel";
-import MinimalBar from "./components/MinimalBar";
 import { hiddenByMinimal } from "./lib/minimal";
 import { TERMINAL_DOCKED, type Handoff } from "./lib/terminal";
 import { plainColor } from "./lib/color";
@@ -1976,16 +1975,11 @@ export default function App() {
     </>
   );
 
-  const toolbar = minimal ? (
-    <MinimalBar
-      name={active && !activeDiffTab ? basename(active.path) : null}
-      dirty={dirty}
-      editing={mode === "edit" && !!active && !activeDiffTab}
-    />
-  ) : (
+  const toolbar = (
     <Toolbar
+      minimal={minimal}
       showSidebarToggle={root !== null}
-      sidebarOpen={root !== null && sidebarOpen}
+      sidebarOpen={root !== null && sidebarOpen && !minimal}
       root={root}
       activePath={active && !activeDiffTab ? active.path : null}
       dirty={dirty}
@@ -2095,7 +2089,7 @@ export default function App() {
         )}
         <main className="main">
           {toolbar}
-          {settings.showPathBar && tabInfos.length > 0 && !minimal && (
+          {settings.showPathBar && tabInfos.length > 0 && (
             <TabBar
               tabs={tabInfos}
               activePath={activeTabKey}

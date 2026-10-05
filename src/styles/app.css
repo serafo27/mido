@@ -582,34 +582,7 @@ body.resizing .resizer {
   padding-left: 80px;
 }
 
-/* ---------- Minimal Mode: only the document, to read and write ---------- */
-.minimal-bar {
-  height: var(--toolbar-h);
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 10px;
-  background: var(--bg);
-}
-.minimal-bar.mac-inset {
-  padding: 0 80px;
-}
-.minimal-bar.editing {
-  background: var(--bg-editor);
-}
-.minimal-bar-name {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  color: var(--text-faint);
-  cursor: default;
-  user-select: none;
-}
+/* ---------- Minimal Mode: the document, its tabs and Read · Split · Edit ---------- */
 /* The editor writes on the reading column, as the preview reads. */
 .app.minimal-wrap .editor-column .cm-content {
   max-width: var(--md-width);

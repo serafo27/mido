@@ -53,6 +53,8 @@ interface ToolbarProps {
   onExport?: () => void;
   onExportWord?: () => void;
   onPrint?: () => void;
+  /** Minimal Mode: only the tabs (or the path) and Read · Split · Edit. */
+  minimal?: boolean;
 }
 
 const MODES: { id: ViewMode; label: string; icon: React.ReactNode; key: string }[] = [
@@ -73,7 +75,7 @@ export default function Toolbar(props: ToolbarProps) {
     >
       {/* With the sidebar open, the brand sits in its header instead. */}
       {isWeb && !props.sidebarOpen && <WebBrand />}
-      {props.showSidebarToggle && (
+      {props.showSidebarToggle && !props.minimal && (
         <IconButton title={`Toggle sidebar (${modKey}\\)`} onClick={props.onToggleSidebar}>
           <PanelLeft size={15} />
         </IconButton>
@@ -118,41 +120,47 @@ export default function Toolbar(props: ToolbarProps) {
               </button>
             ))}
           </div>
-          <IconButton
-            title={`${props.wrap ? "Wrapping lines" : "Not wrapping — scroll horizontally"} (${altKey}Z)`}
-            active={props.wrap}
-            onClick={props.onWrap}
-          >
-            <TextWrap size={15} />
-          </IconButton>
-          <IconButton title={`Outline (${modKey}⇧O)`} active={props.outlineOpen} onClick={props.onToggleOutline}>
-            <TableOfContents size={15} />
-          </IconButton>
-          <span className="comments-toggle">
+          {!props.minimal && (
+            <>
             <IconButton
-              title={`Comments (${modKey}⇧M)${props.commentCount ? ` · ${props.commentCount} open` : ""}`}
-              active={props.commentsOpen}
-              onClick={props.onToggleComments}
+              title={`${props.wrap ? "Wrapping lines" : "Not wrapping — scroll horizontally"} (${altKey}Z)`}
+              active={props.wrap}
+              onClick={props.onWrap}
             >
-              <MessageSquare size={15} />
+              <TextWrap size={15} />
             </IconButton>
-            {props.commentCount > 0 && <span className="comments-badge">{props.commentCount}</span>}
-          </span>
-          {props.onExport && props.onExportWord && (
-            <ExportMenu onExportHtml={props.onExport} onExportWord={props.onExportWord} />
-          )}
-          {props.onPrint && (
-            <IconButton title={`Print or save as PDF (${altKey}${modKey}P)`} onClick={props.onPrint}>
-              <Printer size={15} />
+            <IconButton title={`Outline (${modKey}⇧O)`} active={props.outlineOpen} onClick={props.onToggleOutline}>
+              <TableOfContents size={15} />
             </IconButton>
+            <span className="comments-toggle">
+              <IconButton
+                title={`Comments (${modKey}⇧M)${props.commentCount ? ` · ${props.commentCount} open` : ""}`}
+                active={props.commentsOpen}
+                onClick={props.onToggleComments}
+              >
+                <MessageSquare size={15} />
+              </IconButton>
+              {props.commentCount > 0 && <span className="comments-badge">{props.commentCount}</span>}
+            </span>
+            {props.onExport && props.onExportWord && (
+              <ExportMenu onExportHtml={props.onExport} onExportWord={props.onExportWord} />
+            )}
+            {props.onPrint && (
+              <IconButton title={`Print or save as PDF (${altKey}${modKey}P)`} onClick={props.onPrint}>
+                <Printer size={15} />
+              </IconButton>
+            )}
+            </>
           )}
         </>
       )}
-      <span data-settings-toggle>
-        <IconButton title={`Settings (${modKey},)`} active={props.settingsOpen} onClick={props.onToggleSettings}>
-          <SettingsIcon size={15} />
-        </IconButton>
-      </span>
+      {!props.minimal && (
+        <span data-settings-toggle>
+          <IconButton title={`Settings (${modKey},)`} active={props.settingsOpen} onClick={props.onToggleSettings}>
+            <SettingsIcon size={15} />
+          </IconButton>
+        </span>
+      )}
     </header>
   );
 }
