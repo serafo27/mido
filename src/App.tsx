@@ -1979,7 +1979,7 @@ export default function App() {
     <Toolbar
       minimal={minimal}
       showSidebarToggle={root !== null}
-      sidebarOpen={root !== null && sidebarOpen && !minimal}
+      sidebarOpen={root !== null && sidebarOpen}
       root={root}
       activePath={active && !activeDiffTab ? active.path : null}
       dirty={dirty}
@@ -2023,7 +2023,7 @@ export default function App() {
   return (
     <>
       <div className={`app ${minimal ? "minimal" : ""} ${minimal && settings.wrap ? "minimal-wrap" : ""}`}>
-        {sidebarOpen && !minimal && (
+        {sidebarOpen && (
           <>
             <Sidebar
               root={root}
@@ -2040,13 +2040,14 @@ export default function App() {
               onRename={renameEntry}
               onTrash={trashEntry}
               onReveal={(p) => revealItemInDir(p).catch(fail)}
-              searchOpen={searchOpen}
+              searchOpen={searchOpen && !minimal}
               onSearchOpenChange={changeSearchOpen}
               onOpenMatch={openMatch}
-              gitOpen={gitOpen && git.repo !== null}
+              gitOpen={gitOpen && git.repo !== null && !minimal}
               onGitOpenChange={setGitOpen}
               gitChanges={gitChangeCount}
-              gitBadges={gitBadges}
+              gitBadges={minimal ? NO_BADGES : gitBadges}
+              minimal={minimal}
               gitPanel={
                 git.repo && (
                   <SourceControl
@@ -2274,8 +2275,9 @@ function imagesLoaded(el: HTMLElement | null, timeout = 3000): Promise<unknown> 
 }
 
 /** Scroll positions the app set itself: the scroll event each causes isn't the user's. */
-/** What Minimal Mode highlights of the comments: nothing (one array, so the views don't redraw). */
+/** What Minimal Mode highlights of the comments, and badges of git: nothing (one each, so nothing redraws). */
 const NO_HIGHLIGHTS: SourceHighlight[] = [];
+const NO_BADGES = new Map<string, string>();
 
 const ownScrolls = new WeakMap<HTMLElement, { top: number; at: number }>();
 

@@ -63,6 +63,8 @@ interface SidebarProps {
   gitChanges: number;
   /** The git letter of each changed file in the folder (M, A, D, U, !), by path. */
   gitBadges: Map<string, string>;
+  /** Minimal Mode: only the files, without search and source control. */
+  minimal?: boolean;
 }
 
 function filterTree(nodes: FileNode[], query: string): FileNode[] {
@@ -269,15 +271,17 @@ export default function Sidebar(props: SidebarProps) {
           <IconButton title="Refresh" onClick={onRefresh}>
             <RefreshCw size={14} />
           </IconButton>
-          <IconButton
-            title={`Search in files (${isMac ? "⌘⇧F" : "Ctrl+Shift+F"})`}
-            active={props.searchOpen}
-            onClick={() => props.onSearchOpenChange(!props.searchOpen)}
-          >
-            <Search size={14} />
-          </IconButton>
+          {!props.minimal && (
+            <IconButton
+              title={`Search in files (${isMac ? "⌘⇧F" : "Ctrl+Shift+F"})`}
+              active={props.searchOpen}
+              onClick={() => props.onSearchOpenChange(!props.searchOpen)}
+            >
+              <Search size={14} />
+            </IconButton>
+          )}
           {/* The web version shows it too, to say source control needs the desktop app. */}
-          {(props.gitPanel !== null || isWeb) && (
+          {(props.gitPanel !== null || isWeb) && !props.minimal && (
             <IconButton
               title={`Source control (${isMac ? "⌃⇧G" : "Ctrl+Shift+G"})`}
               active={props.gitOpen}

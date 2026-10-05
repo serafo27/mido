@@ -3,10 +3,10 @@
 type Keys = Pick<KeyboardEvent, "key" | "code" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey">;
 
 /**
- * Whether a shortcut would show something Minimal Mode hides (the sidebar,
- * search, source control, outline, comments, the terminal, the git dialogs):
- * it does nothing there. Saving, the view modes, text size, wrapping, quick
- * open and switching files still work.
+ * Whether a shortcut would show something Minimal Mode hides (search, source
+ * control, outline, comments, the terminal, the git dialogs): it does nothing
+ * there. Saving, the view modes, text size, wrapping, the sidebar's files,
+ * quick open and switching files still work.
  */
 export function hiddenByMinimal(e: Keys, mac: boolean): boolean {
   const mod = mac ? e.metaKey : e.ctrlKey;
@@ -18,7 +18,6 @@ export function hiddenByMinimal(e: Keys, mac: boolean): boolean {
   if (!e.altKey && e.code === "KeyK") return true;
   if (e.altKey && !e.shiftKey && e.code === "KeyM") return true;
   if (e.altKey) return false;
-  // ⌘\: the sidebar (by the character, as the app reads it). ⌘⇧O, ⌘⇧M, ⌘⇧F: outline, comments, search.
-  if (!e.shiftKey && e.key === "\\") return true;
+  // ⌘⇧O, ⌘⇧M, ⌘⇧F: outline, comments, search.
   return e.shiftKey && ["KeyO", "KeyM", "KeyF"].includes(e.code);
 }

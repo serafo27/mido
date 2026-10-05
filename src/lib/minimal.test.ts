@@ -19,7 +19,6 @@ describe("hiddenByMinimal", () => {
       key("KeyK", { meta: true }),
       key("KeyK", { meta: true, shift: true }),
       key("KeyM", { meta: true, alt: true }),
-      key("Backslash", { meta: true }, "\\"),
       key("KeyO", { meta: true, shift: true }),
       key("KeyM", { meta: true, shift: true }),
       key("KeyF", { meta: true, shift: true }),
@@ -39,6 +38,7 @@ describe("hiddenByMinimal", () => {
       key("Tab", { ctrl: true }),
       key("KeyB", { meta: true }, "b"),
       key("KeyM", { meta: true }, "m"),
+      key("Backslash", { meta: true }, "\\"),
       key("KeyK", {}, "k"),
     ]) {
       expect(hiddenByMinimal(e, true), JSON.stringify(e)).toBe(false);

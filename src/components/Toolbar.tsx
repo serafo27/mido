@@ -53,7 +53,7 @@ interface ToolbarProps {
   onExport?: () => void;
   onExportWord?: () => void;
   onPrint?: () => void;
-  /** Minimal Mode: only the tabs (or the path) and Read · Split · Edit. */
+  /** Minimal Mode: only the sidebar's toggle, the tabs (or the path) and Read · Split · Edit. */
   minimal?: boolean;
 }
 
@@ -75,7 +75,7 @@ export default function Toolbar(props: ToolbarProps) {
     >
       {/* With the sidebar open, the brand sits in its header instead. */}
       {isWeb && !props.sidebarOpen && <WebBrand />}
-      {props.showSidebarToggle && !props.minimal && (
+      {props.showSidebarToggle && (
         <IconButton title={`Toggle sidebar (${modKey}\\)`} onClick={props.onToggleSidebar}>
           <PanelLeft size={15} />
         </IconButton>
