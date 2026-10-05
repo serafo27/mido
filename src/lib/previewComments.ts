@@ -124,6 +124,14 @@ export function clearHighlights(container: HTMLElement) {
   for (const name of ["mido-comment", "mido-comment-hover", "mido-comment-active"]) CSS.highlights.delete(name);
 }
 
+/** Highlights `range` of the source, the text selected in the editor, or nothing (null). */
+export function paintMirror(container: HTMLElement, source: string, range: Range | null) {
+  if (!supported()) return;
+  const page = range && pageRange(blocks(container), source, range);
+  if (page) CSS.highlights.set("mido-mirror", new Highlight(page));
+  else CSS.highlights.delete("mido-mirror");
+}
+
 /** Where the painted highlights are, as positions in the preview's scrollable content. */
 export function highlightMarkers(container: HTMLElement): { id: string; top: number; active: boolean }[] {
   const height = container.scrollHeight;

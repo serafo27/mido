@@ -9,6 +9,10 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Added
+
+- In **Split**, the text you select on one side is highlighted on the other: select a sentence in the preview to find it in the source and edit it, or select in the editor to see how it reads. Markup is matched too, so `**Tauri**` in the source is **Tauri** on the page.
+
 ### Changed
 
 - The website also shows **Minimal Mode**, **quick search** and **export and print**, in small sections with a picture each, under the features. The "Keyboard first" card gives ⌥⌘K for a link, since ⌘K opens the commit dialog in a git repository.

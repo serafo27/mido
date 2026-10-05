@@ -34,8 +34,12 @@ import {
   highlightAt,
   highlightMarkers,
   paintHighlights,
+  paintMirror,
+  previewSelection,
   type SourceHighlight,
 } from "../lib/previewComments";
+import { trimRange } from "../lib/comments";
+import { publishSelection, watchSelection, type MirroredSelection } from "../lib/selectionMirror";
 import ScrollMarkers, { sameMarkers, type ScrollMarker } from "./ScrollMarkers";
 import Minimap, { MINIMAP_WIDTH } from "./Minimap";
 
@@ -245,6 +249,46 @@ export default function Preview(props: PreviewProps) {
       if (el) clearHighlights(el);
     };
   }, [scrollRef]);
+
+  // Split: the text selected here is highlighted in the editor, and the other way round.
+  const paintMirrored = useRef(() => {});
+  const mirrorRef = useRef<MirroredSelection | null>(null);
+  paintMirrored.current = () => {
+    const el = scrollRef.current;
+    const selection = mirrorRef.current;
+    // Ranges of the latest content: wait for the page to show it.
+    if (!el || deferred !== content) return;
+    paintMirror(el, content, selection?.side === "editor" && selection.path === filePath ? selection : null);
+  };
+  useEffect(() => {
+    const unwatch = watchSelection((selection) => {
+      mirrorRef.current = selection;
+      paintMirrored.current();
+    });
+    return () => {
+      unwatch();
+      const el = scrollRef.current;
+      if (el) paintMirror(el, "", null);
+    };
+  }, [scrollRef]);
+  useEffect(() => paintMirrored.current(), [deferred, content, filePath, highlighting]);
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  useEffect(() => {
+    const onSelectionChange = () => {
+      const el = scrollRef.current;
+      const selection = window.getSelection();
+      // A selection in the editor is the editor's to publish. A click on selected text leaves none at all.
+      if (!el || (selection?.anchorNode && !el.contains(selection.anchorNode))) return;
+      const range = previewSelection(el, contentRef.current);
+      publishSelection(filePath, "preview", range && trimRange(contentRef.current, range));
+    };
+    document.addEventListener("selectionchange", onSelectionChange);
+    return () => {
+      document.removeEventListener("selectionchange", onSelectionChange);
+      publishSelection(filePath, "preview", null);
+    };
+  }, [filePath, scrollRef]);
 
   const components = useMemo<Components>(() => {
     const baseDir = dirname(filePath);

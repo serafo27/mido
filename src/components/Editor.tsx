@@ -16,6 +16,8 @@ import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/lang
 import { tags as t } from "@lezer/highlight";
 import { imageFiles } from "../lib/images";
 import type { SourceHighlight } from "../lib/previewComments";
+import { trimRange, type Range } from "../lib/comments";
+import { publishSelection, watchSelection, type MirroredSelection } from "../lib/selectionMirror";
 import { formatAt, insertLink, sameFormat, toggleBold, toggleItalic, toggleStrikethrough, type FormatState } from "../lib/formatting";
 import ScrollMarkers, { sameMarkers, type ScrollMarker } from "./ScrollMarkers";
 import Minimap, { type MinimapSpace } from "./Minimap";
@@ -80,6 +82,8 @@ export const editorTheme = EditorView.theme({
     backgroundColor: "var(--comment-highlight-active)",
     textDecorationStyle: "solid",
   },
+  ".cm-mirror-highlight": { backgroundColor: "var(--selection)" },
+  "&.cm-mirroring:not(.cm-focused) .cm-selectionBackground": { backgroundColor: "transparent !important" },
   ".cm-panels": { backgroundColor: "var(--bg-sidebar)", color: "var(--text)" },
   ".cm-panels.cm-panels-bottom": { borderTop: "1px solid var(--border)" },
   ".cm-textfield": {
@@ -150,6 +154,36 @@ const highlightField = StateField.define<DecorationSet>({
   },
   provide: (field) => EditorView.decorations.from(field),
 });
+
+/* ---------- the preview's selection, in Split ---------- */
+
+const setMirror = StateEffect.define<Range | null>();
+
+const mirrorField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(decorations, tr) {
+    decorations = decorations.map(tr.changes);
+    for (const effect of tr.effects) {
+      if (!effect.is(setMirror)) continue;
+      const length = tr.state.doc.length;
+      const range = effect.value && { from: Math.min(effect.value.from, length), to: Math.min(effect.value.to, length) };
+      decorations =
+        range && range.from < range.to
+          ? Decoration.set(Decoration.mark({ class: "cm-mirror-highlight" }).range(range.from, range.to))
+          : Decoration.none;
+    }
+    return decorations;
+  },
+  provide: (field) => [
+    EditorView.decorations.from(field),
+    // Marks the editor while it shows the preview's selection, so its own (left from before) steps aside.
+    EditorView.editorAttributes.from(field, (marks): Record<string, string> => (marks.size ? { class: "cm-mirroring" } : {})),
+  ],
+});
+
+/** What the editor highlights of `selection`: only text selected in the preview of its document. */
+const mirrorOf = (selection: MirroredSelection | null, docKey: string): Range | null =>
+  selection?.side === "preview" && selection.path === docKey ? selection : null;
 
 /** The comment highlight at `pos`, preferring the shortest. */
 function highlightAtPos(state: EditorState, pos: number): string | null {
@@ -441,6 +475,8 @@ export default function Editor(props: EditorProps) {
   callbacks.current = { onChange, onScroll, onAddImages, onSelectHighlight, onHoverHighlight };
   const highlightsRef = useRef(highlights);
   highlightsRef.current = highlights;
+  // The selection the preview last published, to highlight in a document when it shows.
+  const mirrorRef = useRef<MirroredSelection | null>(null);
   const [markers, setMarkers] = useState<ScrollMarker[]>([]);
   const markersFrame = useRef(0);
   const updateMarkers = (view: EditorView) => {
@@ -496,12 +532,20 @@ export default function Editor(props: EditorProps) {
         syntaxHighlighting(markdownHighlight),
         markdownKeys,
         highlightField,
+        mirrorField,
         wrapCompartment.of(wrapRef.current ? EditorView.lineWrapping : []),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) callbacks.current.onChange(keyRef.current, update.state.doc.toString());
           const highlightsChanged = update.transactions.some((tr) => tr.effects.some((e) => e.is(setHighlights)));
           if (update.docChanged || update.geometryChanged || highlightsChanged) updateMarkers(update.view);
           if (update.docChanged || update.geometryChanged) setMinimapVersion((v) => v + 1);
+          // Only what the reader selects, not a document being restored.
+          if (update.selectionSet && update.view.hasFocus) {
+            const { from, to } = update.state.selection.main;
+            const text = update.state.sliceDoc(from, to);
+            const trimmed = trimRange(text, { from: 0, to: text.length });
+            publishSelection(keyRef.current, "editor", { from: from + trimmed.from, to: from + trimmed.to });
+          }
           if (update.docChanged || update.selectionSet || syntaxTree(update.startState) !== syntaxTree(update.state)) {
             publishFormat(update.state);
           }
@@ -555,6 +599,7 @@ export default function Editor(props: EditorProps) {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
     }
     view.dispatch({ effects: setHighlights.of(highlightsRef.current ?? []) });
+    view.dispatch({ effects: setMirror.of(mirrorOf(mirrorRef.current, key)) });
     publishFormat(view.state);
     const top = cached?.scrollTop ?? 0;
     requestAnimationFrame(() => {
@@ -574,7 +619,13 @@ export default function Editor(props: EditorProps) {
     setScroller(view.scrollDOM);
     restore(view, keyRef.current, value);
     view.focus();
+    const unwatch = watchSelection((selection) => {
+      mirrorRef.current = selection;
+      view.dispatch({ effects: setMirror.of(mirrorOf(selection, keyRef.current)) });
+    });
     return () => {
+      unwatch();
+      publishSelection(keyRef.current, "editor", null);
       if (addImagesToEditor && currentView === view) addImagesToEditor = null;
       cancelAnimationFrame(markersFrame.current);
       stash(view, keyRef.current);
@@ -592,6 +643,7 @@ export default function Editor(props: EditorProps) {
     const view = viewRef.current;
     if (!view || keyRef.current === docKey) return;
     stash(view, keyRef.current);
+    publishSelection(keyRef.current, "editor", null);
     keyRef.current = docKey;
     restore(view, docKey, value);
   }, [docKey]);

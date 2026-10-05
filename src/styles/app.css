@@ -5051,3 +5051,8 @@ body.resizing-row * {
   background: var(--border);
   pointer-events: none;
 }
+
+/* Split: the text selected on the other side, the editor's or the preview's. */
+::highlight(mido-mirror) {
+  background-color: var(--selection);
+}
