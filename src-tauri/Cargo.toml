@@ -1,6 +1,6 @@
 [package]
 name = "mido"
-version = "0.19.2"
+version = "0.19.3"
 description = "Mido — Markdown viewer & editor"
 license-file = "../LICENSE"
 publish = false

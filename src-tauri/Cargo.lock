@@ -2190,7 +2190,7 @@ dependencies = [
 
 [[package]]
 name = "mido"
-version = "0.19.2"
+version = "0.19.3"
 dependencies = [
  "notify-debouncer-mini",
  "percent-encoding",
