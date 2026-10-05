@@ -17,14 +17,17 @@ export const isMainWindow = (() => {
   }
 })();
 
-/** Whether this window holds a floating terminal (src-tauri/src/floating.rs) rather than the app. */
-export const isFloatingTerminal = (() => {
+/** What a floating window (src-tauri/src/floating.rs) holds, rather than the app. */
+const floatingKind = (() => {
   try {
-    return !isWeb && getCurrentWindow().label.startsWith("terminal-");
+    const label = isWeb ? "" : getCurrentWindow().label;
+    return label.startsWith("terminal-") ? "terminal" : label.startsWith("commit-") ? "commit" : null;
   } catch {
-    return false;
+    return null;
   }
 })();
+export const isFloatingTerminal = floatingKind === "terminal";
+export const isCommitWindow = floatingKind === "commit";
 
 /** The desktop app on macOS draws its traffic lights over the top-left corner. */
 export const macWindowInset = isMac && !isWeb;

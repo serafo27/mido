@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PanelBottom } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { TerminalView, type TerminalViewHandle } from "./TerminalPanel";
 import { dockTerminal, takeFloatingTerminal, type Handoff } from "../lib/terminal";
-import { applySettings, DEFAULT_SETTINGS, type Settings } from "../lib/settings";
-import { useStoredState } from "../lib/useStoredState";
+import { useAppearance } from "../lib/useAppearance";
 import { isMac, macWindowInset } from "../lib/platform";
 
 // Asked once, outside React: the backend gives the terminal to the first ask only.
@@ -18,17 +17,7 @@ const closeWindow = () => void getCurrentWindow().destroy();
  * came from.
  */
 export default function FloatingTerminal() {
-  // The app's theme and fonts, following the changes made in its windows.
-  const [stored] = useStoredState<Partial<Settings>>("mido.settings", {}, { shared: true });
-  const settings = useMemo<Settings>(() => ({ ...DEFAULT_SETTINGS, ...stored }), [stored]);
-  const [systemDark, setSystemDark] = useState(() => matchMedia("(prefers-color-scheme: dark)").matches);
-  useEffect(() => {
-    const mq = matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => setSystemDark(mq.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-  useEffect(() => applySettings(settings, systemDark), [settings, systemDark]);
+  useAppearance();
 
   const [handoff, setHandoff] = useState<Handoff | null>(null);
   useEffect(() => {

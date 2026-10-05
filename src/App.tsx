@@ -12,7 +12,7 @@ import { flushSync } from "react-dom";
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { emit } from "@tauri-apps/api/event";
+import { emit, emitTo } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorView } from "@codemirror/view";
 import { api, type FileNode, type OpenRequest } from "./lib/api";
@@ -39,6 +39,14 @@ import DesktopOnly from "./components/DesktopOnly";
 import FormatBar from "./components/FormatBar";
 import TerminalPanel, { isAppShortcut, type TerminalPanelHandle } from "./components/TerminalPanel";
 import { TERMINAL_DOCKED, type Handoff } from "./lib/terminal";
+import {
+  COMMIT_ACTION,
+  COMMIT_RESULT,
+  COMMIT_STATE,
+  openCommitWindow,
+  type CommitWindowAction,
+  type CommitWindowState,
+} from "./lib/commitWindow";
 import Toolbar, { type ViewMode } from "./components/Toolbar";
 import Editor, {
   activeEditor,
@@ -93,7 +101,7 @@ import CommitDialog from "./components/CommitDialog";
 import PushDialog from "./components/PushDialog";
 import { setLinkShortcutYields } from "./components/Editor";
 import type { CommitOptions, GitBranch } from "./lib/api";
-import { changeLetter, isDocumentPath, useGit } from "./lib/useGit";
+import { changeLetter, confirmDiscard, isDocumentPath, useGit } from "./lib/useGit";
 
 interface Tab {
   path: string;
@@ -1132,16 +1140,10 @@ export default function App() {
     [gitAction],
   );
 
+  /** Discards the changes in `paths`, once confirmed (`confirmed`: the commit dialog's window asked already). */
   const discard = useCallback(
-    async (paths: string[]) => {
-      const files = gitStatus?.files.filter((f) => paths.includes(f.path)) ?? [];
-      const untracked = files.filter((f) => f.unstaged === "?").length;
-      const what = paths.length === 1 ? `“${basename(paths[0])}”` : `${paths.length} files`;
-      const sure = await ask(
-        `Discard the changes in ${what}? They aren't staged, so they'll be lost.${untracked ? ` New files go to the Trash.` : ""}`,
-        { title: "Discard Changes", kind: "warning", okLabel: "Discard", cancelLabel: "Cancel" },
-      );
-      if (!sure) return;
+    async (paths: string[], confirmed = false) => {
+      if (!confirmed && !(await confirmDiscard(gitStatus?.files ?? [], paths))) return;
       if (await gitAction("Discarding…", () => api.gitDiscard(paths))) {
         for (const tab of liveDiffs.current.diffTabs) {
           if (tab.target.kind === "unstaged" && paths.includes(tab.target.change.path)) closeDiff(tab.key);
@@ -1200,6 +1202,81 @@ export default function App() {
     },
     [commit, commitMessage],
   );
+
+  /* The commit dialog, in a window of its own (lib/commitWindow.ts): this window keeps the state and does the work. */
+  const commitWindow = useRef<string | null>(null);
+  const [commitWindowOpen, setCommitWindowOpen] = useState(false);
+  // The message as the dialog last typed it: any other is news to the dialog.
+  const commitMessageFromWindow = useRef<string | null>(null);
+  const commitWindowState = useMemo<CommitWindowState>(
+    () => ({
+      status: gitStatus,
+      busy: git.busy,
+      version: gitVersion,
+      message: commitMessage,
+      external: commitMessage !== commitMessageFromWindow.current,
+      unsaved: [...unsavedPaths],
+      identity: gitAuthor ?? null,
+    }),
+    [gitStatus, git.busy, gitVersion, commitMessage, unsavedPaths, gitAuthor],
+  );
+  const sendCommitWindowState = useCallback((state: CommitWindowState) => {
+    if (commitWindow.current) void emitTo(commitWindow.current, COMMIT_STATE, state).catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (commitWindowOpen) sendCommitWindowState(commitWindowState);
+  }, [commitWindowOpen, commitWindowState, sendCommitWindowState]);
+
+  const openCommitDialog = useCallback(() => {
+    if (isWeb) return setGitDialog("commit");
+    openCommitWindow().then((label) => {
+      commitWindow.current = label;
+      setCommitWindowOpen(true);
+    }, fail);
+  }, [fail]);
+
+  const commitWindowActions = useRef<(action: CommitWindowAction) => void>(() => {});
+  commitWindowActions.current = (action) => {
+    const backHere = () => void getCurrentWindow().setFocus().catch(() => {});
+    switch (action.type) {
+      case "ready":
+        return sendCommitWindowState(commitWindowState);
+      case "message":
+        commitMessageFromWindow.current = action.message;
+        return setCommitMessage(action.message);
+      case "stage":
+        return void stage(action.paths);
+      case "unstage":
+        return void unstage(action.paths);
+      case "discard":
+        return void discard(action.paths, true);
+      case "commit":
+        return void commit(action.message, action.options).then((done) => {
+          if (commitWindow.current) void emitTo(commitWindow.current, COMMIT_RESULT, { id: action.id, done }).catch(() => {});
+          if (done && action.push) {
+            setGitDialog("push");
+            backHere();
+          }
+        });
+      case "open-diff":
+        openDiff(action.target, action.pin);
+        return backHere();
+      case "open-file":
+        void openFile(action.path);
+        return backHere();
+      case "closed":
+        commitWindow.current = null;
+        commitMessageFromWindow.current = null;
+        return setCommitWindowOpen(false);
+    }
+  };
+  useEffect(() => {
+    if (isWeb) return;
+    const unlisten = getCurrentWindow().listen<CommitWindowAction>(COMMIT_ACTION, ({ payload }) =>
+      commitWindowActions.current(payload),
+    );
+    return () => void unlisten.then((f) => f());
+  }, []);
 
   // ⌘K belongs to the commit dialog in a repository Mido may use git in, as in IntelliJ;
   // the editor's link shortcut steps aside (⌥⌘K still inserts a link).
@@ -1573,7 +1650,8 @@ export default function App() {
       // Commit (⌘K) and push (⌘⇧K) dialogs, as in IntelliJ.
       if (mod && !e.altKey && e.code === "KeyK" && gitShortcutsRef.current) {
         e.preventDefault();
-        setGitDialog(e.shiftKey ? "push" : "commit");
+        if (e.shiftKey) setGitDialog("push");
+        else openCommitDialog();
         return;
       }
       // On the desktop, Print is a menu item; the web version has no menu.
@@ -1665,7 +1743,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, exportWord, printDocument, fail, git.repo, setGitOpen, newTerminal, toggleTerminal, updateSettings]);
+  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, exportWord, printDocument, fail, git.repo, setGitOpen, newTerminal, toggleTerminal, updateSettings, openCommitDialog]);
 
   const dragResize = (e: ReactPointerEvent<HTMLDivElement>, onMove: (ev: PointerEvent) => void) => {
     e.preventDefault();
@@ -1955,7 +2033,7 @@ export default function App() {
                     onMessageChange={setCommitMessage}
                     onDiscard={discard}
                     onOpenBranches={() => setGitDialog("branches")}
-                    onOpenCommitDialog={() => setGitDialog("commit")}
+                    onOpenCommitDialog={openCommitDialog}
                     onOpenPushDialog={() => setGitDialog("push")}
                     showAll={settings.gitShowAllFiles}
                     onShowAll={() => updateSettings({ gitShowAllFiles: true })}

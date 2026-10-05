@@ -72,7 +72,9 @@ impl Workspace {
 impl<'de, R: Runtime> CommandArg<'de, R> for Workspace {
     fn from_command(command: CommandItem<'de, R>) -> Result<Self, InvokeError> {
         let webview = command.message.webview_ref();
-        let root = webview.state::<Workspaces>().root(webview.label())?;
+        // A floating window (the commit dialog's) works on its window's folder.
+        let label = floating::owner(webview.app_handle(), webview.label());
+        let root = webview.state::<Workspaces>().root(&label)?;
         root.map(|root| Workspace { root })
             .ok_or_else(|| InvokeError::from("No folder is open"))
     }
@@ -850,7 +852,7 @@ pub fn run() {
         .manage(git::RepoLocks::default())
         .manage(OpenRequests::default())
         .manage(terminal::Terminals::default())
-        .manage(floating::FloatingTerminals::default())
+        .manage(floating::FloatingWindows::default())
         .setup(|app| {
             // Before the open requests below, which grant their folders.
             let granted = folders::Granted::load(app.path().app_data_dir()?.join("granted-folders.json"));
@@ -885,8 +887,8 @@ pub fn run() {
             };
             // Only the window in front acts on the menu. A floating terminal
             // clears and kills its own terminal; the rest is its window's.
-            let own = matches!(name, "menu-clear-terminal" | "menu-kill-terminal");
             let Some(focused) = focused_window(app) else { return };
+            let own = floating::is_terminal(focused.label()) && matches!(name, "menu-clear-terminal" | "menu-kill-terminal");
             let window = if own { Some(focused.clone()) } else { front_window(app) };
             if let Some(window) = window {
                 if window.label() != focused.label() {
@@ -935,6 +937,8 @@ pub fn run() {
             floating::open_terminal_window,
             floating::terminal_window,
             floating::dock_terminal,
+            floating::open_commit_window,
+            floating::window_parent,
             read_comments,
             add_comment_file,
             compact_comment_thread,

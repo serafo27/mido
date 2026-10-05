@@ -1,5 +1,18 @@
-import { useEffect, useRef, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useStoredState } from "../lib/useStoredState";
+import { macWindowInset } from "../lib/platform";
+
+/** Set in a window of its own (the commit dialog's): the dialog fills it, and the window is what moves. */
+export const InOwnWindow = createContext(false);
 
 interface Bounds {
   x: number;
@@ -49,6 +62,7 @@ function centered(size: { width: number; height: number }): Bounds {
 
 /** A dialog that moves by its title bar and resizes from its edges, like a window. */
 export default function FloatingDialog(props: FloatingDialogProps) {
+  const ownWindow = useContext(InOwnWindow);
   const [stored, setStored] = useStoredState<Bounds | null>(props.storageKey, null);
   const bounds = fit(stored ?? centered(props.size), props.minSize);
   const latest = useRef(bounds);
@@ -57,10 +71,11 @@ export default function FloatingDialog(props: FloatingDialogProps) {
 
   // A smaller window brings the dialog back inside it.
   useEffect(() => {
+    if (ownWindow) return;
     const onResize = () => setStored(fit(latest.current, props.minSize));
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [setStored, props.minSize]);
+  }, [setStored, props.minSize, ownWindow]);
 
   useEffect(() => {
     dialog.current?.focus();
@@ -86,6 +101,11 @@ export default function FloatingDialog(props: FloatingDialogProps) {
 
   const startMove = (e: ReactPointerEvent) => {
     if (e.button !== 0 || (e.target as HTMLElement).closest("button, input, select, textarea, a")) return;
+    if (ownWindow) {
+      e.preventDefault();
+      void getCurrentWindow().startDragging();
+      return;
+    }
     track(e, "grabbing", (s, dx, dy) => ({ ...s, x: s.x + dx, y: s.y + dy }));
   };
 
@@ -107,6 +127,25 @@ export default function FloatingDialog(props: FloatingDialogProps) {
       return { x, y, width, height };
     });
   };
+
+  // The window's own buttons and edges do the rest.
+  if (ownWindow) {
+    return (
+      <div
+        ref={dialog}
+        className={`git-dialog own-window ${props.className ?? ""}`}
+        role="dialog"
+        aria-label={props.label}
+        tabIndex={-1}
+        onKeyDown={props.onKeyDown}
+      >
+        <header className={`git-dialog-header ${macWindowInset ? "mac-inset" : ""}`} onPointerDown={startMove}>
+          {props.header}
+        </header>
+        {props.children}
+      </div>
+    );
+  }
 
   return (
     <div className="modal-backdrop floating">

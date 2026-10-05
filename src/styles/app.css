@@ -4411,6 +4411,21 @@ body.web-dropping::after {
 .git-dialog.floating .commit-files {
   border-bottom-left-radius: 0;
 }
+/* In a window of its own: the window's edges and title bar are the dialog's. */
+.git-dialog.own-window {
+  height: 100vh;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}
+.git-dialog.own-window .git-dialog-header {
+  cursor: default;
+  user-select: none;
+}
+.git-dialog.own-window .git-dialog-header.mac-inset {
+  padding-left: 80px;
+}
 .git-dialog-header.draggable {
   cursor: grab;
   user-select: none;

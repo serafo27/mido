@@ -11,19 +11,18 @@ import "./styles/app.css";
 import "./styles/markdown.css";
 import App from "./App";
 import { migrateDefaults } from "./lib/settings";
-import { isFloatingTerminal } from "./lib/platform";
+import { isCommitWindow, isFloatingTerminal } from "./lib/platform";
 
 migrateDefaults();
 
-// A floating terminal's window only loads the terminal.
+// A floating window only loads what it shows.
 const FloatingTerminal = React.lazy(() => import("./components/FloatingTerminal"));
+const CommitWindow = React.lazy(() => import("./components/CommitWindow"));
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    {isFloatingTerminal ? (
-      <React.Suspense>
-        <FloatingTerminal />
-      </React.Suspense>
+    {isFloatingTerminal || isCommitWindow ? (
+      <React.Suspense>{isFloatingTerminal ? <FloatingTerminal /> : <CommitWindow />}</React.Suspense>
     ) : (
       <App />
     )}

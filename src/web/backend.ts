@@ -251,6 +251,8 @@ export const commands: Record<string, (args: Record<string, unknown>, options?: 
   open_terminal_window: desktopOnly,
   terminal_window: desktopOnly,
   dock_terminal: desktopOnly,
+  open_commit_window: desktopOnly,
+  window_parent: desktopOnly,
 
   write_file: desktopOnly,
   create_file: desktopOnly,

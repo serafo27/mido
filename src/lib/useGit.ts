@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { api, type GitFileChange, type GitRepo } from "./api";
-import { isMarkdown } from "./paths";
+import { basename, isMarkdown } from "./paths";
 import { isWeb } from "./platform";
 
 /**
@@ -61,4 +62,14 @@ export function changeLetter(change: Pick<GitFileChange, "staged" | "unstaged" |
   if (change.conflicted) return "!";
   const code = change.unstaged ?? change.staged ?? "M";
   return code === "?" ? "U" : code;
+}
+
+/** Asks before discarding the changes in `paths`, which can't be undone (new files go to the Trash). */
+export function confirmDiscard(files: GitFileChange[], paths: string[]): Promise<boolean> {
+  const untracked = files.filter((f) => paths.includes(f.path) && f.unstaged === "?").length;
+  const what = paths.length === 1 ? `“${basename(paths[0])}”` : `${paths.length} files`;
+  return ask(
+    `Discard the changes in ${what}? They aren't staged, so they'll be lost.${untracked ? ` New files go to the Trash.` : ""}`,
+    { title: "Discard Changes", kind: "warning", okLabel: "Discard", cancelLabel: "Cancel" },
+  );
 }
