@@ -6,6 +6,7 @@ mod folders;
 mod git;
 mod search;
 mod terminal;
+mod window_state;
 
 use std::collections::HashMap;
 use std::fs;
@@ -906,7 +907,10 @@ pub fn run() {
             }
             // The main window (not created from the config, to open on the theme's background).
             app.manage(background::Background::load(app.path().app_data_dir()?.join("window-background")));
-            if let Some(config) = app.config().app.windows.first().cloned() {
+            // Where it was left (see `window_state`).
+            app.manage(window_state::WindowState::load(app.path().app_data_dir()?.join("window-state.json")));
+            if let Some(mut config) = app.config().app.windows.first().cloned() {
+                window_state::restore(app.handle(), &mut config);
                 background::window(app.handle(), config)?.build()?;
             }
             // `Mido.app/Contents/MacOS/mido notes/a.md`; `open -a Mido` and the
@@ -947,6 +951,18 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Focused(true) = event {
                 show_minimal_check(window.app_handle());
+            }
+            if window.label() == MAIN_WINDOW {
+                if let tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) = event {
+                    if let Some(window) = window.get_webview_window(MAIN_WINDOW) {
+                        window_state::changed(&window);
+                    }
+                }
+                if let tauri::WindowEvent::CloseRequested { .. } = event {
+                    if let Some(window) = window.get_webview_window(MAIN_WINDOW) {
+                        window_state::save_now(&window);
+                    }
+                }
             }
             if let tauri::WindowEvent::Destroyed = event {
                 let label = window.label();
@@ -1025,6 +1041,12 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building Mido")
         .run(|_app, _event| {
+            // Quitting (or relaunching after an update) closes no window first.
+            if let tauri::RunEvent::ExitRequested { .. } = _event {
+                if let Some(window) = _app.get_webview_window(MAIN_WINDOW) {
+                    window_state::save_now(&window);
+                }
+            }
             // Files opened from the Finder, "Open With", the Dock icon or `open -a Mido`.
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Opened { urls } = _event {
