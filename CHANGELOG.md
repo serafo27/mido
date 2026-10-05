@@ -9,6 +9,8 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-05
+
 ### Added
 
 - In **Split**, the text you select on one side is highlighted on the other: select a sentence in the preview to find it in the source and edit it, or select in the editor to see how it reads. Markup is matched too, so `**Tauri**` in the source is **Tauri** on the page.
