@@ -9,6 +9,11 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-05
+
+### Added
+
+- **Minimal Mode**, to read and write with nothing else on screen: **View → Minimal Mode** (⌃⌘M) in the menu bar. The window keeps only the document, the folder's tree in the sidebar, the open file's path and Read · Split · Edit. The tabs, the sidebar's buttons and filter, the toolbar's other buttons, the status bar, the format bar, the minimap, comments, search, source control and the terminal hide; the terminal's shells keep running. In Edit, the editor writes on the same column the preview reads on. Shortcuts that would show what's hidden do nothing; saving, the view modes, text size, ⌘P and switching files still work. Each window has its own, and it's remembered across launches.
 ## [0.17.0] - 2026-10-05
 
 ### Added
