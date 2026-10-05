@@ -9,6 +9,20 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-05
+
+### Added
+
+- **Floating terminals**: the new button in the terminal panel's header moves the selected terminal into a window of its own, to place anywhere on the desktop. Its shell keeps running, and its screen and scrollback come along. Closing the window, ⌘W or its **Move Back to Panel** button puts the terminal back in the panel. Closing the app window closes its floating terminals too.
+- **Each terminal's own text size**: with the cursor in a terminal, ⌘+ and ⌘− make only that terminal's text bigger or smaller, and ⌘0 brings it back to the editor's size. It keeps its size when it moves to a window and back.
+
+### Changed
+
+- The **commit dialog** (⌘K) and the **push dialog** (⌘⇧K) open in windows of their own, to move anywhere on the desktop, beside the document. They reopen where they were left. Double-clicking a file opens its diff in the app window.
+
+### Fixed
+
+- No more white flash when Mido opens or while a window is resized: windows take the theme's background from the start.
 ## [0.16.0] - 2026-10-04
 
 ### Added
