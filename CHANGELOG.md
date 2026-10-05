@@ -9,6 +9,12 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.19.2] - 2026-10-05
+
+### Fixed
+
+- The **window** opens where you left it, at the size you gave it, also after an update. If that place is on a screen that's no longer connected, it opens at the default size in the middle.
+
 ## [0.19.1] - 2026-10-05
 
 ### Fixed
