@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blocksImage, DEFAULT_SETTINGS, migrateDefaults, spaceLines, terminalFontCss, zoomText } from "./settings";
+import { blocksImage, DEFAULT_SETTINGS, migrateDefaults, spaceLines, terminalFontCss, terminalFontSize, zoomTerminal, zoomText } from "./settings";
 
 describe("blocksImage", () => {
   it("loads everything with all, only https with secure, nothing remote with none", () => {
@@ -82,5 +82,21 @@ describe("terminalFontCss", () => {
 
   it("puts a named font first, with the system's after it for missing characters", () => {
     expect(terminalFontCss(" MesloLGS NF ")).toMatch(/^"MesloLGS NF", ui-monospace,/);
+  });
+});
+
+describe("zoomTerminal", () => {
+  it("moves a terminal's size away from the editor's, and back with 0", () => {
+    expect(zoomTerminal(14, 0, 1)).toBe(1);
+    expect(zoomTerminal(14, 1, -3)).toBe(-2);
+    expect(zoomTerminal(14, 5, 0)).toBe(0);
+  });
+
+  it("stays within range, so the way back is as long as the way there", () => {
+    expect(zoomTerminal(14, 18, 1)).toBe(18);
+    expect(zoomTerminal(14, -6, -1)).toBe(-6);
+    // The editor's size grew past the range while the offset was set: one step back is one pixel smaller.
+    expect(zoomTerminal(30, 4, -1)).toBe(1);
+    expect(terminalFontSize(30, 1)).toBe(31);
   });
 });

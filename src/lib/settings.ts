@@ -301,6 +301,18 @@ export function zoomText(settings: Settings, steps: number): Pick<Settings, "fon
   };
 }
 
+/** A terminal's own text size: ⌘+ and ⌘− on it move it away from the editor's, which it otherwise follows. */
+export const TERMINAL_FONT_SIZE = { min: 8, max: 32 };
+
+/** The size a terminal shows: the editor's (`base`) plus its own `offset`, within range. */
+export const terminalFontSize = (base: number, offset: number) =>
+  Math.min(TERMINAL_FONT_SIZE.max, Math.max(TERMINAL_FONT_SIZE.min, base + offset));
+
+/** A terminal's offset `steps` pixels bigger or smaller, within range; 0 steps back to the editor's size. */
+export function zoomTerminal(base: number, offset: number, steps: number): number {
+  return steps === 0 ? 0 : terminalFontSize(base, terminalFontSize(base, offset) - base + steps) - base;
+}
+
 /**
  * Both line heights (the document's and the editor's) `steps` tenths more
  * or less, within their ranges.

@@ -7,6 +7,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { killTerminal, resizeTerminal, spawnTerminal, writeTerminal } from "../lib/terminal";
 import { isMac } from "../lib/platform";
 import { ANSI_KEYS, ansiVariable } from "../lib/themes";
+import { terminalFontSize, zoomTerminal } from "../lib/settings";
 
 /** What the app asks of the panel: from the Terminal menu and its shortcuts. */
 export interface TerminalPanelHandle {
@@ -16,6 +17,16 @@ export interface TerminalPanelHandle {
   clear: () => void;
   kill: () => void;
   focus: () => void;
+  /** ⌘+ / ⌘− / ⌘0 on the selected terminal only; resolves to its new text size. */
+  zoom: (steps: number) => Promise<number | null>;
+}
+
+/** What the panel keeps of each terminal's view. */
+interface View {
+  term: XTerm;
+  fit: () => void;
+  kill: () => void;
+  zoom: (steps: number) => Promise<number>;
 }
 
 interface Session {
@@ -85,7 +96,7 @@ export function isAppShortcut(e: KeyboardEvent): boolean {
 interface ViewProps {
   active: boolean;
   visible: boolean;
-  register: (key: number, view: { term: XTerm; fit: () => void; kill: () => void } | null) => void;
+  register: (key: number, view: View | null) => void;
   sessionKey: number;
   onExit: (key: number, code: number | null) => void;
 }
@@ -102,6 +113,8 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
     let pty: number | null = null;
     let observer: ResizeObserver | null = null;
     let themeObserver: MutationObserver | null = null;
+    // This terminal's own text size, as pixels away from the editor's.
+    let fontOffset = 0;
 
     (async () => {
       // xterm.js is only loaded once a terminal is opened.
@@ -112,11 +125,12 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
         import("@xterm/addon-web-links"),
         import("@xterm/addon-webgl"),
         import("@xterm/addon-unicode11"),
-        fontReady(look.fontFamily, look.fontSize),
+        fontReady(look.fontFamily, terminalFontSize(look.fontSize, fontOffset)),
       ]);
       if (disposed || !hostRef.current) return;
       term = new Terminal({
         ...look,
+        fontSize: terminalFontSize(look.fontSize, fontOffset),
         cursorBlink: true,
         // The Unicode 11 widths below are a "proposed" xterm.js API.
         allowProposedApi: true,
@@ -157,18 +171,23 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
       term.onResize(({ cols, rows }) => pty !== null && void resizeTerminal(pty, cols, rows).catch(() => {}));
       observer = new ResizeObserver(() => requestAnimationFrame(fit));
       observer.observe(hostRef.current);
+      /** Sets the font, once it's ready, and fits the new character cells to the space. */
+      const setFont = async (fontFamily: string, fontSize: number) => {
+        if (!term) return;
+        if (fontFamily !== term.options.fontFamily || fontSize !== term.options.fontSize) {
+          await fontReady(fontFamily, fontSize);
+          if (disposed || !term) return;
+          term.options.fontFamily = fontFamily;
+          term.options.fontSize = fontSize;
+        }
+        fit();
+      };
       // Follows the app's theme and fonts.
       themeObserver = new MutationObserver(async () => {
         if (!term) return;
         const next = appearance();
         term.options.theme = next.theme;
-        if (next.fontFamily !== term.options.fontFamily || next.fontSize !== term.options.fontSize) {
-          await fontReady(next.fontFamily, next.fontSize);
-          if (disposed) return;
-          term.options.fontFamily = next.fontFamily;
-          term.options.fontSize = next.fontSize;
-        }
-        fit();
+        await setFont(next.fontFamily, terminalFontSize(next.fontSize, fontOffset));
       });
       themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "data-theme"] });
 
@@ -180,6 +199,13 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
           if (pty === null) return;
           void killTerminal(pty).catch(() => {});
           pty = null;
+        },
+        zoom: async (steps) => {
+          const { fontFamily, fontSize } = appearance();
+          fontOffset = zoomTerminal(fontSize, fontOffset, steps);
+          const size = terminalFontSize(fontSize, fontOffset);
+          await setFont(fontFamily, size);
+          return size;
         },
       });
 
@@ -229,12 +255,12 @@ interface PanelProps {
 const TerminalPanel = forwardRef<TerminalPanelHandle, PanelProps>(function TerminalPanel(props, ref) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeKey, setActiveKey] = useState<number | null>(null);
-  const views = useRef(new Map<number, { term: XTerm; fit: () => void; kill: () => void }>());
+  const views = useRef(new Map<number, View>());
   const nextKey = useRef(1);
   const live = useRef({ sessions, activeKey });
   live.current = { sessions, activeKey };
 
-  const register = useCallback((key: number, view: { term: XTerm; fit: () => void; kill: () => void } | null) => {
+  const register = useCallback((key: number, view: View | null) => {
     if (view) {
       views.current.set(key, view);
       if (live.current.activeKey === key) view.term.focus();
@@ -302,6 +328,11 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, PanelProps>(function Termi
       focus: () => {
         const { activeKey } = live.current;
         if (activeKey !== null) requestAnimationFrame(() => views.current.get(activeKey)?.term.focus());
+      },
+      zoom: async (steps) => {
+        const { activeKey } = live.current;
+        const view = activeKey === null ? undefined : views.current.get(activeKey);
+        return view ? view.zoom(steps) : null;
       },
     }),
     [newTerminal, kill],

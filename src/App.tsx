@@ -1601,6 +1601,11 @@ export default function App() {
       const zoom = e.shiftKey ? null : ["+", "="].includes(e.key) ? 1 : e.key === "-" ? -1 : e.key === "0" ? 0 : null;
       if (zoom !== null && !isWeb) {
         e.preventDefault();
+        // In a terminal, only that terminal's text.
+        if ((e.target as Element | null)?.closest?.(".terminal-panel")) {
+          void terminalRef.current?.zoom(zoom).then((size) => size !== null && setToast(`Terminal text size ${size}px`));
+          return;
+        }
         const next = zoomText(live.current.settings, zoom);
         updateSettings(next);
         setToast(`Text size ${next.fontSize}px · editor ${next.editorFontSize}px`);
