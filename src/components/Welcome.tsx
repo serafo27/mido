@@ -1,4 +1,4 @@
-import { Download, FileText, FolderOpen, Lock } from "lucide-react";
+import { Download, FileText, FolderOpen, Lock, X } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { basename } from "../lib/paths";
 import { altKey, DOWNLOAD_URL, HOME_URL, isWeb, modKey } from "../lib/platform";
@@ -30,7 +30,35 @@ export function WebBrand() {
   );
 }
 
-export function Welcome(props: { recents: string[]; onOpen: (path?: string) => void }) {
+interface WelcomeProps {
+  recents: string[];
+  onOpen: (path?: string) => void;
+  onRemoveRecent: (path: string) => void;
+}
+
+/** A recent folder, with a button on hover that takes it off the list. */
+function Recent(props: { path: string; title: string; showPath: boolean } & Omit<WelcomeProps, "recents">) {
+  const { path } = props;
+  const name = basename(path) || path;
+  return (
+    <div className="recent-row">
+      <button className="recent" onClick={() => props.onOpen(path)} title={props.title}>
+        <span className="recent-name">{name}</span>
+        {props.showPath && <span className="recent-path">{path}</span>}
+      </button>
+      <button
+        className="recent-remove"
+        title="Remove from Recent"
+        aria-label={`Remove ${name} from Recent`}
+        onClick={() => props.onRemoveRecent(path)}
+      >
+        <X size={13} />
+      </button>
+    </div>
+  );
+}
+
+export function Welcome(props: WelcomeProps) {
   if (isWeb) return <WebWelcome {...props} />;
   return (
     <div className="welcome" data-tauri-drag-region>
@@ -46,10 +74,7 @@ export function Welcome(props: { recents: string[]; onOpen: (path?: string) => v
         <div className="recents">
           <h2>Recent</h2>
           {props.recents.map((path) => (
-            <button key={path} className="recent" onClick={() => props.onOpen(path)} title={path}>
-              <span className="recent-name">{basename(path) || path}</span>
-              <span className="recent-path">{path}</span>
-            </button>
+            <Recent key={path} path={path} title={path} showPath {...props} />
           ))}
         </div>
       )}
@@ -62,7 +87,7 @@ export function Welcome(props: { recents: string[]; onOpen: (path?: string) => v
 export const canReadFolders = isWeb && "showDirectoryPicker" in window;
 
 /** The web version's start page: open a folder or files from this computer, read-only. */
-function WebWelcome(props: { recents: string[]; onOpen: (path?: string) => void }) {
+function WebWelcome(props: WelcomeProps) {
   return (
     <div className="welcome web-welcome">
       <Logo size={72} />
@@ -93,9 +118,7 @@ function WebWelcome(props: { recents: string[]; onOpen: (path?: string) => void 
         <div className="recents">
           <h2>Recent</h2>
           {props.recents.map((path) => (
-            <button key={path} className="recent" onClick={() => props.onOpen(path)} title={path.slice(1)}>
-              <span className="recent-name">{basename(path) || path}</span>
-            </button>
+            <Recent key={path} path={path} title={path.slice(1)} showPath={false} {...props} />
           ))}
         </div>
       )}

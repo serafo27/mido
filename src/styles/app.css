@@ -1862,6 +1862,55 @@ body.resizing .resizer {
 .recent:hover {
   background: var(--bg-hover);
 }
+/* A recent folder and the × that takes it off the list, shown on hover. */
+.recent-row {
+  position: relative;
+}
+.recent-row > :first-child {
+  padding-right: 34px;
+}
+.recent-remove {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 0.12s, background 0.12s;
+}
+.recent-row:hover .recent-remove,
+.recent-remove:focus-visible {
+  opacity: 1;
+}
+.recent-remove:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+/* In the menu the hovered row is the accent colour: the × goes white on it. */
+.folder-menu .recent-row:hover > .menu-item {
+  background: var(--accent);
+  color: #fff;
+}
+.folder-menu .recent-row:hover > .menu-item svg,
+.folder-menu .recent-row:hover .folder-option-path {
+  color: rgba(255, 255, 255, 0.75);
+}
+.folder-menu .recent-remove {
+  right: 4px;
+  color: rgba(255, 255, 255, 0.8);
+}
+.folder-menu .recent-row:not(:hover) .recent-remove {
+  color: var(--text-muted);
+}
+.folder-menu .recent-remove:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
 .recent-name {
   flex: none;
   font-weight: 550;

@@ -150,6 +150,7 @@ export default function App() {
   // Each window has its own folder and tabs (see `perWindow`).
   const [root, setRoot] = useStoredState<string | null>("mido.root", null, { perWindow: true });
   const [recents, setRecents] = useStoredState<string[]>("mido.recents", [], { shared: true });
+  const removeRecent = useCallback((path: string) => setRecents((r) => r.filter((x) => x !== path)), [setRecents]);
   const [storedTabs, setStoredTabs] = useStoredState<string[]>("mido.tabs", [], { perWindow: true });
   const [storedPreviewTab, setStoredPreviewTab] = useStoredState<string | null>("mido.previewTab", null, { perWindow: true });
   const [activePath, setActivePath] = useStoredState<string | null>("mido.active", null, { perWindow: true });
@@ -2015,7 +2016,7 @@ export default function App() {
       <div className="app">
         <main className="main">
           {toolbar}
-          <Welcome recents={recents} onOpen={openFolder} />
+          <Welcome recents={recents} onOpen={openFolder} onRemoveRecent={removeRecent} />
         </main>
         {overlays}
         {toast && <div className="toast">{toast}</div>}
@@ -2037,6 +2038,7 @@ export default function App() {
               onPinFile={pinFile}
               recents={recents}
               onOpenFolder={openFolder}
+              onRemoveRecent={removeRecent}
               onNewWindow={() => api.openNewWindow().catch(fail)}
               onRefresh={refreshTree}
               onCreate={createEntry}

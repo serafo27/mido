@@ -13,6 +13,7 @@ GitHub and on the website's changelog page.
 
 - A **GitHub Light** theme, with GitHub's colours for the interface, the code and the terminal.
 - Three new **reading styles**: **VS Code**, **Obsidian** and **Notion** lay out a document as their apps do, with any theme's colours.
+- A **recent folder** can be taken off the list: hover it, in the folder menu or on the start page, and click its ×.
 
 ### Changed
 

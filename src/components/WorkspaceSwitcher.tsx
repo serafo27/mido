@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AppWindow, Check, ChevronsUpDown, Folder, FolderOpen } from "lucide-react";
+import { AppWindow, Check, ChevronsUpDown, Folder, FolderOpen, X } from "lucide-react";
 import { basename, dirname, tildify } from "../lib/paths";
 import { isMac, isWeb, modKey } from "../lib/platform";
 import { canReadFolders } from "./Welcome";
@@ -12,6 +12,8 @@ export default function WorkspaceSwitcher(props: {
   root: string;
   recents: string[];
   onOpenFolder: (path?: string) => void;
+  /** Takes a folder off the recent list. */
+  onRemoveRecent: (path: string) => void;
   onNewWindow: () => void;
 }) {
   const { root } = props;
@@ -79,17 +81,26 @@ export default function WorkspaceSwitcher(props: {
               <div className="menu-sep" />
               <div className="menu-heading">Recent</div>
               {others.map((path) => (
-                <button
-                  key={path}
-                  className="menu-item folder-option"
-                  role="menuitem"
-                  title={isWeb ? undefined : path}
-                  onClick={choose(() => props.onOpenFolder(path))}
-                >
-                  <Folder size={14} />
-                  <span className="folder-option-name">{basename(path) || path}</span>
-                  {!isWeb && <span className="folder-option-path">{tildify(dirname(path))}</span>}
-                </button>
+                <div key={path} className="recent-row">
+                  <button
+                    className="menu-item folder-option"
+                    role="menuitem"
+                    title={isWeb ? undefined : path}
+                    onClick={choose(() => props.onOpenFolder(path))}
+                  >
+                    <Folder size={14} />
+                    <span className="folder-option-name">{basename(path) || path}</span>
+                    {!isWeb && <span className="folder-option-path">{tildify(dirname(path))}</span>}
+                  </button>
+                  <button
+                    className="recent-remove"
+                    title="Remove from Recent"
+                    aria-label={`Remove ${basename(path) || path} from Recent`}
+                    onClick={() => props.onRemoveRecent(path)}
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
               ))}
             </>
           )}

@@ -44,6 +44,7 @@ interface SidebarProps {
   recents: string[];
   /** Opens `path`, or asks for a folder without one. */
   onOpenFolder: (path?: string) => void;
+  onRemoveRecent: (path: string) => void;
   onNewWindow: () => void;
   onRefresh: () => void;
   onCreate: (parent: string, name: string, kind: "file" | "folder") => Promise<void>;
@@ -301,6 +302,7 @@ export default function Sidebar(props: SidebarProps) {
           root={root}
           recents={props.recents}
           onOpenFolder={onOpenFolder}
+          onRemoveRecent={props.onRemoveRecent}
           onNewWindow={props.onNewWindow}
         />
       )}
