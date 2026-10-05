@@ -6,7 +6,7 @@
     "main",
     "window-*",
     "terminal-*",
-    "commit-*"
+    "git-*"
   ],
   "permissions": [
     "core:default",

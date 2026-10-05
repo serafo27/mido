@@ -21,13 +21,14 @@ export const isMainWindow = (() => {
 const floatingKind = (() => {
   try {
     const label = isWeb ? "" : getCurrentWindow().label;
-    return label.startsWith("terminal-") ? "terminal" : label.startsWith("commit-") ? "commit" : null;
+    return label.startsWith("terminal-") ? "terminal" : label.startsWith("git-") ? "git" : null;
   } catch {
     return null;
   }
 })();
 export const isFloatingTerminal = floatingKind === "terminal";
-export const isCommitWindow = floatingKind === "commit";
+/** A git dialog's window (commit, push): its label is `git-<dialog>-<n>`. */
+export const isGitWindow = floatingKind === "git";
 
 /** The desktop app on macOS draws its traffic lights over the top-left corner. */
 export const macWindowInset = isMac && !isWeb;

@@ -11,18 +11,18 @@ import "./styles/app.css";
 import "./styles/markdown.css";
 import App from "./App";
 import { migrateDefaults } from "./lib/settings";
-import { isCommitWindow, isFloatingTerminal } from "./lib/platform";
+import { isFloatingTerminal, isGitWindow } from "./lib/platform";
 
 migrateDefaults();
 
 // A floating window only loads what it shows.
 const FloatingTerminal = React.lazy(() => import("./components/FloatingTerminal"));
-const CommitWindow = React.lazy(() => import("./components/CommitWindow"));
+const GitWindow = React.lazy(() => import("./components/GitWindow"));
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    {isFloatingTerminal || isCommitWindow ? (
-      <React.Suspense>{isFloatingTerminal ? <FloatingTerminal /> : <CommitWindow />}</React.Suspense>
+    {isFloatingTerminal || isGitWindow ? (
+      <React.Suspense>{isFloatingTerminal ? <FloatingTerminal /> : <GitWindow />}</React.Suspense>
     ) : (
       <App />
     )}

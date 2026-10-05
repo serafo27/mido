@@ -73,7 +73,7 @@ impl Workspace {
 impl<'de, R: Runtime> CommandArg<'de, R> for Workspace {
     fn from_command(command: CommandItem<'de, R>) -> Result<Self, InvokeError> {
         let webview = command.message.webview_ref();
-        // A floating window (the commit dialog's) works on its window's folder.
+        // A floating window (a git dialog's) works on its window's folder.
         let label = floating::owner(webview.app_handle(), webview.label());
         let root = webview.state::<Workspaces>().root(&label)?;
         root.map(|root| Workspace { root })
@@ -943,7 +943,7 @@ pub fn run() {
             floating::open_terminal_window,
             floating::terminal_window,
             floating::dock_terminal,
-            floating::open_commit_window,
+            floating::open_git_window,
             floating::window_parent,
             background::set_window_background,
             read_comments,

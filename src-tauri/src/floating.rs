@@ -3,8 +3,8 @@
 //!
 //! - A terminal moved out of the window's panel. Closing it puts the terminal
 //!   back in the panel.
-//! - The commit dialog. Its window keeps the git state and does the git work;
-//!   the dialog shows it and asks for it, through events.
+//! - A git dialog: commit, or push. Its window keeps the git state and does
+//!   the git work; the dialog shows it and asks for it, through events.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -16,7 +16,7 @@ use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 use crate::terminal::Terminals;
 
 const TERMINAL: &str = "terminal-";
-const COMMIT: &str = "commit-";
+const GIT: &str = "git-";
 
 /// A terminal on its way to another window: the shell, and the screen to show until it draws again.
 #[derive(Serialize, Deserialize, Clone)]
@@ -36,7 +36,7 @@ pub struct Handoff {
 struct Floating {
     /// The window it belongs to (and a terminal goes back to).
     parent: String,
-    /// What it shows: a terminal (by its shell), or the commit dialog.
+    /// What it shows: a terminal (by its shell), or a git dialog.
     pty: Option<u32>,
     /// A terminal's, taken by the window once it has loaded.
     handoff: Option<Handoff>,
@@ -47,7 +47,7 @@ struct Floating {
 pub struct FloatingWindows(Mutex<HashMap<String, Floating>>);
 
 pub fn is_floating(label: &str) -> bool {
-    label.starts_with(TERMINAL) || label.starts_with(COMMIT)
+    label.starts_with(TERMINAL) || label.starts_with(GIT)
 }
 
 pub fn is_terminal(label: &str) -> bool {
@@ -203,19 +203,38 @@ pub async fn dock_terminal(app: AppHandle, window: WebviewWindow, handoff: Hando
     window.destroy().map_err(crate::err)
 }
 
-/// Opens the calling window's commit dialog in a window of its own, at
-/// `bounds` (where it was last), or brings it to the front when it's open.
-/// Returns its label, for the window to send it the git state.
+/// A width and height, in logical pixels.
+type Size = (f64, f64);
+
+/// A git dialog that opens in a window of its own: its name, its size and its smallest.
+fn git_dialog(dialog: &str) -> Option<(&'static str, Size, Size)> {
+    match dialog {
+        "commit" => Some(("Commit Changes", (1180.0, 820.0), (720.0, 520.0))),
+        "push" => Some(("Push Commits", (900.0, 560.0), (560.0, 340.0))),
+        _ => None,
+    }
+}
+
+/// Opens one of the calling window's git dialogs (`commit`, `push`) in a
+/// window of its own, at `bounds` (where it was last), or brings it to the
+/// front when it's open. Returns its label, for the window to send it the git state.
 #[tauri::command]
-pub async fn open_commit_window(app: AppHandle, window: WebviewWindow, bounds: Option<Bounds>) -> Result<String, String> {
+pub async fn open_git_window(
+    app: AppHandle,
+    window: WebviewWindow,
+    dialog: String,
+    bounds: Option<Bounds>,
+) -> Result<String, String> {
     static NEXT: AtomicUsize = AtomicUsize::new(1);
+    let (name, size, min) = git_dialog(&dialog).ok_or_else(|| format!("No such dialog: {dialog}"))?;
+    let prefix = format!("{GIT}{dialog}-");
     let open = app
         .state::<FloatingWindows>()
         .0
         .lock()
         .map_err(crate::err)?
         .iter()
-        .find(|(label, f)| label.starts_with(COMMIT) && f.parent == window.label())
+        .find(|(label, f)| label.starts_with(&prefix) && f.parent == window.label())
         .map(|(label, _)| label.clone());
     if let Some(label) = open.and_then(|l| app.get_webview_window(&l)) {
         let _ = label.unminimize();
@@ -223,16 +242,15 @@ pub async fn open_commit_window(app: AppHandle, window: WebviewWindow, bounds: O
         return Ok(label.label().to_string());
     }
 
-    let label = format!("{COMMIT}{}", NEXT.fetch_add(1, Ordering::Relaxed));
-    let title = title(&app, &window, "Commit Changes")?;
+    let label = format!("{prefix}{}", NEXT.fetch_add(1, Ordering::Relaxed));
+    let title = title(&app, &window, name)?;
     app.state::<FloatingWindows>()
         .0
         .lock()
         .map_err(crate::err)?
         .insert(label.clone(), Floating { parent: window.label().to_string(), pty: None, handoff: None });
     // Centred on its window, as the dialog was.
-    let size = (1180.0, 820.0);
-    let built = build(&app, &window, &label, title, bounds.ok_or(size), (720.0, 520.0), |p, size| {
+    let built = build(&app, &window, &label, title, bounds.ok_or(size), min, |p, size| {
         let (width, height) = (size.0.min(p.width), size.1.min(p.height));
         (p.x + (p.width - width) / 2.0, p.y + (p.height - height) / 2.0)
     });

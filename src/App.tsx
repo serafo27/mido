@@ -41,13 +41,15 @@ import TerminalPanel, { isAppShortcut, type TerminalPanelHandle } from "./compon
 import { TERMINAL_DOCKED, type Handoff } from "./lib/terminal";
 import { plainColor } from "./lib/color";
 import {
-  COMMIT_ACTION,
-  COMMIT_RESULT,
-  COMMIT_STATE,
-  openCommitWindow,
-  type CommitWindowAction,
-  type CommitWindowState,
-} from "./lib/commitWindow";
+  dialogOf,
+  GIT_ACTION,
+  GIT_RESULT,
+  GIT_STATE,
+  openGitWindow,
+  type GitDialog,
+  type GitWindowMessage,
+  type GitWindowState,
+} from "./lib/gitWindow";
 import Toolbar, { type ViewMode } from "./components/Toolbar";
 import Editor, {
   activeEditor,
@@ -1194,6 +1196,19 @@ export default function App() {
     [gitAction],
   );
 
+  /** Opens a git dialog in a window of its own (lib/gitWindow.ts), or brings it to the front. */
+  // The labels of the open ones.
+  const [gitWindows, setGitWindows] = useState<string[]>([]);
+  const openGitDialog = useCallback(
+    (dialog: GitDialog) => {
+      if (isWeb) return setGitDialog(dialog);
+      openGitWindow(dialog).then((label) => setGitWindows((ws) => (ws.includes(label) ? ws : [...ws, label])), fail);
+    },
+    [fail],
+  );
+  const openCommitDialog = useCallback(() => openGitDialog("commit"), [openGitDialog]);
+  const openPushDialog = useCallback(() => openGitDialog("push"), [openGitDialog]);
+
   const pushFromDialog = useCallback(
     (remote: string | null) => {
       recordFeature("git-push");
@@ -1204,18 +1219,16 @@ export default function App() {
   const commitFromDialog = useCallback(
     async (thenPush: boolean, options?: CommitOptions) => {
       const done = await commit(commitMessage, options);
-      if (done && thenPush) setGitDialog("push");
+      if (done && thenPush) openPushDialog();
       return done;
     },
-    [commit, commitMessage],
+    [commit, commitMessage, openPushDialog],
   );
 
-  /* The commit dialog, in a window of its own (lib/commitWindow.ts): this window keeps the state and does the work. */
-  const commitWindow = useRef<string | null>(null);
-  const [commitWindowOpen, setCommitWindowOpen] = useState(false);
-  // The message as the dialog last typed it: any other is news to the dialog.
+  /* The git dialogs, in windows of their own (lib/gitWindow.ts): this window keeps the state and does the work. */
+  // The message as the commit dialog last typed it: any other is news to the dialog.
   const commitMessageFromWindow = useRef<string | null>(null);
-  const commitWindowState = useMemo<CommitWindowState>(
+  const gitWindowState = useMemo<GitWindowState>(
     () => ({
       status: gitStatus,
       busy: git.busy,
@@ -1227,27 +1240,20 @@ export default function App() {
     }),
     [gitStatus, git.busy, gitVersion, commitMessage, unsavedPaths, gitAuthor],
   );
-  const sendCommitWindowState = useCallback((state: CommitWindowState) => {
-    if (commitWindow.current) void emitTo(commitWindow.current, COMMIT_STATE, state).catch(() => {});
+  const sendGitWindowState = useCallback((label: string, state: GitWindowState) => {
+    void emitTo(label, GIT_STATE, state).catch(() => {});
   }, []);
   useEffect(() => {
-    if (commitWindowOpen) sendCommitWindowState(commitWindowState);
-  }, [commitWindowOpen, commitWindowState, sendCommitWindowState]);
+    for (const label of gitWindows) sendGitWindowState(label, gitWindowState);
+  }, [gitWindows, gitWindowState, sendGitWindowState]);
 
-  const openCommitDialog = useCallback(() => {
-    if (isWeb) return setGitDialog("commit");
-    openCommitWindow().then((label) => {
-      commitWindow.current = label;
-      setCommitWindowOpen(true);
-    }, fail);
-  }, [fail]);
-
-  const commitWindowActions = useRef<(action: CommitWindowAction) => void>(() => {});
-  commitWindowActions.current = (action) => {
+  const gitWindowActions = useRef<(message: GitWindowMessage) => void>(() => {});
+  gitWindowActions.current = ({ from, action }) => {
     const backHere = () => void getCurrentWindow().setFocus().catch(() => {});
+    const reply = (id: number, done: boolean) => void emitTo(from, GIT_RESULT, { id, done }).catch(() => {});
     switch (action.type) {
       case "ready":
-        return sendCommitWindowState(commitWindowState);
+        return sendGitWindowState(from, gitWindowState);
       case "message":
         commitMessageFromWindow.current = action.message;
         return setCommitMessage(action.message);
@@ -1259,12 +1265,11 @@ export default function App() {
         return void discard(action.paths, true);
       case "commit":
         return void commit(action.message, action.options).then((done) => {
-          if (commitWindow.current) void emitTo(commitWindow.current, COMMIT_RESULT, { id: action.id, done }).catch(() => {});
-          if (done && action.push) {
-            setGitDialog("push");
-            backHere();
-          }
+          reply(action.id, done);
+          if (done && action.push) openPushDialog();
         });
+      case "push":
+        return void pushFromDialog(action.remote).then((done) => reply(action.id, done));
       case "open-diff":
         openDiff(action.target, action.pin);
         return backHere();
@@ -1272,15 +1277,14 @@ export default function App() {
         void openFile(action.path);
         return backHere();
       case "closed":
-        commitWindow.current = null;
-        commitMessageFromWindow.current = null;
-        return setCommitWindowOpen(false);
+        if (dialogOf(from) === "commit") commitMessageFromWindow.current = null;
+        return setGitWindows((ws) => ws.filter((w) => w !== from));
     }
   };
   useEffect(() => {
     if (isWeb) return;
-    const unlisten = getCurrentWindow().listen<CommitWindowAction>(COMMIT_ACTION, ({ payload }) =>
-      commitWindowActions.current(payload),
+    const unlisten = getCurrentWindow().listen<GitWindowMessage>(GIT_ACTION, ({ payload }) =>
+      gitWindowActions.current(payload),
     );
     return () => void unlisten.then((f) => f());
   }, []);
@@ -1657,7 +1661,7 @@ export default function App() {
       // Commit (⌘K) and push (⌘⇧K) dialogs, as in IntelliJ.
       if (mod && !e.altKey && e.code === "KeyK" && gitShortcutsRef.current) {
         e.preventDefault();
-        if (e.shiftKey) setGitDialog("push");
+        if (e.shiftKey) openPushDialog();
         else openCommitDialog();
         return;
       }
@@ -1750,7 +1754,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, exportWord, printDocument, fail, git.repo, setGitOpen, newTerminal, toggleTerminal, updateSettings, openCommitDialog]);
+  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, exportWord, printDocument, fail, git.repo, setGitOpen, newTerminal, toggleTerminal, updateSettings, openCommitDialog, openPushDialog]);
 
   const dragResize = (e: ReactPointerEvent<HTMLDivElement>, onMove: (ev: PointerEvent) => void) => {
     e.preventDefault();
@@ -2041,7 +2045,7 @@ export default function App() {
                     onDiscard={discard}
                     onOpenBranches={() => setGitDialog("branches")}
                     onOpenCommitDialog={openCommitDialog}
-                    onOpenPushDialog={() => setGitDialog("push")}
+                    onOpenPushDialog={openPushDialog}
                     showAll={settings.gitShowAllFiles}
                     onShowAll={() => updateSettings({ gitShowAllFiles: true })}
                     onStage={stage}
