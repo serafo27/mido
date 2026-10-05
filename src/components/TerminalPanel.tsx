@@ -1,10 +1,20 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Plus, SquareTerminal, Trash2, X } from "lucide-react";
+import { PictureInPicture2, Plus, SquareTerminal, Trash2, X } from "lucide-react";
 import type { Terminal as XTerm } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { killTerminal, resizeTerminal, spawnTerminal, writeTerminal } from "../lib/terminal";
+import {
+  attachTerminal,
+  detachTerminal,
+  killTerminal,
+  openTerminalWindow,
+  resizeTerminal,
+  spawnTerminal,
+  writeTerminal,
+  type Handoff,
+  type TerminalHandlers,
+} from "../lib/terminal";
 import { isMac } from "../lib/platform";
 import { ANSI_KEYS, ansiVariable } from "../lib/themes";
 import { terminalFontSize, zoomTerminal } from "../lib/settings";
@@ -19,19 +29,30 @@ export interface TerminalPanelHandle {
   focus: () => void;
   /** ⌘+ / ⌘− / ⌘0 on the selected terminal only; resolves to its new text size. */
   zoom: (steps: number) => Promise<number | null>;
+  /** A floating terminal came back. */
+  adopt: (handoff: Handoff) => void;
 }
 
-/** What the panel keeps of each terminal's view. */
-interface View {
+/** What's kept of each terminal's view. */
+export interface TerminalViewHandle {
   term: XTerm;
   fit: () => void;
   kill: () => void;
   zoom: (steps: number) => Promise<number>;
+  /**
+   * Lets go of the shell, to move it to another window: its output is held
+   * back from now on, and its screen is saved. Null when it has no shell left.
+   */
+  release: () => Promise<Omit<Handoff, "title"> | null>;
+  /** Takes the shell back after a move that failed. */
+  resume: (pty: number) => Promise<void>;
 }
 
 interface Session {
   key: number;
   title: string;
+  /** Came from another window: its shell is already running. */
+  handoff?: Handoff;
 }
 
 /**
@@ -96,13 +117,15 @@ export function isAppShortcut(e: KeyboardEvent): boolean {
 interface ViewProps {
   active: boolean;
   visible: boolean;
-  register: (key: number, view: View | null) => void;
+  register: (key: number, view: TerminalViewHandle | null) => void;
   sessionKey: number;
   onExit: (key: number, code: number | null) => void;
+  /** The shell to show, when it comes from another window; otherwise a new one starts. */
+  handoff?: Handoff;
 }
 
 /** One terminal: an xterm.js view of a shell in the backend. It stays mounted while hidden, so the shell keeps going. */
-function TerminalView({ active, visible, register, sessionKey, onExit }: ViewProps) {
+export function TerminalView({ active, visible, register, sessionKey, onExit, handoff }: ViewProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const fitRef = useRef<() => void>(() => {});
 
@@ -114,23 +137,29 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
     let observer: ResizeObserver | null = null;
     let themeObserver: MutationObserver | null = null;
     // This terminal's own text size, as pixels away from the editor's.
-    let fontOffset = 0;
+    let fontOffset = handoff?.fontOffset ?? 0;
+    // Bytes received since the shell was attached, to know when all it sent has come.
+    let received = 0;
 
     (async () => {
       // xterm.js is only loaded once a terminal is opened.
       const look = appearance();
-      const [{ Terminal }, { FitAddon }, { WebLinksAddon }, { WebglAddon }, { Unicode11Addon }] = await Promise.all([
-        import("@xterm/xterm"),
-        import("@xterm/addon-fit"),
-        import("@xterm/addon-web-links"),
-        import("@xterm/addon-webgl"),
-        import("@xterm/addon-unicode11"),
-        fontReady(look.fontFamily, terminalFontSize(look.fontSize, fontOffset)),
-      ]);
+      const [{ Terminal }, { FitAddon }, { WebLinksAddon }, { WebglAddon }, { Unicode11Addon }, { SerializeAddon }] =
+        await Promise.all([
+          import("@xterm/xterm"),
+          import("@xterm/addon-fit"),
+          import("@xterm/addon-web-links"),
+          import("@xterm/addon-webgl"),
+          import("@xterm/addon-unicode11"),
+          import("@xterm/addon-serialize"),
+          fontReady(look.fontFamily, terminalFontSize(look.fontSize, fontOffset)),
+        ]);
       if (disposed || !hostRef.current) return;
       term = new Terminal({
         ...look,
         fontSize: terminalFontSize(look.fontSize, fontOffset),
+        // A screen from another window is restored at the size it was saved at, then fitted.
+        ...(handoff && { cols: handoff.cols, rows: handoff.rows }),
         cursorBlink: true,
         // The Unicode 11 widths below are a "proposed" xterm.js API.
         allowProposedApi: true,
@@ -147,6 +176,8 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
       // Emoji and East Asian characters take two cells, as the shell expects: without it the cursor drifts after them.
       term.loadAddon(new Unicode11Addon());
       term.unicode.activeVersion = "11";
+      const serializer = new SerializeAddon();
+      term.loadAddon(serializer);
       term.attachCustomKeyEventHandler((e) => !isAppShortcut(e));
       term.open(hostRef.current);
       // Drawn on the GPU, as in VS Code: crisp, evenly spaced text. When WebGL isn't
@@ -157,6 +188,10 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
         term.loadAddon(webgl);
       } catch {
         // No WebGL here: the DOM renderer stays.
+      }
+      if (handoff) {
+        await new Promise<void>((done) => term!.write(handoff.screen, done));
+        if (disposed) return;
       }
 
       const fit = () => {
@@ -191,6 +226,23 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
       });
       themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "data-theme"] });
 
+      const handlers: TerminalHandlers = {
+        onData: (data) => {
+          received += data.length;
+          term?.write(data);
+        },
+        onExit: (code) => {
+          pty = null;
+          if (!disposed) onExit(sessionKey, code);
+        },
+      };
+      const attach = async (id: number) => {
+        received = 0;
+        await attachTerminal(id, handlers);
+        pty = id;
+        if (term) void resizeTerminal(id, term.cols, term.rows).catch(() => {});
+      };
+
       register(sessionKey, {
         term,
         fit,
@@ -207,16 +259,38 @@ function TerminalView({ active, visible, register, sessionKey, onExit }: ViewPro
           await setFont(fontFamily, size);
           return size;
         },
+        release: async () => {
+          if (pty === null || !term) return null;
+          const id = pty;
+          let sent: number;
+          try {
+            sent = await detachTerminal(id);
+          } catch {
+            return null;
+          }
+          // Not ours any more: typing stops, and closing the view leaves the shell running.
+          pty = null;
+          // What the shell sent before may still be on its way, then xterm.js may still be drawing it.
+          const deadline = performance.now() + 1000;
+          while (received < sent && performance.now() < deadline) await new Promise((r) => setTimeout(r, 10));
+          await new Promise<void>((done) => term!.write("", done));
+          return { pty: id, screen: serializer.serialize(), cols: term.cols, rows: term.rows, fontOffset };
+        },
+        resume: attach,
       });
 
+      if (handoff) {
+        try {
+          await attach(handoff.pty);
+          if (disposed) void killTerminal(handoff.pty).catch(() => {});
+        } catch {
+          // Its shell ended on the way.
+          if (!disposed) onExit(sessionKey, null);
+        }
+        return;
+      }
       try {
-        pty = await spawnTerminal(term.cols, term.rows, {
-          onData: (data) => term?.write(data),
-          onExit: (code) => {
-            pty = null;
-            if (!disposed) onExit(sessionKey, code);
-          },
-        });
+        pty = await spawnTerminal(term.cols, term.rows, handlers);
         if (disposed) void killTerminal(pty).catch(() => {});
       } catch (e) {
         term.write(`\x1b[31m${e instanceof Error ? e.message : String(e)}\x1b[0m\r\n`);
@@ -249,18 +323,19 @@ interface PanelProps {
   onHide: () => void;
   /** No terminals are left. */
   onEmpty: () => void;
+  onError: (e: unknown) => void;
 }
 
 /** Terminals under the document, as in VS Code: tabs, and the shell of the selected one. */
 const TerminalPanel = forwardRef<TerminalPanelHandle, PanelProps>(function TerminalPanel(props, ref) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeKey, setActiveKey] = useState<number | null>(null);
-  const views = useRef(new Map<number, View>());
+  const views = useRef(new Map<number, TerminalViewHandle>());
   const nextKey = useRef(1);
   const live = useRef({ sessions, activeKey });
   live.current = { sessions, activeKey };
 
-  const register = useCallback((key: number, view: View | null) => {
+  const register = useCallback((key: number, view: TerminalViewHandle | null) => {
     if (view) {
       views.current.set(key, view);
       if (live.current.activeKey === key) view.term.focus();
@@ -315,10 +390,42 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, PanelProps>(function Termi
     [remove],
   );
 
+  /** Moves a terminal into a window of its own; it comes back when that window closes. */
+  const moving = useRef(false);
+  const float = useCallback(
+    async (key = live.current.activeKey) => {
+      const view = key === null ? undefined : views.current.get(key);
+      const session = live.current.sessions.find((s) => s.key === key);
+      if (!view || !session || moving.current) return;
+      moving.current = true;
+      try {
+        const handoff = await view.release();
+        if (!handoff) return;
+        try {
+          await openTerminalWindow({ ...handoff, title: session.title });
+          remove(session.key);
+        } catch (e) {
+          await view.resume(handoff.pty).catch(() => {});
+          props.onError(e);
+        }
+      } finally {
+        moving.current = false;
+      }
+    },
+    [remove, props.onError],
+  );
+
+  const adopt = useCallback((handoff: Handoff) => {
+    const key = nextKey.current++;
+    setSessions((s) => [...s, { key, title: handoff.title, handoff }]);
+    setActiveKey(key);
+  }, []);
+
   useImperativeHandle(
     ref,
     () => ({
       newTerminal,
+      adopt,
       kill: () => kill(),
       hasTerminals: () => live.current.sessions.length > 0,
       clear: () => {
@@ -335,7 +442,7 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, PanelProps>(function Termi
         return view ? view.zoom(steps) : null;
       },
     }),
-    [newTerminal, kill],
+    [newTerminal, kill, adopt],
   );
 
   const select = (key: number) => {
@@ -396,6 +503,14 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, PanelProps>(function Termi
           <button className="icon-button" title="New Terminal (⌃⇧`)" aria-label="New Terminal" onClick={newTerminal}>
             <Plus size={15} />
           </button>
+          <button
+            className="icon-button"
+            title="Move Terminal to New Window"
+            aria-label="Move Terminal to New Window"
+            onClick={() => void float()}
+          >
+            <PictureInPicture2 size={14} />
+          </button>
           <button className="icon-button" title="Kill Terminal" aria-label="Kill Terminal" onClick={() => kill()}>
             <Trash2 size={14} />
           </button>
@@ -413,6 +528,7 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, PanelProps>(function Termi
             visible={props.visible}
             register={register}
             onExit={onExit}
+            handoff={s.handoff}
           />
         ))}
       </div>

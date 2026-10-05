@@ -4603,6 +4603,46 @@ body.resizing-row * {
 .terminal-view .xterm-viewport {
   background: transparent !important;
 }
+/* A terminal in a window of its own: a title bar to drag it by, and the terminal. */
+.floating-terminal {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+}
+.floating-terminal-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.floating-terminal-header.mac-inset {
+  padding-left: 80px;
+}
+.floating-terminal-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 550;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: default;
+  user-select: none;
+}
+.floating-terminal-zoom {
+  color: var(--accent);
+}
+.floating-terminal-header .icon-button {
+  width: 26px;
+  height: 26px;
+}
 .statusbar-terminal {
   display: inline-flex;
   align-items: center;

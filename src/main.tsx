@@ -11,11 +11,21 @@ import "./styles/app.css";
 import "./styles/markdown.css";
 import App from "./App";
 import { migrateDefaults } from "./lib/settings";
+import { isFloatingTerminal } from "./lib/platform";
 
 migrateDefaults();
 
+// A floating terminal's window only loads the terminal.
+const FloatingTerminal = React.lazy(() => import("./components/FloatingTerminal"));
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    {isFloatingTerminal ? (
+      <React.Suspense>
+        <FloatingTerminal />
+      </React.Suspense>
+    ) : (
+      <App />
+    )}
   </React.StrictMode>,
 );

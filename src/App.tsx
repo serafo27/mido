@@ -38,6 +38,7 @@ import QuickSearch from "./components/QuickSearch";
 import DesktopOnly from "./components/DesktopOnly";
 import FormatBar from "./components/FormatBar";
 import TerminalPanel, { isAppShortcut, type TerminalPanelHandle } from "./components/TerminalPanel";
+import { TERMINAL_DOCKED, type Handoff } from "./lib/terminal";
 import Toolbar, { type ViewMode } from "./components/Toolbar";
 import Editor, {
   activeEditor,
@@ -1511,6 +1512,11 @@ export default function App() {
       getCurrentWindow().listen("menu-toggle-terminal", toggleTerminal),
       getCurrentWindow().listen("menu-clear-terminal", () => terminalRef.current?.clear()),
       getCurrentWindow().listen("menu-kill-terminal", () => terminalRef.current?.kill()),
+      // A floating terminal closed: it comes back to the panel.
+      getCurrentWindow().listen<Handoff>(TERMINAL_DOCKED, ({ payload }) => {
+        setTerminalOpen(true);
+        terminalRef.current?.adopt(payload);
+      }),
     ];
     return () => {
       for (const u of unlisteners) u.then((f) => f());
@@ -2100,6 +2106,7 @@ export default function App() {
               onResize={setTerminalHeight}
               onHide={hideTerminal}
               onEmpty={hideTerminal}
+              onError={fail}
             />
           )}
           {active && !activeDiffTab && (

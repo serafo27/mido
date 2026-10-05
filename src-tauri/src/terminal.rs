@@ -2,6 +2,10 @@
 //! pseudo-terminal, started in the window's open folder. Output streams to
 //! the webview through a channel per terminal, as raw bytes (xterm.js
 //! decodes them, even when a character is split between two reads).
+//!
+//! A terminal can move to another window (a floating one, and back): its
+//! window detaches it, which holds its output back, and hands it over; the
+//! new window attaches its own channels and gets what was held back.
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -13,6 +17,60 @@ use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize}
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{Manager, Runtime, State, WebviewWindow};
 
+/// The most output held back while a terminal is between windows; past it, the oldest goes.
+const MAX_HELD: usize = 1 << 20;
+
+type DataChannel = Channel<InvokeResponseBody>;
+type ExitChannel = Channel<Option<u32>>;
+
+/// Where a terminal's output goes: its window's channels, or nowhere yet while
+/// it's between windows, when it's held back.
+#[derive(Default)]
+struct Output {
+    channels: Option<(DataChannel, ExitChannel)>,
+    held: Vec<u8>,
+    /// Bytes sent since the channels were attached, so a window can wait until it got them all.
+    sent: u64,
+}
+
+impl Output {
+    fn data(&mut self, bytes: &[u8]) {
+        if let Some((data, _)) = &self.channels {
+            if data.send(InvokeResponseBody::Raw(bytes.to_vec())).is_ok() {
+                self.sent += bytes.len() as u64;
+                return;
+            }
+            // The webview went away without detaching: hold on, in case another attaches.
+            self.channels = None;
+        }
+        self.held.extend_from_slice(bytes);
+        if self.held.len() > MAX_HELD {
+            let excess = self.held.len() - MAX_HELD;
+            self.held.drain(..excess);
+        }
+    }
+
+    fn attach(&mut self, data: DataChannel, exit: ExitChannel) -> Result<(), String> {
+        if self.channels.is_some() {
+            return Err("That terminal is already attached".to_string());
+        }
+        self.sent = 0;
+        let held = std::mem::take(&mut self.held);
+        if !held.is_empty() {
+            data.send(InvokeResponseBody::Raw(held.clone())).map_err(crate::err)?;
+            self.sent = held.len() as u64;
+        }
+        self.channels = Some((data, exit));
+        Ok(())
+    }
+
+    /// Holds the output back from now on; returns how much was sent before.
+    fn detach(&mut self) -> u64 {
+        self.channels = None;
+        self.sent
+    }
+}
+
 /// A running terminal.
 struct Terminal {
     /// The window it belongs to: it ends when the window closes.
@@ -20,6 +78,7 @@ struct Terminal {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     child: Box<dyn Child + Send + Sync>,
+    output: Arc<Mutex<Output>>,
 }
 
 #[derive(Default)]
@@ -41,6 +100,17 @@ impl Terminals {
                 }
             });
         }
+    }
+
+    /// Gives a detached terminal of window `from` to window `to`, which can then attach it.
+    pub fn hand_over(&self, id: u32, from: &str, to: &str) -> Result<(), String> {
+        with_terminal(self, id, from, |t| {
+            if t.output.lock().map_err(crate::err)?.channels.is_some() {
+                return Err("Detach the terminal before handing it over".to_string());
+            }
+            t.window = to.to_string();
+            Ok(())
+        })
     }
 }
 
@@ -79,8 +149,8 @@ pub async fn pty_spawn<R: Runtime>(
     terminals: State<'_, Terminals>,
     cols: u16,
     rows: u16,
-    on_data: Channel<InvokeResponseBody>,
-    on_exit: Channel<Option<u32>>,
+    on_data: DataChannel,
+    on_exit: ExitChannel,
 ) -> Result<u32, String> {
     // The folder comes from the backend, not the webview.
     let root = window.state::<crate::Workspaces>().root(window.label()).ok().flatten();
@@ -97,9 +167,10 @@ pub async fn pty_spawn<R: Runtime>(
     let writer = pair.master.take_writer().map_err(crate::err)?;
 
     let id = terminals.next.fetch_add(1, Ordering::Relaxed) + 1;
+    let output = Arc::new(Mutex::new(Output { channels: Some((on_data, on_exit)), ..Output::default() }));
     terminals.running.lock().map_err(crate::err)?.insert(
         id,
-        Terminal { window: window.label().to_string(), master: pair.master, writer, child },
+        Terminal { window: window.label().to_string(), master: pair.master, writer, child, output: output.clone() },
     );
 
     let running = terminals.running.clone();
@@ -108,17 +179,18 @@ pub async fn pty_spawn<R: Runtime>(
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) | Err(_) => break,
-                Ok(n) => {
-                    if on_data.send(InvokeResponseBody::Raw(buffer[..n].to_vec())).is_err() {
-                        break;
-                    }
-                }
+                Ok(n) => match output.lock() {
+                    Ok(mut output) => output.data(&buffer[..n]),
+                    Err(_) => break,
+                },
             }
         }
-        // The shell is done (or the webview went away): reap it.
+        // The shell is done: reap it. (Between windows, nobody hears of it: attaching then fails.)
         let terminal = running.lock().ok().and_then(|mut r| r.remove(&id));
         let code = terminal.and_then(|mut t| t.child.wait().ok()).map(|status| status.exit_code());
-        let _ = on_exit.send(code);
+        if let Some((_, exit)) = output.lock().ok().and_then(|o| o.channels.clone()) {
+            let _ = exit.send(code);
+        }
     });
     Ok(id)
 }
@@ -135,6 +207,30 @@ fn with_terminal<T>(
         Some(t) if t.window == window => f(t),
         _ => Err("That terminal has ended".to_string()),
     }
+}
+
+/// Holds a terminal's output back, to move it to another window. Returns how
+/// many bytes were sent: the window waits for them, then saves its screen.
+#[tauri::command]
+pub async fn pty_detach<R: Runtime>(
+    window: WebviewWindow<R>,
+    terminals: State<'_, Terminals>,
+    id: u32,
+) -> Result<u64, String> {
+    with_terminal(&terminals, id, window.label(), |t| Ok(t.output.lock().map_err(crate::err)?.detach()))
+}
+
+/// Sends a detached terminal's output to the calling window again (the one it
+/// was handed to, or its own), starting with what was held back.
+#[tauri::command]
+pub async fn pty_attach<R: Runtime>(
+    window: WebviewWindow<R>,
+    terminals: State<'_, Terminals>,
+    id: u32,
+    on_data: DataChannel,
+    on_exit: ExitChannel,
+) -> Result<(), String> {
+    with_terminal(&terminals, id, window.label(), |t| t.output.lock().map_err(crate::err)?.attach(on_data, on_exit))
 }
 
 /// Types `data` (keys, pasted text) into a terminal.
@@ -175,6 +271,54 @@ pub async fn pty_kill<R: Runtime>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A data channel that keeps what it gets.
+    fn recorder() -> (DataChannel, Arc<Mutex<Vec<u8>>>) {
+        let got = Arc::new(Mutex::new(Vec::new()));
+        let sink = got.clone();
+        let channel = Channel::new(move |body| {
+            if let InvokeResponseBody::Raw(bytes) = body {
+                sink.lock().unwrap().extend(bytes);
+            }
+            Ok(())
+        });
+        (channel, got)
+    }
+
+    #[test]
+    fn holds_output_back_between_windows() {
+        let (first, first_got) = recorder();
+        let mut output = Output::default();
+        output.attach(first, Channel::new(|_| Ok(()))).unwrap();
+        output.data(b"one ");
+        assert_eq!(output.detach(), 4);
+        output.data(b"two ");
+        output.data(b"three");
+        assert_eq!(*first_got.lock().unwrap(), b"one ");
+
+        let (second, second_got) = recorder();
+        output.attach(second, Channel::new(|_| Ok(()))).unwrap();
+        assert_eq!(*second_got.lock().unwrap(), b"two three");
+        output.data(b"!");
+        assert_eq!(*second_got.lock().unwrap(), b"two three!");
+        assert_eq!(output.detach(), 10);
+    }
+
+    #[test]
+    fn attaches_once() {
+        let mut output = Output::default();
+        output.attach(Channel::new(|_| Ok(())), Channel::new(|_| Ok(()))).unwrap();
+        assert!(output.attach(Channel::new(|_| Ok(())), Channel::new(|_| Ok(()))).is_err());
+    }
+
+    #[test]
+    fn holds_back_only_the_latest_output() {
+        let mut output = Output::default();
+        output.data(&vec![b'a'; MAX_HELD]);
+        output.data(b"end");
+        assert_eq!(output.held.len(), MAX_HELD);
+        assert!(output.held.ends_with(b"aend"));
+    }
 
     #[test]
     fn runs_the_login_shell_in_the_folder() {

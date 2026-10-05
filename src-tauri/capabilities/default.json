@@ -4,7 +4,8 @@
   "description": "Permissions for Mido's windows",
   "windows": [
     "main",
-    "window-*"
+    "window-*",
+    "terminal-*"
   ],
   "permissions": [
     "core:default",

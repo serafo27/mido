@@ -246,6 +246,11 @@ export const commands: Record<string, (args: Record<string, unknown>, options?: 
   pty_write: desktopOnly,
   pty_resize: desktopOnly,
   pty_kill: desktopOnly,
+  pty_detach: desktopOnly,
+  pty_attach: desktopOnly,
+  open_terminal_window: desktopOnly,
+  terminal_window: desktopOnly,
+  dock_terminal: desktopOnly,
 
   write_file: desktopOnly,
   create_file: desktopOnly,

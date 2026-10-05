@@ -1,5 +1,6 @@
 mod assets;
 mod comments;
+mod floating;
 mod folders;
 mod git;
 mod search;
@@ -152,17 +153,27 @@ fn window_for(app: &AppHandle, path: &Path) -> String {
     if let Some(label) = app.state::<Workspaces>().window_with(path) {
         return label;
     }
-    if let Some(window) = focused_window(app) {
+    if let Some(window) = front_window(app) {
         return window.label().to_string();
     }
     // "main" sorts before the "window-…" labels of the others.
-    let mut labels: Vec<String> = app.webview_windows().into_keys().collect();
+    let mut labels: Vec<String> = app.webview_windows().into_keys().filter(|l| !floating::is_floating(l)).collect();
     labels.sort();
     labels.into_iter().next().unwrap_or_else(|| MAIN_WINDOW.to_string())
 }
 
 fn focused_window(app: &AppHandle) -> Option<WebviewWindow> {
     app.webview_windows().into_values().find(|w| w.is_focused().unwrap_or(false))
+}
+
+/// The app window in front: the focused one, or the one a focused floating terminal came from.
+fn front_window(app: &AppHandle) -> Option<WebviewWindow> {
+    let window = focused_window(app)?;
+    if floating::is_floating(window.label()) {
+        floating::parent(app, window.label())
+    } else {
+        Some(window)
+    }
 }
 
 fn queue_open_requests(app: &AppHandle, paths: impl IntoIterator<Item = PathBuf>) {
@@ -740,7 +751,7 @@ fn new_window(app: &AppHandle) -> tauri::Result<()> {
     };
     config.label = format!("window-{}", NEXT.fetch_add(1, Ordering::Relaxed));
     let mut builder = WebviewWindowBuilder::from_config(app, &config)?;
-    if let Some(front) = focused_window(app) {
+    if let Some(front) = front_window(app) {
         let scale = front.scale_factor()?;
         let at = front.outer_position()?.to_logical::<f64>(scale);
         let size = front.inner_size()?.to_logical::<f64>(scale);
@@ -839,6 +850,7 @@ pub fn run() {
         .manage(git::RepoLocks::default())
         .manage(OpenRequests::default())
         .manage(terminal::Terminals::default())
+        .manage(floating::FloatingTerminals::default())
         .setup(|app| {
             // Before the open requests below, which grant their folders.
             let granted = folders::Granted::load(app.path().app_data_dir()?.join("granted-folders.json"));
@@ -871,8 +883,15 @@ pub fn run() {
                 "print" => "menu-print",
                 _ => return,
             };
-            // Only the window in front acts on the menu.
-            if let Some(window) = focused_window(app) {
+            // Only the window in front acts on the menu. A floating terminal
+            // clears and kills its own terminal; the rest is its window's.
+            let own = matches!(name, "menu-clear-terminal" | "menu-kill-terminal");
+            let Some(focused) = focused_window(app) else { return };
+            let window = if own { Some(focused.clone()) } else { front_window(app) };
+            if let Some(window) = window {
+                if window.label() != focused.label() {
+                    let _ = window.set_focus();
+                }
                 let _ = window.emit_to(window.label(), name, ());
             }
         })
@@ -886,8 +905,9 @@ pub fn run() {
                 if let Ok(mut pending) = window.state::<OpenRequests>().0.lock() {
                     pending.remove(label);
                 }
-                // Ends its shells.
+                // Ends its shells, and closes its floating terminals.
                 window.state::<terminal::Terminals>().close_window(label);
+                floating::window_destroyed(window.app_handle(), label);
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -910,6 +930,11 @@ pub fn run() {
             terminal::pty_write,
             terminal::pty_resize,
             terminal::pty_kill,
+            terminal::pty_detach,
+            terminal::pty_attach,
+            floating::open_terminal_window,
+            floating::terminal_window,
+            floating::dock_terminal,
             read_comments,
             add_comment_file,
             compact_comment_thread,

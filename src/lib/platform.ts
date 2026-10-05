@@ -17,6 +17,15 @@ export const isMainWindow = (() => {
   }
 })();
 
+/** Whether this window holds a floating terminal (src-tauri/src/floating.rs) rather than the app. */
+export const isFloatingTerminal = (() => {
+  try {
+    return !isWeb && getCurrentWindow().label.startsWith("terminal-");
+  } catch {
+    return false;
+  }
+})();
+
 /** The desktop app on macOS draws its traffic lights over the top-left corner. */
 export const macWindowInset = isMac && !isWeb;
 
