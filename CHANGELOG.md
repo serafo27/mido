@@ -12,6 +12,11 @@ GitHub and on the website's changelog page.
 ### Added
 
 - A **GitHub Light** theme, with GitHub's colours for the interface, the code and the terminal.
+- Three new **reading styles**: **VS Code**, **Obsidian** and **Notion** lay out a document as their apps do, with any theme's colours.
+
+### Changed
+
+- The **GitHub** reading style now follows github.com closely: its heading sizes and spacing, plain quotes and alerts, inline code, code blocks, tables with full borders, and images without rounded corners or shadows.
 
 ## [0.19.2] - 2026-10-05
 

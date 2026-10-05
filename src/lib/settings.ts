@@ -3,7 +3,7 @@ import { DEFAULT_THEME, findTheme, themeVariables, type Theme, type ThemeKind } 
 export type ThemePref = "system" | "light" | "dark";
 /** "theme" uses the active theme's own accent. */
 export type Accent = "theme" | "teal" | "blue" | "violet" | "rose" | "amber";
-export type StylePreset = "mido" | "github" | "academic" | "minimal";
+export type StylePreset = "mido" | "github" | "vscode" | "obsidian" | "notion" | "academic" | "minimal";
 export type FontRole = "body" | "heading" | "code";
 /** "classic": square tabs with dividers. "rounded": folder tabs with rounded tops. */
 export type TabStyle = "classic" | "rounded";
@@ -195,7 +195,25 @@ export const PRESETS: PresetInfo[] = [
   {
     id: "github",
     label: "GitHub",
-    description: "Crisp documentation",
+    description: "As on github.com",
+    fonts: { bodyFont: "system", headingFont: "system", codeFont: "system-mono", justify: false },
+  },
+  {
+    id: "vscode",
+    label: "VS Code",
+    description: "As in its preview",
+    fonts: { bodyFont: "system", headingFont: "system", codeFont: "system-mono", justify: false },
+  },
+  {
+    id: "obsidian",
+    label: "Obsidian",
+    description: "As in its reading view",
+    fonts: { bodyFont: "system", headingFont: "system", codeFont: "system-mono", justify: false },
+  },
+  {
+    id: "notion",
+    label: "Notion",
+    description: "As a Notion page",
     fonts: { bodyFont: "system", headingFont: "system", codeFont: "system-mono", justify: false },
   },
   {
