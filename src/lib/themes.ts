@@ -279,6 +279,8 @@ export function themeVariables(t: Theme, accentOverride?: string): Record<string
     "--bg-elev": p.elevated,
     "--bg-hover": alpha(p.text, dark ? 0.07 : 0.055),
     "--bg-active": alpha(accent, dark ? 0.16 : 0.13),
+    // The hovered item in a menu: a tint of the accent the text stays readable on.
+    "--menu-hover": mix(accent, p.elevated, dark ? 0.24 : 0.18),
     "--border": p.border,
     "--border-soft": mix(p.border, p.bg, 0.6),
     "--text": p.text,

@@ -18,6 +18,7 @@ GitHub and on the website's changelog page.
 ### Changed
 
 - The **GitHub** reading style now follows github.com closely: its heading sizes and spacing, plain quotes and alerts, inline code, code blocks, tables with full borders, and images without rounded corners or shadows.
+- The item under the pointer in **menus** and lists is a soft tint of the accent instead of the full colour, so its text stays easy to read, also on dark themes.
 
 ## [0.19.2] - 2026-10-05
 

@@ -20,6 +20,7 @@
   --bg-elev: #ffffff;
   --bg-hover: rgba(40, 35, 25, 0.055);
   --bg-active: rgba(45, 106, 95, 0.12);
+  --menu-hover: #d9e5e2;
   --border: #e4e0d6;
   --border-soft: #ece9e1;
   --text: #25221d;
@@ -68,6 +69,7 @@
   --bg-elev: #26272b;
   --bg-hover: rgba(255, 250, 240, 0.055);
   --bg-active: rgba(108, 195, 176, 0.14);
+  --menu-hover: #374c4b;
   --border: #2f3135;
   --border-soft: #292b2e;
   --text: #e6e2d9;
@@ -374,7 +376,7 @@ body.resizing .resizer {
   color: var(--text-faint);
 }
 .menu-item:hover .folder-option-path {
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--text-muted);
 }
 .menu-item kbd {
   margin-left: auto;
@@ -385,7 +387,7 @@ body.resizing .resizer {
   color: var(--text-faint);
 }
 .menu-item:hover kbd {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-muted);
 }
 
 .filter {
@@ -540,11 +542,10 @@ body.resizing .resizer {
   color: var(--text-muted);
 }
 .menu-item:hover {
-  background: var(--accent);
-  color: #fff;
+  background: var(--menu-hover);
 }
 .menu-item:hover svg {
-  color: #fff;
+  color: var(--text);
 }
 .menu-item.danger {
   color: var(--alert-caution);
@@ -553,8 +554,7 @@ body.resizing .resizer {
   color: var(--alert-caution);
 }
 .menu-item.danger:hover {
-  background: var(--alert-caution);
-  color: #fff;
+  background: color-mix(in srgb, var(--alert-caution) 18%, var(--bg-elev));
 }
 .menu-sep {
   height: 1px;
@@ -1076,8 +1076,7 @@ body.resizing .resizer {
   background: var(--accent-soft);
 }
 .heading-option:hover {
-  background: var(--accent);
-  color: #fff;
+  background: var(--menu-hover);
 }
 .table-grid {
   display: grid;
@@ -1891,25 +1890,21 @@ body.resizing .resizer {
   background: var(--bg-hover);
   color: var(--text);
 }
-/* In the menu the hovered row is the accent colour: the × goes white on it. */
+/* In the menu, hovering the × keeps its row highlighted. */
 .folder-menu .recent-row:hover > .menu-item {
-  background: var(--accent);
-  color: #fff;
+  background: var(--menu-hover);
 }
-.folder-menu .recent-row:hover > .menu-item svg,
+.folder-menu .recent-row:hover > .menu-item svg {
+  color: var(--text);
+}
 .folder-menu .recent-row:hover .folder-option-path {
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--text-muted);
 }
 .folder-menu .recent-remove {
   right: 4px;
-  color: rgba(255, 255, 255, 0.8);
-}
-.folder-menu .recent-row:not(:hover) .recent-remove {
-  color: var(--text-muted);
 }
 .folder-menu .recent-remove:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
 }
 .recent-name {
   flex: none;
@@ -4189,8 +4184,7 @@ body.web-dropping::after {
   font-size: 13px;
 }
 .picker-item.selected {
-  background: var(--accent);
-  color: var(--bg);
+  background: var(--menu-hover);
 }
 .picker-icon {
   flex: none;
