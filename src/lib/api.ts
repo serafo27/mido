@@ -113,6 +113,8 @@ export interface FileVersions {
 }
 
 export const api = {
+  /** The windows' background, `#rrggbb`: the theme's, so no white shows before the page paints or as a window grows. */
+  setWindowBackground: (color: string) => invoke<void>("set_window_background", { color }),
   /** Opens `root` as the workspace (file commands are limited to it) and returns its tree. */
   openFolder: (root: string) => invoke<FileNode[]>("open_folder", { root }),
   /**

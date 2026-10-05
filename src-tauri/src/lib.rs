@@ -1,4 +1,5 @@
 mod assets;
+mod background;
 mod comments;
 mod floating;
 mod folders;
@@ -18,7 +19,7 @@ use notify_debouncer_mini::notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
 use serde::Serialize;
 use tauri::ipc::{CommandArg, CommandItem, InvokeError};
-use tauri::{AppHandle, Emitter, Manager, Runtime, State, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State, WebviewWindow};
 
 const MARKDOWN_EXTENSIONS: &[&str] = &["md", "markdown", "mdown", "mkd", "mdx"];
 const IGNORED_DIRS: &[&str] = &["node_modules", "target", "dist", "build", "__pycache__"];
@@ -752,7 +753,7 @@ fn new_window(app: &AppHandle) -> tauri::Result<()> {
         return Ok(());
     };
     config.label = format!("window-{}", NEXT.fetch_add(1, Ordering::Relaxed));
-    let mut builder = WebviewWindowBuilder::from_config(app, &config)?;
+    let mut builder = background::window(app, config)?;
     if let Some(front) = front_window(app) {
         let scale = front.scale_factor()?;
         let at = front.outer_position()?.to_logical::<f64>(scale);
@@ -863,6 +864,11 @@ pub fn run() {
             {
                 app.set_menu(build_menu(app.handle())?)?;
             }
+            // The main window (not created from the config, to open on the theme's background).
+            app.manage(background::Background::load(app.path().app_data_dir()?.join("window-background")));
+            if let Some(config) = app.config().app.windows.first().cloned() {
+                background::window(app.handle(), config)?.build()?;
+            }
             // `Mido.app/Contents/MacOS/mido notes/a.md`; `open -a Mido` and the
             // Finder go through `RunEvent::Opened` instead.
             queue_open_requests(app.handle(), std::env::args_os().skip(1).map(PathBuf::from));
@@ -939,6 +945,7 @@ pub fn run() {
             floating::dock_terminal,
             floating::open_commit_window,
             floating::window_parent,
+            background::set_window_background,
             read_comments,
             add_comment_file,
             compact_comment_thread,

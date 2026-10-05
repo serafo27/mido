@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
 use crate::terminal::Terminals;
 
@@ -142,7 +142,7 @@ fn build(
         }
     };
     (config.width, config.height) = (width, height);
-    WebviewWindowBuilder::from_config(app, &config)?.position(x, y).build()?;
+    crate::background::window(app, config)?.position(x, y).build()?;
     Ok(())
 }
 

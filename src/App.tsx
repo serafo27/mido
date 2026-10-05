@@ -39,6 +39,7 @@ import DesktopOnly from "./components/DesktopOnly";
 import FormatBar from "./components/FormatBar";
 import TerminalPanel, { isAppShortcut, type TerminalPanelHandle } from "./components/TerminalPanel";
 import { TERMINAL_DOCKED, type Handoff } from "./lib/terminal";
+import { plainColor } from "./lib/color";
 import {
   COMMIT_ACTION,
   COMMIT_RESULT,
@@ -958,7 +959,13 @@ export default function App() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  useEffect(() => applySettings(settings, systemDark), [settings, systemDark]);
+  useEffect(() => {
+    applySettings(settings, systemDark);
+    if (isWeb) return;
+    // The window behind the page takes the theme's background (opaque: nothing shows through it).
+    const bg = plainColor(getComputedStyle(document.documentElement).getPropertyValue("--bg").trim());
+    if (bg) void api.setWindowBackground(bg.slice(0, 7)).catch(() => {});
+  }, [settings, systemDark]);
 
   // Anonymous usage statistics (Settings → Privacy): once a day, that Mido was
   // used and with which theme. Checked hourly, as the app stays open for days.

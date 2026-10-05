@@ -253,6 +253,7 @@ export const commands: Record<string, (args: Record<string, unknown>, options?: 
   dock_terminal: desktopOnly,
   open_commit_window: desktopOnly,
   window_parent: desktopOnly,
+  set_window_background: async () => {},
 
   write_file: desktopOnly,
   create_file: desktopOnly,
