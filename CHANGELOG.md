@@ -9,6 +9,10 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Changed
+
+- The website also shows **Minimal Mode**, **quick search** and **export and print**, in small sections with a picture each, under the features.
+
 ## [0.18.0] - 2026-10-05
 
 ### Added

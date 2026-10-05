@@ -697,6 +697,152 @@ code {
   color: var(--muted);
 }
 
+/* Smaller features under the grid: a small picture and a few lines each. */
+.extras {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  padding: 8px 0 40px;
+}
+
+.extra-shot {
+  margin: 0 0 16px;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-soft);
+}
+
+.extra-shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top left;
+}
+
+.extra h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.extra p {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.extra b {
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* The File menu, drawn: the native menu bar can't be screenshotted from the web build. */
+.mock-menu {
+  position: relative;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.mm-bar {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.mm-bar span {
+  padding: 2px 8px;
+  margin: 0 -8px;
+  border-radius: 5px;
+}
+
+.mm-bar .mm-open {
+  background: var(--accent-soft);
+}
+
+.mm-doc {
+  padding: 34px 28px 0 96px;
+}
+
+.mm-doc p {
+  margin: 0 0 10px;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--heading);
+}
+
+.mm-doc .mm-title {
+  font-size: 19px;
+}
+
+.mm-doc .mm-heading {
+  margin-top: 18px;
+  font-size: 15px;
+}
+
+.mm-doc i {
+  display: block;
+  height: 7px;
+  margin-bottom: 9px;
+  border-radius: 4px;
+  background: var(--border);
+}
+
+.mm-doc i.short {
+  width: 60%;
+}
+
+.mm-list {
+  position: absolute;
+  top: 34px;
+  left: 50px;
+  width: min(230px, 75%);
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.mm-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 5px;
+}
+
+.mm-item kbd {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--faint);
+}
+
+.mm-active {
+  background: var(--accent);
+  color: #0f1f1c;
+}
+
+[data-theme="light"] .mm-active {
+  color: #fff;
+}
+
+.mm-active kbd {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.mm-list hr {
+  margin: 5px 9px;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
 .settings-row {
   padding-top: 32px;
 }
@@ -1101,6 +1247,7 @@ code {
 
   .modes,
   .grid,
+  .extras,
   .platforms {
     grid-template-columns: 1fr 1fr;
   }
@@ -1128,6 +1275,7 @@ code {
 
   .modes,
   .grid,
+  .extras,
   .platforms {
     grid-template-columns: 1fr;
   }

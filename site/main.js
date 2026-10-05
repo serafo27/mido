@@ -34,6 +34,7 @@
   track(document.querySelectorAll(".theme-tabs, .platforms, .download > .other-platforms, .first-launch, .fine-print"), "up");
   track(document.querySelectorAll(".theme-shot"), "settle");
   track(document.querySelectorAll(".card"), "up", 0.08);
+  track(document.querySelectorAll(".extra"), "up", 0.08);
 
   const observer = new IntersectionObserver(
     (entries) =>
