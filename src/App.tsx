@@ -38,6 +38,8 @@ import QuickSearch from "./components/QuickSearch";
 import DesktopOnly from "./components/DesktopOnly";
 import FormatBar from "./components/FormatBar";
 import TerminalPanel, { isAppShortcut, type TerminalPanelHandle } from "./components/TerminalPanel";
+import MinimalBar from "./components/MinimalBar";
+import { hiddenByMinimal } from "./lib/minimal";
 import { TERMINAL_DOCKED, type Handoff } from "./lib/terminal";
 import { plainColor } from "./lib/color";
 import {
@@ -157,6 +159,10 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useStoredState("mido.sidebarOpen", true);
   const [sidebarWidth, setSidebarWidth] = useStoredState("mido.sidebarWidth", 268);
   const [terminalOpen, setTerminalOpen] = useState(false);
+  // Minimal Mode (View menu): only the document, to read and write.
+  const [minimal, setMinimal] = useStoredState("mido.minimal", false, { perWindow: true });
+  const minimalRef = useRef(minimal);
+  minimalRef.current = minimal;
   const [terminalHeight, setTerminalHeight] = useStoredState("mido.terminalHeight", 260);
   const terminalRef = useRef<TerminalPanelHandle>(null);
   const [splitRatio, setSplitRatio] = useStoredState("mido.splitRatio", 0.5);
@@ -1596,8 +1602,9 @@ export default function App() {
   // The Terminal menu (macOS).
   useEffect(() => {
     const unlisteners = [
-      getCurrentWindow().listen("menu-new-terminal", newTerminal),
-      getCurrentWindow().listen("menu-toggle-terminal", toggleTerminal),
+      // Minimal Mode hides the terminal: it stays hidden until it's left.
+      getCurrentWindow().listen("menu-new-terminal", () => !minimalRef.current && newTerminal()),
+      getCurrentWindow().listen("menu-toggle-terminal", () => !minimalRef.current && toggleTerminal()),
       getCurrentWindow().listen("menu-clear-terminal", () => terminalRef.current?.clear()),
       getCurrentWindow().listen("menu-kill-terminal", () => terminalRef.current?.kill()),
       // A floating terminal closed: it comes back to the panel.
@@ -1610,6 +1617,16 @@ export default function App() {
       for (const u of unlisteners) u.then((f) => f());
     };
   }, [newTerminal, toggleTerminal]);
+
+  // Minimal Mode, from the View menu (macOS), whose check mark follows the window in front.
+  useEffect(() => {
+    if (isWeb) return;
+    const unlisten = getCurrentWindow().listen("menu-minimal-mode", () => setMinimal((m) => !m));
+    return () => void unlisten.then((f) => f());
+  }, [setMinimal]);
+  useEffect(() => {
+    if (!isWeb) void api.setMinimalMode(minimal).catch(() => {});
+  }, [minimal]);
 
   // "Export as HTML…", "Export as Word…" and "Print…" in the File menu (macOS).
   useEffect(() => {
@@ -1625,6 +1642,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (minimalRef.current && hiddenByMinimal(e, isMac)) return;
       // Terminal: ⌃` shows or hides it, ⌃⇧` opens a new one, as in VS Code.
       const terminalKey = e.code === "Backquote" || e.code === "IntlBackslash";
       if (!isWeb && e.ctrlKey && !e.metaKey && !e.altKey && terminalKey) {
@@ -1958,7 +1976,13 @@ export default function App() {
     </>
   );
 
-  const toolbar = (
+  const toolbar = minimal ? (
+    <MinimalBar
+      name={active && !activeDiffTab ? basename(active.path) : null}
+      dirty={dirty}
+      editing={mode === "edit" && !!active && !activeDiffTab}
+    />
+  ) : (
     <Toolbar
       showSidebarToggle={root !== null}
       sidebarOpen={root !== null && sidebarOpen}
@@ -2004,8 +2028,8 @@ export default function App() {
 
   return (
     <>
-      <div className="app">
-        {sidebarOpen && (
+      <div className={`app ${minimal ? "minimal" : ""} ${minimal && settings.wrap ? "minimal-wrap" : ""}`}>
+        {sidebarOpen && !minimal && (
           <>
             <Sidebar
               root={root}
@@ -2071,7 +2095,7 @@ export default function App() {
         )}
         <main className="main">
           {toolbar}
-          {settings.showPathBar && tabInfos.length > 0 && (
+          {settings.showPathBar && tabInfos.length > 0 && !minimal && (
             <TabBar
               tabs={tabInfos}
               activePath={activeTabKey}
@@ -2094,7 +2118,7 @@ export default function App() {
             />
           ) : active ? (
             <>
-              {mode === "edit" && settings.formatBar && <FormatBar />}
+              {mode === "edit" && settings.formatBar && !minimal && <FormatBar />}
               <div className="content-row">
                 <div
                   ref={workspaceRef}
@@ -2104,7 +2128,7 @@ export default function App() {
                   {mode !== "view" && (
                     // A column, so in Split the format bar sits over the editor side only.
                     <div key="editor" className="editor-column">
-                      {mode === "split" && settings.formatBar && <FormatBar />}
+                      {mode === "split" && settings.formatBar && !minimal && <FormatBar />}
                       <Editor
                         docKey={active.path}
                         value={active.content}
@@ -2112,10 +2136,10 @@ export default function App() {
                         onChange={updateContent}
                         onScroll={onEditorScroll}
                         onAddImages={addImages}
-                        highlights={highlights}
+                        highlights={minimal ? NO_HIGHLIGHTS : highlights}
                         onSelectHighlight={showThread}
                         onHoverHighlight={hoverHighlight}
-                        minimap={settings.minimap}
+                        minimap={settings.minimap && !minimal}
                       />
                     </div>
                   )}
@@ -2143,19 +2167,19 @@ export default function App() {
                       scrollRef={previewRef}
                       onScroll={onPreviewScroll}
                       onOpenFile={openLink}
-                      highlights={highlights}
+                      highlights={minimal ? NO_HIGHLIGHTS : highlights}
                       onSelectHighlight={showThread}
                       onHoverHighlight={hoverHighlight}
-                      minimap={settings.minimap}
+                      minimap={settings.minimap && !minimal}
                       remoteImages={settings.remoteImages}
                     />
                   )}
                 </div>
-                {peekThread && hover?.x !== undefined && hover.y !== undefined && (
+                {peekThread && hover?.x !== undefined && hover.y !== undefined && !minimal && (
                   <CommentPeek thread={peekThread} x={hover.x} y={hover.y} />
                 )}
-                {!isWeb && <SelectionMenu containerRef={workspaceRef} onComment={startComment} />}
-                {outlineOpen && (
+                {!isWeb && !minimal && <SelectionMenu containerRef={workspaceRef} onComment={startComment} />}
+                {outlineOpen && !minimal && (
                   <Outline
                     headings={headings}
                     activeIndex={headingAt(headings, currentLine)}
@@ -2163,7 +2187,7 @@ export default function App() {
                     onClose={() => setOutlineOpen(false)}
                   />
                 )}
-                {commentsOpen && (
+                {commentsOpen && !minimal && (
                   <Comments
                     threads={placedThreads}
                     activeId={activeThread}
@@ -2190,7 +2214,7 @@ export default function App() {
           {!isWeb && (
             <TerminalPanel
               ref={terminalRef}
-              visible={terminalOpen}
+              visible={terminalOpen && !minimal}
               height={terminalHeight}
               onResize={setTerminalHeight}
               onHide={hideTerminal}
@@ -2198,7 +2222,7 @@ export default function App() {
               onError={fail}
             />
           )}
-          {active && !activeDiffTab && (
+          {active && !activeDiffTab && !minimal && (
             <StatusBar
               content={active.content}
               dirty={dirty}
@@ -2256,6 +2280,9 @@ function imagesLoaded(el: HTMLElement | null, timeout = 3000): Promise<unknown> 
 }
 
 /** Scroll positions the app set itself: the scroll event each causes isn't the user's. */
+/** What Minimal Mode highlights of the comments: nothing (one array, so the views don't redraw). */
+const NO_HIGHLIGHTS: SourceHighlight[] = [];
+
 const ownScrolls = new WeakMap<HTMLElement, { top: number; at: number }>();
 
 function setScrollTop(el: HTMLElement, top: number) {

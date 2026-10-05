@@ -115,6 +115,8 @@ export interface FileVersions {
 export const api = {
   /** The windows' background, `#rrggbb`: the theme's, so no white shows before the page paints or as a window grows. */
   setWindowBackground: (color: string) => invoke<void>("set_window_background", { color }),
+  /** Tells the View menu whether this window is in Minimal Mode, for its check mark. */
+  setMinimalMode: (on: boolean) => invoke<void>("set_minimal_mode", { on }),
   /** Opens `root` as the workspace (file commands are limited to it) and returns its tree. */
   openFolder: (root: string) => invoke<FileNode[]>("open_folder", { root }),
   /**

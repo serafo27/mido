@@ -742,6 +742,39 @@ fn app_arch() -> &'static str {
     std::env::consts::ARCH
 }
 
+/// The windows in Minimal Mode (only the document shows), so the View menu's
+/// check mark follows the window in front.
+#[derive(Default)]
+struct MinimalWindows(Mutex<std::collections::HashSet<String>>);
+
+/// The View menu's Minimal Mode item (macOS).
+struct MinimalMenuItem(tauri::menu::CheckMenuItem<tauri::Wry>);
+
+/// Checks Minimal Mode in the View menu when the window in front is in it.
+fn show_minimal_check(app: &AppHandle) {
+    let (Some(item), Some(front)) = (app.try_state::<MinimalMenuItem>(), front_window(app)) else {
+        return;
+    };
+    let on = app.state::<MinimalWindows>().0.lock().map(|m| m.contains(front.label())).unwrap_or(false);
+    let _ = item.0.set_checked(on);
+}
+
+/// The calling window entered or left Minimal Mode.
+#[tauri::command]
+fn set_minimal_mode(app: AppHandle, window: WebviewWindow, on: bool) -> Result<(), String> {
+    {
+        let state = app.state::<MinimalWindows>();
+        let mut minimal = state.0.lock().map_err(err)?;
+        if on {
+            minimal.insert(window.label().to_string());
+        } else {
+            minimal.remove(window.label());
+        }
+    }
+    show_minimal_check(&app);
+    Ok(())
+}
+
 /// How far each new window sits from the one in front, so it doesn't hide it exactly.
 const CASCADE: f64 = 28.0;
 
@@ -774,7 +807,7 @@ async fn open_new_window(app: AppHandle) -> Result<(), String> {
 /// are left out on purpose so ⌘Z reaches CodeMirror's own history.
 #[cfg(target_os = "macos")]
 fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
-    use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
+    use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 
     let settings = MenuItemBuilder::with_id("settings", "Settings…")
         .accelerator("CmdOrCtrl+,")
@@ -826,6 +859,12 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .build(app)?;
     let clear_terminal = MenuItemBuilder::with_id("clear-terminal", "Clear Terminal").build(app)?;
     let kill_terminal = MenuItemBuilder::with_id("kill-terminal", "Kill Terminal").build(app)?;
+    // Only the document, to read and write: the rest of the window hides.
+    let minimal = CheckMenuItemBuilder::with_id("minimal-mode", "Minimal Mode")
+        .accelerator("Ctrl+Cmd+M")
+        .build(app)?;
+    let view_menu = SubmenuBuilder::new(app, "View").item(&minimal).build()?;
+    app.manage(MinimalMenuItem(minimal));
     let terminal_menu = SubmenuBuilder::with_id(app, "terminal-menu", "Terminal")
         .item(&new_terminal)
         .item(&toggle_terminal)
@@ -839,7 +878,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .separator()
         .item(&PredefinedMenuItem::fullscreen(app, None)?)
         .build()?;
-    MenuBuilder::new(app).items(&[&app_menu, &file_menu, &edit_menu, &terminal_menu, &window_menu]).build()
+    MenuBuilder::new(app).items(&[&app_menu, &file_menu, &edit_menu, &view_menu, &terminal_menu, &window_menu]).build()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -854,6 +893,7 @@ pub fn run() {
         .manage(OpenRequests::default())
         .manage(terminal::Terminals::default())
         .manage(floating::FloatingWindows::default())
+        .manage(MinimalWindows::default())
         .setup(|app| {
             // Before the open requests below, which grant their folders.
             let granted = folders::Granted::load(app.path().app_data_dir()?.join("granted-folders.json"));
@@ -888,6 +928,7 @@ pub fn run() {
                 "toggle-terminal" => "menu-toggle-terminal",
                 "clear-terminal" => "menu-clear-terminal",
                 "kill-terminal" => "menu-kill-terminal",
+                "minimal-mode" => "menu-minimal-mode",
                 "print" => "menu-print",
                 _ => return,
             };
@@ -904,6 +945,9 @@ pub fn run() {
             }
         })
         .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Focused(true) = event {
+                show_minimal_check(window.app_handle());
+            }
             if let tauri::WindowEvent::Destroyed = event {
                 let label = window.label();
                 if let Ok(mut folders) = window.state::<Workspaces>().0.lock() {
@@ -912,6 +956,9 @@ pub fn run() {
                 }
                 if let Ok(mut pending) = window.state::<OpenRequests>().0.lock() {
                     pending.remove(label);
+                }
+                if let Ok(mut minimal) = window.state::<MinimalWindows>().0.lock() {
+                    minimal.remove(label);
                 }
                 // Ends its shells, and closes its floating terminals.
                 window.state::<terminal::Terminals>().close_window(label);
@@ -946,6 +993,7 @@ pub fn run() {
             floating::open_git_window,
             floating::window_parent,
             background::set_window_background,
+            set_minimal_mode,
             read_comments,
             add_comment_file,
             compact_comment_thread,

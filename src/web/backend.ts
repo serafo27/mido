@@ -254,6 +254,7 @@ export const commands: Record<string, (args: Record<string, unknown>, options?: 
   open_git_window: desktopOnly,
   window_parent: desktopOnly,
   set_window_background: async () => {},
+  set_minimal_mode: async () => {},
 
   write_file: desktopOnly,
   create_file: desktopOnly,
