@@ -9,6 +9,10 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Added
+
+- **Move files and folders** by dragging them onto another folder in the sidebar, or onto the empty space under the tree for the top folder. Mido asks before moving, and open tabs and comments follow.
+
 ## [0.19.3] - 2026-10-05
 
 ### Added

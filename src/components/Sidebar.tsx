@@ -1,4 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import {
   ChevronRight,
   FilePlus,
@@ -25,6 +34,12 @@ type Pending =
   | { kind: "new-file" | "new-folder"; parent: string }
   | { kind: "rename"; path: string; isDir: boolean };
 
+/** What a row being dragged carries; only drags from the tree itself move anything. */
+const DRAG_TYPE = "application/x-mido-path";
+
+/** How long a closed folder has to be dragged over before it opens. */
+const EXPAND_DELAY = 600;
+
 interface MenuState {
   x: number;
   y: number;
@@ -49,6 +64,8 @@ interface SidebarProps {
   onRefresh: () => void;
   onCreate: (parent: string, name: string, kind: "file" | "folder") => Promise<void>;
   onRename: (path: string, newName: string, isDir: boolean) => Promise<void>;
+  /** A file or folder dropped on `folder`; asks before moving it there. */
+  onMove: (path: string, folder: string) => void;
   onTrash: (path: string) => void;
   onReveal: (path: string) => void;
   /** Shows the search panel instead of the file tree. */
@@ -97,6 +114,9 @@ export default function Sidebar(props: SidebarProps) {
   const [pending, setPending] = useState<Pending | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const filterRef = useRef<HTMLInputElement>(null);
+  // The path being dragged, and the folder it would be dropped in.
+  const dragged = useRef<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
 
   const expanded = useMemo(() => new Set(expandedByRoot[root] ?? []), [expandedByRoot, root]);
   const setExpanded = (update: (s: Set<string>) => void) =>
@@ -140,6 +160,13 @@ export default function Sidebar(props: SidebarProps) {
     };
   }, [menu]);
 
+  // A closed folder held under a drag opens, to drop deeper into it.
+  useEffect(() => {
+    if (!dropTarget || dropTarget === root || expanded.has(dropTarget)) return;
+    const t = setTimeout(() => setExpanded((s) => s.add(dropTarget)), EXPAND_DELAY);
+    return () => clearTimeout(t);
+  }, [dropTarget, root, expanded]);
+
   // Minimal Mode hides the filter, so it shows every file.
   const filter = props.minimal ? "" : query;
   const visible = useMemo(() => (filter ? filterTree(tree, filter) : tree), [tree, filter]);
@@ -179,6 +206,50 @@ export default function Sidebar(props: SidebarProps) {
     }
   };
 
+  /** Not where it already is, nor inside itself. */
+  const canDrop = (folder: string) => {
+    const path = dragged.current;
+    return path !== null && dirname(path) !== folder && !isInside(path, folder);
+  };
+
+  const dragProps = (node: FileNode) => ({
+    draggable: true,
+    onDragStart: (e: DragEvent) => {
+      dragged.current = node.path;
+      e.dataTransfer.setData(DRAG_TYPE, node.path);
+      e.dataTransfer.effectAllowed = "move";
+    },
+    onDragEnd: () => {
+      dragged.current = null;
+      setDropTarget(null);
+    },
+  });
+
+  /** A folder's group (its row and what's inside) takes drops; a file's row hands them to its folder. */
+  const dropProps = (folder: string) => ({
+    onDragOver: (e: DragEvent) => {
+      if (!dragged.current) return;
+      e.stopPropagation();
+      if (!canDrop(folder)) {
+        setDropTarget(null);
+        return;
+      }
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      setDropTarget(folder);
+    },
+    onDrop: (e: DragEvent) => {
+      const path = dragged.current;
+      if (!path) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const allowed = canDrop(folder);
+      dragged.current = null;
+      setDropTarget(null);
+      if (allowed) props.onMove(path, folder);
+    },
+  });
+
   const renderPendingNew = (parent: string, depth: number) =>
     pending && pending.kind !== "rename" && pending.parent === parent ? (
       <InlineInput
@@ -197,7 +268,12 @@ export default function Sidebar(props: SidebarProps) {
       if (node.isDir) {
         const open = query !== "" || expanded.has(node.path);
         return (
-          <div key={node.path} role="group">
+          <div
+            key={node.path}
+            role="group"
+            className={dropTarget === node.path ? "drop-target" : undefined}
+            {...dropProps(node.path)}
+          >
             {isRenaming ? (
               <InlineInput
                 depth={depth}
@@ -212,6 +288,7 @@ export default function Sidebar(props: SidebarProps) {
                 style={{ paddingLeft: 10 + depth * 14 }}
                 onClick={() => toggle(node.path)}
                 onContextMenu={(e) => openMenu(e, node)}
+                {...dragProps(node)}
                 title={node.path}
               >
                 <ChevronRight size={13} className={`chevron ${open ? "open" : ""}`} />
@@ -248,6 +325,7 @@ export default function Sidebar(props: SidebarProps) {
           onClick={() => onOpenFile(node.path)}
           onDoubleClick={() => props.onPinFile(node.path)}
           onContextMenu={(e) => openMenu(e, node)}
+          {...dragProps(node)}
           title={node.path}
         >
           <FileText size={15} className="icon" />
@@ -335,7 +413,15 @@ export default function Sidebar(props: SidebarProps) {
         )}
       </div>
 
-      <nav className="tree" hidden={props.searchOpen || props.gitOpen} onContextMenu={(e) => openMenu(e, null)}>
+      <nav
+        className={`tree ${dropTarget === root ? "drop-target" : ""}`}
+        hidden={props.searchOpen || props.gitOpen}
+        onContextMenu={(e) => openMenu(e, null)}
+        {...dropProps(root)}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
+        }}
+      >
         {renderPendingNew(root, 0)}
         {renderNodes(visible, 0)}
         {visible.length === 0 && !pending && (

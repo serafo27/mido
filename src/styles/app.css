@@ -505,6 +505,17 @@ body.resizing .resizer {
   user-select: text;
 }
 
+/* The folder a dragged file or folder would move into: its row and what's inside it. */
+.tree .drop-target,
+.tree.drop-target {
+  border-radius: 6px;
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.tree .drop-target .tree-row:hover {
+  background: transparent;
+}
+
 .tree-empty {
   padding: 24px 12px;
   text-align: center;

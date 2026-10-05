@@ -911,11 +911,9 @@ export default function App() {
     [refreshTree, openFile, fail, setMode],
   );
 
-  const renameEntry = useCallback(
-    async (path: string, newName: string, isDir: boolean) => {
-      if (requireDesktop("Renaming")) return;
-      const name = !isDir && !newName.includes(".") ? `${newName}.md` : newName;
-      const to = join(dirname(path), name);
+  /** Renames or moves a file or folder, and the tabs open on it or inside it. */
+  const relocateEntry = useCallback(
+    async (path: string, to: string) => {
       const moved = (p: string) => (isInside(path, p) ? to + p.slice(path.length) : p);
       try {
         const inside = live.current.tabs.filter((t) => isInside(path, t.path)).map((t) => t.path);
@@ -931,6 +929,29 @@ export default function App() {
       }
     },
     [saveTabs, refreshTree, fail, setActivePath],
+  );
+
+  const renameEntry = useCallback(
+    async (path: string, newName: string, isDir: boolean) => {
+      if (requireDesktop("Renaming")) return;
+      const name = !isDir && !newName.includes(".") ? `${newName}.md` : newName;
+      await relocateEntry(path, join(dirname(path), name));
+    },
+    [relocateEntry],
+  );
+
+  /** A file or folder dropped on a folder in the tree: moved there once confirmed. */
+  const moveEntry = useCallback(
+    async (path: string, folder: string) => {
+      if (requireDesktop("Moving files")) return;
+      const confirmed = await ask(`Move “${basename(path)}” to “${basename(folder)}”?`, {
+        title: "Mido",
+        okLabel: "Move",
+        cancelLabel: "Cancel",
+      });
+      if (confirmed) await relocateEntry(path, join(folder, basename(path)));
+    },
+    [relocateEntry],
   );
 
   const trashEntry = useCallback(
@@ -2043,6 +2064,7 @@ export default function App() {
               onRefresh={refreshTree}
               onCreate={createEntry}
               onRename={renameEntry}
+              onMove={moveEntry}
               onTrash={trashEntry}
               onReveal={(p) => revealItemInDir(p).catch(fail)}
               searchOpen={searchOpen && !minimal}
