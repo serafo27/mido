@@ -11,7 +11,7 @@ GitHub and on the website's changelog page.
 
 ### Changed
 
-- The website also shows **Minimal Mode**, **quick search** and **export and print**, in small sections with a picture each, under the features.
+- The website also shows **Minimal Mode**, **quick search** and **export and print**, in small sections with a picture each, under the features. The "Keyboard first" card gives ⌥⌘K for a link, since ⌘K opens the commit dialog in a git repository.
 
 ## [0.18.0] - 2026-10-05
 
