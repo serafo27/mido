@@ -157,6 +157,8 @@ export default function App() {
   const [storedSettings, setStoredSettings] = useStoredState<Partial<Settings>>("mido.settings", {}, { shared: true });
   const [sidebarOpen, setSidebarOpen] = useStoredState("mido.sidebarOpen", true);
   const [sidebarWidth, setSidebarWidth] = useStoredState("mido.sidebarWidth", 268);
+  // Wide enough for long headings, when they don't fit.
+  const [outlineWidth, setOutlineWidth] = useStoredState("mido.outlineWidth", 248);
   const [terminalOpen, setTerminalOpen] = useState(false);
   // Minimal Mode (View menu): only the document, to read and write.
   const [minimal, setMinimal] = useStoredState("mido.minimal", false, { perWindow: true });
@@ -2176,7 +2178,21 @@ export default function App() {
                 )}
                 {!isWeb && !minimal && <SelectionMenu containerRef={workspaceRef} onComment={startComment} />}
                 {outlineOpen && !minimal && (
+                  <div
+                    className="resizer outline-resizer"
+                    onPointerDown={(e) => {
+                      const startX = e.clientX;
+                      const startWidth = outlineWidth;
+                      // At most half the window, so the document keeps room.
+                      dragResize(e, (ev) =>
+                        setOutlineWidth(clamp(startWidth + startX - ev.clientX, 180, Math.max(180, window.innerWidth / 2))),
+                      );
+                    }}
+                  />
+                )}
+                {outlineOpen && !minimal && (
                   <Outline
+                    width={outlineWidth}
                     headings={headings}
                     activeIndex={headingAt(headings, currentLine)}
                     onSelect={goToHeading}

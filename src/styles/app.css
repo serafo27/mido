@@ -223,6 +223,10 @@ kbd {
   position: absolute;
   inset: 0 -4px;
 }
+/* The outline's left edge: drag it to read long headings. */
+.outline-resizer {
+  background: var(--border-soft);
+}
 .resizer:hover,
 body.resizing .resizer {
   background: var(--accent);
@@ -1223,10 +1227,8 @@ body.resizing .resizer {
 
 .outline {
   flex: none;
-  width: 248px;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid var(--border-soft);
   background: var(--bg-sidebar);
   animation: outline-in 0.16s ease-out;
 }

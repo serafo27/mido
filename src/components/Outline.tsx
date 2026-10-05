@@ -3,13 +3,14 @@ import { X } from "lucide-react";
 import type { Heading } from "../lib/outline";
 
 interface OutlineProps {
+  width: number;
   headings: Heading[];
   activeIndex: number;
   onSelect: (heading: Heading) => void;
   onClose: () => void;
 }
 
-export default function Outline({ headings, activeIndex, onSelect, onClose }: OutlineProps) {
+export default function Outline({ width, headings, activeIndex, onSelect, onClose }: OutlineProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const minLevel = headings.reduce((m, h) => Math.min(m, h.level), 6);
 
@@ -27,7 +28,7 @@ export default function Outline({ headings, activeIndex, onSelect, onClose }: Ou
   }, [activeIndex]);
 
   return (
-    <aside className="outline" aria-label="Outline">
+    <aside className="outline" aria-label="Outline" style={{ width }}>
       <header className="outline-header">
         <span>Outline</span>
         {headings.length > 0 && <span className="outline-count">{headings.length}</span>}
