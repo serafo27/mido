@@ -16,6 +16,7 @@ import {
   type TerminalHandlers,
 } from "../lib/terminal";
 import { isMac } from "../lib/platform";
+import { terminalKeyInput } from "../lib/terminalKeys";
 import { ANSI_KEYS, ansiVariable } from "../lib/themes";
 import { plainColor } from "../lib/color";
 import { terminalFontSize, zoomTerminal } from "../lib/settings";
@@ -90,6 +91,7 @@ const fontReady = (family: string, size: number) =>
 
 /** The app's shortcuts that a terminal should leave to the app. */
 export function isAppShortcut(e: KeyboardEvent): boolean {
+  if (terminalKeyInput(e, isMac) !== null) return false;
   if (isMac && e.metaKey) return true;
   return e.ctrlKey && (e.code === "Backquote" || e.code === "IntlBackslash");
 }
@@ -158,7 +160,16 @@ export function TerminalView({ active, visible, register, sessionKey, onExit, ha
       term.unicode.activeVersion = "11";
       const serializer = new SerializeAddon();
       term.loadAddon(serializer);
-      term.attachCustomKeyEventHandler((e) => !isAppShortcut(e));
+      term.attachCustomKeyEventHandler((e) => {
+        const input = terminalKeyInput(e, isMac);
+        if (input !== null) {
+          // Sent on keydown; its keypress and keyup are dropped too, so xterm.js doesn't send its own.
+          e.preventDefault();
+          if (e.type === "keydown") term?.input(input);
+          return false;
+        }
+        return !isAppShortcut(e);
+      });
       term.open(hostRef.current);
       // Drawn on the GPU, as in VS Code: crisp, evenly spaced text. When WebGL isn't
       // available, or the GPU drops its context, the terminal falls back to the DOM renderer.

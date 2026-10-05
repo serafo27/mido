@@ -13,6 +13,10 @@ GitHub and on the website's changelog page.
 
 - **Move files and folders** by dragging them onto another folder in the sidebar, or onto the empty space under the tree for the top folder. Mido asks before moving, and open tabs and comments follow.
 
+### Fixed
+
+- In the **terminal**, `⇧↩` starts a new line instead of sending the text, in Claude Code and other programs that accept it, as `⌥↩` does. On the Mac, `⌥←` `⌥→` move by word, `⌘←` `⌘→` go to the start and end of the line, and `⌘⌫` deletes back to its start, as in Terminal, iTerm2 and VS Code.
+
 ## [0.19.3] - 2026-10-05
 
 ### Added
