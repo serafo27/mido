@@ -9,6 +9,10 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Added
+
+- A **GitHub Light** theme, with GitHub's colours for the interface, the code and the terminal.
+
 ## [0.19.2] - 2026-10-05
 
 ### Fixed

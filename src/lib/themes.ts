@@ -99,6 +99,13 @@ export const BUILTIN_THEMES: Theme[] = [
     keyword: "#cc7832", string: "#6a8759", number: "#6897bb", comment: "#808080",
     function: "#ffc66d", type: "#bbb529", attr: "#9876aa",
   }),
+  theme("github-light", "GitHub Light", "light", {
+    bg: "#ffffff", sidebar: "#f6f8fa", elevated: "#ffffff", border: "#d1d9e0",
+    text: "#1f2328", muted: "#59636e", faint: "#818b98", heading: "#1f2328",
+    accent: "#0969da", warm: "#bf8700", codeBg: "#f6f8fa", codeFg: "#1f2328",
+    keyword: "#cf222e", string: "#0a3069", number: "#0550ae", comment: "#59636e",
+    function: "#8250df", type: "#953800", attr: "#0550ae",
+  }),
   theme("relax", "Relax", "light", {
     bg: "#f4ecd8", sidebar: "#ebe1c8", elevated: "#faf4e6", border: "#dccfb0",
     text: "#4a3f2e", muted: "#7d6f58", faint: "#ab9c80", heading: "#3b3122",
@@ -191,6 +198,11 @@ const BUILTIN_ANSI: Record<string, AnsiColors> = {
   "intellij-darcula": ansi(
     "#1f2022", "#ff6b68", "#a8c023", "#d6bf55", "#5394ec", "#ae8abe", "#299999", "#a9b7c6",
     "#606366", "#ff8785", "#bfd34a", "#e3d27a", "#7eaef1", "#c4a6d1", "#5ebcbc", "#d4d8dd",
+  ),
+  // GitHub Light Default's terminal colours.
+  "github-light": ansi(
+    "#24292f", "#cf222e", "#116329", "#4d2d00", "#0969da", "#8250df", "#1b7c83", "#6e7781",
+    "#57606a", "#a40e26", "#1a7f37", "#633c01", "#218bff", "#a475f9", "#3192aa", "#8c959f",
   ),
   "solarized-light": ansi(
     "#073642", "#dc322f", "#859900", "#b58900", "#268bd2", "#d33682", "#2aa198", "#93a1a1",
