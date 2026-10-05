@@ -9,6 +9,12 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-10-05
+
+### Fixed
+
+- Long headings no longer have to be cut off in the **outline**: drag its left edge to widen it, up to half the window. Mido remembers the width.
+
 ### Changed
 
 - The website's changelog shows the latest three versions, with older ones a few at a time under **Show older versions**. A link to an older version still opens at it.
