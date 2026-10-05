@@ -53,7 +53,7 @@ interface ToolbarProps {
   onExport?: () => void;
   onExportWord?: () => void;
   onPrint?: () => void;
-  /** Minimal Mode: only the sidebar's toggle, the tabs (or the path) and Read · Split · Edit. */
+  /** Minimal Mode: only the sidebar's toggle, the open file's path and Read · Split · Edit. */
   minimal?: boolean;
 }
 

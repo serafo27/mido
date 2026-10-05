@@ -63,7 +63,7 @@ interface SidebarProps {
   gitChanges: number;
   /** The git letter of each changed file in the folder (M, A, D, U, !), by path. */
   gitBadges: Map<string, string>;
-  /** Minimal Mode: only the files, without search and source control. */
+  /** Minimal Mode: only the tree (the header stays empty, room to drag the window by). */
   minimal?: boolean;
 }
 
@@ -139,7 +139,9 @@ export default function Sidebar(props: SidebarProps) {
     };
   }, [menu]);
 
-  const visible = useMemo(() => (query ? filterTree(tree, query) : tree), [tree, query]);
+  // Minimal Mode hides the filter, so it shows every file.
+  const filter = props.minimal ? "" : query;
+  const visible = useMemo(() => (filter ? filterTree(tree, filter) : tree), [tree, filter]);
 
   const startCreate = (kind: "new-file" | "new-folder", parent: string) => {
     if (requireDesktop(kind === "new-file" ? "Creating files" : "Creating folders")) return;
@@ -261,17 +263,17 @@ export default function Sidebar(props: SidebarProps) {
     <aside className="sidebar" style={{ width }}>
       <div className={`sidebar-header ${macWindowInset ? "mac" : ""}`} data-tauri-drag-region>
         {isWeb && <WebBrand />}
-        <div className="sidebar-actions">
-          <IconButton title="New file" onClick={() => startCreate("new-file", root)}>
-            <FilePlus size={15} />
-          </IconButton>
-          <IconButton title="New folder" onClick={() => startCreate("new-folder", root)}>
-            <FolderPlus size={15} />
-          </IconButton>
-          <IconButton title="Refresh" onClick={onRefresh}>
-            <RefreshCw size={14} />
-          </IconButton>
-          {!props.minimal && (
+        {!props.minimal && (
+          <div className="sidebar-actions">
+            <IconButton title="New file" onClick={() => startCreate("new-file", root)}>
+              <FilePlus size={15} />
+            </IconButton>
+            <IconButton title="New folder" onClick={() => startCreate("new-folder", root)}>
+              <FolderPlus size={15} />
+            </IconButton>
+            <IconButton title="Refresh" onClick={onRefresh}>
+              <RefreshCw size={14} />
+            </IconButton>
             <IconButton
               title={`Search in files (${isMac ? "⌘⇧F" : "Ctrl+Shift+F"})`}
               active={props.searchOpen}
@@ -279,27 +281,29 @@ export default function Sidebar(props: SidebarProps) {
             >
               <Search size={14} />
             </IconButton>
-          )}
-          {/* The web version shows it too, to say source control needs the desktop app. */}
-          {(props.gitPanel !== null || isWeb) && !props.minimal && (
-            <IconButton
-              title={`Source control (${isMac ? "⌃⇧G" : "Ctrl+Shift+G"})`}
-              active={props.gitOpen}
-              onClick={() => !requireDesktop("Source control") && props.onGitOpenChange(!props.gitOpen)}
-            >
-              <GitBranch size={14} />
-              {props.gitChanges > 0 && <span className="icon-badge">{props.gitChanges > 99 ? "99+" : props.gitChanges}</span>}
-            </IconButton>
-          )}
-        </div>
+            {/* The web version shows it too, to say source control needs the desktop app. */}
+            {(props.gitPanel !== null || isWeb) && (
+              <IconButton
+                title={`Source control (${isMac ? "⌃⇧G" : "Ctrl+Shift+G"})`}
+                active={props.gitOpen}
+                onClick={() => !requireDesktop("Source control") && props.onGitOpenChange(!props.gitOpen)}
+              >
+                <GitBranch size={14} />
+                {props.gitChanges > 0 && <span className="icon-badge">{props.gitChanges > 99 ? "99+" : props.gitChanges}</span>}
+              </IconButton>
+            )}
+          </div>
+        )}
       </div>
 
-      <WorkspaceSwitcher
-        root={root}
-        recents={props.recents}
-        onOpenFolder={onOpenFolder}
-        onNewWindow={props.onNewWindow}
-      />
+      {!props.minimal && (
+        <WorkspaceSwitcher
+          root={root}
+          recents={props.recents}
+          onOpenFolder={onOpenFolder}
+          onNewWindow={props.onNewWindow}
+        />
+      )}
 
       {props.gitOpen && props.gitPanel}
 
@@ -312,7 +316,7 @@ export default function Sidebar(props: SidebarProps) {
         onClose={() => props.onSearchOpenChange(false)}
       />
 
-      <div className="filter" hidden={props.searchOpen || props.gitOpen}>
+      <div className="filter" hidden={props.searchOpen || props.gitOpen || props.minimal}>
         <Search size={13} className="filter-icon" />
         <input
           ref={filterRef}

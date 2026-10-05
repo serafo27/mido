@@ -1989,7 +1989,8 @@ export default function App() {
       outlineOpen={outlineOpen}
       commentsOpen={commentsOpen}
       commentCount={openThreadCount}
-      tabs={root && !settings.showPathBar && tabInfos.length > 0 ? tabInfos : undefined}
+      // Minimal Mode shows the open file's path, as the path bar does, rather than every tab.
+      tabs={root && !settings.showPathBar && !minimal && tabInfos.length > 0 ? tabInfos : undefined}
       activeTab={activeTabKey}
       onSelectTab={selectTab}
       onPinTab={pinAnyTab}
@@ -2090,7 +2091,7 @@ export default function App() {
         )}
         <main className="main">
           {toolbar}
-          {settings.showPathBar && tabInfos.length > 0 && (
+          {settings.showPathBar && tabInfos.length > 0 && !minimal && (
             <TabBar
               tabs={tabInfos}
               activePath={activeTabKey}
