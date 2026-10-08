@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { applySettings, DEFAULT_SETTINGS, type Settings } from "./settings";
+import { useHostThemeVersion } from "./hostTheme";
 import { useStoredState } from "./useStoredState";
 
 /**
@@ -16,6 +17,7 @@ export function useAppearance(): Settings {
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, []);
-  useEffect(() => applySettings(settings, systemDark), [settings, systemDark]);
+  const hostTheme = useHostThemeVersion();
+  useEffect(() => applySettings(settings, systemDark), [settings, systemDark, hostTheme]);
   return settings;
 }

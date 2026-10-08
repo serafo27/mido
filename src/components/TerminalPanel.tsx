@@ -13,6 +13,7 @@ import {
   spawnTerminal,
   writeTerminal,
   type Handoff,
+  type SpawnOptions,
   type TerminalHandlers,
 } from "../lib/terminal";
 import { isMac } from "../lib/platform";
@@ -104,12 +105,21 @@ interface ViewProps {
   onExit: (key: number, code: number | null) => void;
   /** The shell to show, when it comes from another window; otherwise a new one starts. */
   handoff?: Handoff;
+  /** What the new shell runs first (embedded: a host's command). */
+  spawn?: SpawnOptions;
+  /** The shell printed something. */
+  onOutput?: (key: number) => void;
+  /** The program rang the terminal bell (e.g. waiting for input). */
+  onBell?: (key: number) => void;
 }
 
 /** One terminal: an xterm.js view of a shell in the backend. It stays mounted while hidden, so the shell keeps going. */
-export function TerminalView({ active, visible, register, sessionKey, onExit, handoff }: ViewProps) {
+export function TerminalView({ active, visible, register, sessionKey, onExit, handoff, spawn, onOutput, onBell }: ViewProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const fitRef = useRef<() => void>(() => {});
+  // The view starts once; the latest callbacks are read when they fire.
+  const listeners = useRef({ onOutput, onBell });
+  listeners.current = { onOutput, onBell };
 
   useEffect(() => {
     let disposed = false;
@@ -194,6 +204,7 @@ export function TerminalView({ active, visible, register, sessionKey, onExit, ha
       fit();
 
       term.onData((data) => pty !== null && void writeTerminal(pty, data).catch(() => {}));
+      term.onBell(() => listeners.current.onBell?.(sessionKey));
       term.onResize(({ cols, rows }) => pty !== null && void resizeTerminal(pty, cols, rows).catch(() => {}));
       observer = new ResizeObserver(() => requestAnimationFrame(fit));
       observer.observe(hostRef.current);
@@ -221,6 +232,7 @@ export function TerminalView({ active, visible, register, sessionKey, onExit, ha
         onData: (data) => {
           received += data.length;
           term?.write(data);
+          listeners.current.onOutput?.(sessionKey);
         },
         onExit: (code) => {
           pty = null;
@@ -281,7 +293,7 @@ export function TerminalView({ active, visible, register, sessionKey, onExit, ha
         return;
       }
       try {
-        pty = await spawnTerminal(term.cols, term.rows, handlers);
+        pty = await spawnTerminal(term.cols, term.rows, handlers, spawn);
         if (disposed) void killTerminal(pty).catch(() => {});
       } catch (e) {
         term.write(`\x1b[31m${e instanceof Error ? e.message : String(e)}\x1b[0m\r\n`);

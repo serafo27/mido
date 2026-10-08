@@ -11,17 +11,22 @@ import "./styles/app.css";
 import "./styles/markdown.css";
 import App from "./App";
 import { migrateDefaults } from "./lib/settings";
-import { isFloatingTerminal, isGitWindow } from "./lib/platform";
+import { isEmbedTerminal, isFloatingTerminal, isGitWindow } from "./lib/platform";
 
 migrateDefaults();
 
 // A floating window only loads what it shows.
 const FloatingTerminal = React.lazy(() => import("./components/FloatingTerminal"));
 const GitWindow = React.lazy(() => import("./components/GitWindow"));
+const EmbedTerminals = React.lazy(() => import("./embed/EmbedTerminals"));
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    {isFloatingTerminal || isGitWindow ? (
+    {isEmbedTerminal ? (
+      <React.Suspense>
+        <EmbedTerminals />
+      </React.Suspense>
+    ) : isFloatingTerminal || isGitWindow ? (
       <React.Suspense>{isFloatingTerminal ? <FloatingTerminal /> : <GitWindow />}</React.Suspense>
     ) : (
       <App />

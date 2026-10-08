@@ -3,3 +3,4 @@ dist
 dist-web
 .DS_Store
 *.log
+dist-embed

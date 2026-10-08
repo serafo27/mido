@@ -9,6 +9,8 @@
     "build": "tsc && vite build",
     "dev:web": "vite --config vite.web.config.ts",
     "build:web": "tsc && vite build --config vite.web.config.ts",
+    "dev:embed": "vite build --config vite.embed.config.ts --watch",
+    "build:embed": "tsc && vite build --config vite.embed.config.ts",
     "preview": "vite preview",
     "test": "vitest run",
     "tauri": "tauri"

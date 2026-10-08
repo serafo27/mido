@@ -1,7 +1,7 @@
 import { Download, FileText, FolderOpen, Lock, X } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { basename } from "../lib/paths";
-import { altKey, DOWNLOAD_URL, HOME_URL, isWeb, modKey } from "../lib/platform";
+import { altKey, DOWNLOAD_URL, HOME_URL, isEmbed, isWeb, modKey } from "../lib/platform";
 
 export function Logo({ size = 64 }: { size?: number }) {
   return (
@@ -60,6 +60,8 @@ function Recent(props: { path: string; title: string; showPath: boolean } & Omit
 
 export function Welcome(props: WelcomeProps) {
   if (isWeb) return <WebWelcome {...props} />;
+  // Embedded, the host opens a folder straight away.
+  if (isEmbed) return <div className="welcome" />;
   return (
     <div className="welcome" data-tauri-drag-region>
       <Logo size={72} />

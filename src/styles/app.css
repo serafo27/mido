@@ -4681,6 +4681,13 @@ body.resizing-row * {
 .terminal-view .xterm-viewport {
   background: transparent !important;
 }
+/* Embedded terminals (?view=terminal): the whole page is the terminal area of a host's panel. */
+.embed-terminals {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
 /* A terminal in a window of its own: a title bar to drag it by, and the terminal. */
 .floating-terminal {
   display: flex;

@@ -16,9 +16,16 @@ function channels(handlers: TerminalHandlers) {
   return { onData, onExit };
 }
 
+/** What a host can ask a new terminal to run (embedded Mido, docs/embed.md); the desktop app ignores it. */
+export interface SpawnOptions {
+  /** A command line for the shell to run first; the shell stays open after it. */
+  command?: string;
+  env?: Record<string, string>;
+}
+
 /** Starts a shell in the window's open folder; resolves to its id. */
-export const spawnTerminal = (cols: number, rows: number, handlers: TerminalHandlers) =>
-  invoke<number>("pty_spawn", { cols, rows, ...channels(handlers) });
+export const spawnTerminal = (cols: number, rows: number, handlers: TerminalHandlers, options: SpawnOptions = {}) =>
+  invoke<number>("pty_spawn", { cols, rows, ...options, ...channels(handlers) });
 
 /**
  * Holds a terminal's output back, to move it to another window. Resolves to

@@ -1,3 +1,4 @@
+import { HOST_THEME_ID, hostAnsi } from "./hostTheme";
 export type ThemeKind = "light" | "dark";
 
 /** The colours a theme defines; everything else the UI needs is derived from them. */
@@ -225,6 +226,8 @@ const BUILTIN_ANSI: Record<string, AnsiColors> = {
  * leaning towards its highlight colour, so the terminal reads as part of it.
  */
 export function terminalColors(t: Theme): AnsiColors {
+  const host = t.id === HOST_THEME_ID ? hostAnsi() : null;
+  if (host) return host;
   const builtin = !t.custom && BUILTIN_ANSI[t.id];
   if (builtin) return builtin;
   const p = t.palette;

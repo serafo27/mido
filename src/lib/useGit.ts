@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { api, type GitFileChange, type GitRepo } from "./api";
 import { basename, isMarkdown } from "./paths";
-import { isWeb } from "./platform";
+import { hasGit } from "./platform";
 
 /**
  * The repository the open folder is in, kept up to date: when the folder or
@@ -18,7 +18,7 @@ export function useGit(root: string | null, opened: unknown) {
 
   const refresh = useCallback(async () => {
     const id = ++request.current;
-    if (!root || isWeb) return setRepo(null);
+    if (!root || !hasGit) return setRepo(null);
     try {
       const info = await api.gitInfo();
       if (id === request.current) setRepo(info);

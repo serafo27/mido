@@ -18,7 +18,9 @@ import type { EditorView } from "@codemirror/view";
 import { api, type FileNode, type OpenRequest } from "./lib/api";
 import { basename, dirname, isInside, isMarkdown, join } from "./lib/paths";
 import { recordActiveDay, recordFeature, setUsageStats } from "./lib/analytics";
-import { DOWNLOAD_URL, isMac, isMainWindow, isWeb, requireDesktop, WEB_ACCESS_NEEDED } from "./lib/platform";
+import { hostTerminal } from "./embed/host";
+import { useHostThemeVersion } from "./lib/hostTheme";
+import { DOWNLOAD_URL, hasTerminal, hasUpdates, isEmbed, isMac, isMainWindow, isWeb, requireDesktop, WEB_ACCESS_NEEDED } from "./lib/platform";
 import { useStoredState } from "./lib/useStoredState";
 import {
   activeTheme,
@@ -990,13 +992,15 @@ export default function App() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
+  // Embedded, the host's theme can change at any time.
+  const hostThemeVersion = useHostThemeVersion();
   useEffect(() => {
     applySettings(settings, systemDark);
-    if (isWeb) return;
+    if (isWeb || isEmbed) return;
     // The window behind the page takes the theme's background (opaque: nothing shows through it).
     const bg = plainColor(getComputedStyle(document.documentElement).getPropertyValue("--bg").trim());
     if (bg) void api.setWindowBackground(bg.slice(0, 7)).catch(() => {});
-  }, [settings, systemDark]);
+  }, [settings, systemDark, hostThemeVersion]);
 
   // Anonymous usage statistics (Settings → Privacy): once a day, that Mido was
   // used and with which theme. Checked hourly, as the app stays open for days.
@@ -1311,7 +1315,7 @@ export default function App() {
     }
   };
   useEffect(() => {
-    if (isWeb) return;
+    if (isWeb || isEmbed) return;
     const unlisten = getCurrentWindow().listen<GitWindowMessage>(GIT_ACTION, ({ payload }) =>
       gitWindowActions.current(payload),
     );
@@ -1461,7 +1465,7 @@ export default function App() {
   useEffect(() => {
     // The web version is always the latest: it's served with the website.
     // Other windows leave it to the main one, so an update is offered once.
-    if (isWeb || !isMainWindow || !settings.checkForUpdates) return;
+    if (!hasUpdates || !isMainWindow || !settings.checkForUpdates) return;
     const first = window.setTimeout(() => runUpdateCheck(false), 4000);
     const periodic = window.setInterval(() => runUpdateCheck(false), CHECK_INTERVAL);
     return () => {
@@ -1602,6 +1606,8 @@ export default function App() {
 
   const newTerminal = useCallback(() => {
     if (requireDesktop("The terminal")) return;
+    // Embedded, the terminals are the host's.
+    if (isEmbed) return hostTerminal("new");
     setTerminalOpen(true);
     terminalRef.current?.newTerminal();
   }, []);
@@ -1609,6 +1615,7 @@ export default function App() {
   /** Shows or hides the terminals, opening one when there are none, as in VS Code. */
   const toggleTerminal = useCallback(() => {
     if (requireDesktop("The terminal")) return;
+    if (isEmbed) return hostTerminal("toggle");
     const panel = terminalRef.current;
     if (!panel?.hasTerminals()) return newTerminal();
     setTerminalOpen((open) => {
@@ -1643,12 +1650,12 @@ export default function App() {
 
   // Minimal Mode, from the View menu (macOS), whose check mark follows the window in front.
   useEffect(() => {
-    if (isWeb) return;
+    if (isWeb || isEmbed) return;
     const unlisten = getCurrentWindow().listen("menu-minimal-mode", () => setMinimal((m) => !m));
     return () => void unlisten.then((f) => f());
   }, [setMinimal]);
   useEffect(() => {
-    if (!isWeb) void api.setMinimalMode(minimal).catch(() => {});
+    if (!isWeb && !isEmbed) void api.setMinimalMode(minimal).catch(() => {});
   }, [minimal]);
 
   // "Export as HTML…", "Export as Word…" and "Print…" in the File menu (macOS).
@@ -2023,9 +2030,10 @@ export default function App() {
       onToggleOutline={() => setOutlineOpen((o) => !o)}
       onToggleComments={() => setCommentsOpen((o) => !o)}
       onMode={changeMode}
-      onExport={isWeb ? exportHtml : undefined}
-      onExportWord={isWeb ? exportWord : undefined}
-      onPrint={isWeb ? printDocument : undefined}
+      // Without the macOS menu (web, embedded), the toolbar offers them.
+      onExport={isWeb || isEmbed ? exportHtml : undefined}
+      onExportWord={isWeb || isEmbed ? exportWord : undefined}
+      onPrint={isWeb || isEmbed ? printDocument : undefined}
       onWrap={toggleWrap}
       onToggleSidebar={() => setSidebarOpen((o) => !o)}
       onToggleSettings={() => setSettingsOpen((o) => !o)}
@@ -2247,7 +2255,7 @@ export default function App() {
           ) : (
             <NoFile />
           )}
-          {!isWeb && (
+          {hasTerminal && (
             <TerminalPanel
               ref={terminalRef}
               visible={terminalOpen && !minimal}

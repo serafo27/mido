@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { isWeb } from "../lib/platform";
+import { hasGit, hasTerminal, hasUpdates, isEmbed, isWeb } from "../lib/platform";
 import { Check, Monitor, Moon, RotateCcw, Sun, X } from "lucide-react";
 import {
   ACCENTS,
@@ -193,7 +193,7 @@ export default function SettingsPanel(props: SettingsPanelProps) {
           </Section>
         )}
 
-        {!isWeb && (
+        {hasTerminal && (
           <Section title="Terminal">
             <Row label="Font">
               <input
@@ -208,7 +208,7 @@ export default function SettingsPanel(props: SettingsPanelProps) {
           </Section>
         )}
 
-        {!isWeb && (
+        {hasGit && (
           <Section title="Source Control">
             <Toggle
               label="Show all files, not only Markdown"
@@ -219,26 +219,33 @@ export default function SettingsPanel(props: SettingsPanelProps) {
         )}
 
         <Section title="Appearance">
-          <Row label="Mode">
-            <div className="segmented small">
-              {(
-                [
-                  ["system", <Monitor size={13} key="m" />, "Auto"],
-                  ["light", <Sun size={13} key="s" />, "Light"],
-                  ["dark", <Moon size={13} key="d" />, "Dark"],
-                ] as const
-              ).map(([id, icon, label]) => (
-                <button
-                  key={id}
-                  className={settings.theme === id ? "selected" : ""}
-                  onClick={() => onChange({ theme: id })}
-                >
-                  {icon}
-                  <span>{label}</span>
-                </button>
-              ))}
+          {/* Embedded, the colours are the host app's: only the tab shape is Mido's. */}
+          {isEmbed ? (
+            <div className="settings-row">
+              <span className="settings-label muted">Colours follow the app Mido is in ({theme.name}).</span>
             </div>
-          </Row>
+          ) : (
+            <Row label="Mode">
+              <div className="segmented small">
+                {(
+                  [
+                    ["system", <Monitor size={13} key="m" />, "Auto"],
+                    ["light", <Sun size={13} key="s" />, "Light"],
+                    ["dark", <Moon size={13} key="d" />, "Dark"],
+                  ] as const
+                ).map(([id, icon, label]) => (
+                  <button
+                    key={id}
+                    className={settings.theme === id ? "selected" : ""}
+                    onClick={() => onChange({ theme: id })}
+                  >
+                    {icon}
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </Row>
+          )}
           <Row label="Tabs">
             <div className="segmented small">
               {(
@@ -257,32 +264,36 @@ export default function SettingsPanel(props: SettingsPanelProps) {
               ))}
             </div>
           </Row>
-          <Row label="Accent">
-            <div className="swatches">
-              {[
-                { id: "theme" as const, label: `Theme default (${theme.name})`, color: theme.palette.accent },
-                ...ACCENTS.map((a) => ({ id: a.id, label: a.label, color: a[theme.kind] })),
-              ].map((a) => (
-                <button
-                  key={a.id}
-                  className={`swatch ${a.id === "theme" ? "theme-swatch" : ""} ${settings.accent === a.id ? "selected" : ""}`}
-                  style={{ background: a.color }}
-                  title={a.label}
-                  aria-label={a.label}
-                  onClick={() => onChange({ accent: a.id })}
-                >
-                  {settings.accent === a.id && <Check size={12} strokeWidth={3} />}
-                </button>
-              ))}
-            </div>
-          </Row>
+          {!isEmbed && (
+            <Row label="Accent">
+              <div className="swatches">
+                {[
+                  { id: "theme" as const, label: `Theme default (${theme.name})`, color: theme.palette.accent },
+                  ...ACCENTS.map((a) => ({ id: a.id, label: a.label, color: a[theme.kind] })),
+                ].map((a) => (
+                  <button
+                    key={a.id}
+                    className={`swatch ${a.id === "theme" ? "theme-swatch" : ""} ${settings.accent === a.id ? "selected" : ""}`}
+                    style={{ background: a.color }}
+                    title={a.label}
+                    aria-label={a.label}
+                    onClick={() => onChange({ accent: a.id })}
+                  >
+                    {settings.accent === a.id && <Check size={12} strokeWidth={3} />}
+                  </button>
+                ))}
+              </div>
+            </Row>
+          )}
         </Section>
 
-        <Section title="Themes">
-          <ThemeSection settings={settings} systemDark={systemDark} onChange={onChange} />
-        </Section>
+        {!isEmbed && (
+          <Section title="Themes">
+            <ThemeSection settings={settings} systemDark={systemDark} onChange={onChange} />
+          </Section>
+        )}
 
-        {!isWeb && (
+        {hasUpdates && (
           <Section title="Updates">
             <Toggle
               label="Check for updates automatically"

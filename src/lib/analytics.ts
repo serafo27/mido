@@ -1,6 +1,6 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
-import { isWeb } from "./platform";
+import { isEmbed, isWeb } from "./platform";
 import type { Settings } from "./settings";
 import { BUILTIN_THEMES, type Theme } from "./themes";
 
@@ -40,6 +40,8 @@ const canSend = () =>
   enabled &&
   PROJECT_KEY !== "" &&
   !import.meta.env.DEV &&
+  // The host app speaks for itself.
+  !isEmbed &&
   import.meta.env.MODE !== "test" &&
   (!isWeb || location.hostname === "serafo27.github.io");
 

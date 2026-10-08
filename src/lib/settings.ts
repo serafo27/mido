@@ -1,4 +1,6 @@
 import { DEFAULT_THEME, findTheme, themeVariables, type Theme, type ThemeKind } from "./themes";
+import { HOST_THEME_ID, hostTheme } from "./hostTheme";
+import { isEmbed } from "./platform";
 
 export type ThemePref = "system" | "light" | "dark";
 /** "theme" uses the active theme's own accent. */
@@ -240,6 +242,9 @@ export const ACCENTS: { id: Exclude<Accent, "theme">; label: string; light: stri
 
 /** The theme shown right now, given the OS appearance. */
 export function activeTheme(settings: Settings, systemDark: boolean): Theme {
+  // Embedded, the host's theme is the only one (once it has sent it).
+  const host = isEmbed ? hostTheme() : null;
+  if (host) return host;
   const kind: ThemeKind = settings.theme === "system" ? (systemDark ? "dark" : "light") : settings.theme;
   return findTheme(kind === "dark" ? settings.darkTheme : settings.lightTheme, settings.customThemes, kind);
 }
@@ -268,7 +273,8 @@ let appliedThemeVars: string[] = [];
 export function applySettings(settings: Settings, systemDark: boolean) {
   const root = document.documentElement;
   const theme = activeTheme(settings, systemDark);
-  const accent = ACCENTS.find((a) => a.id === settings.accent)?.[theme.kind];
+  // The host's theme comes with its own accent.
+  const accent = theme.id === HOST_THEME_ID ? undefined : ACCENTS.find((a) => a.id === settings.accent)?.[theme.kind];
   const themeVars = themeVariables(theme, accent);
 
   root.dataset.theme = theme.kind;

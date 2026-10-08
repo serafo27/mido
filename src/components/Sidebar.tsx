@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import type { FileNode } from "../lib/api";
 import { basename, dirname, isInside } from "../lib/paths";
-import { isMac, isWeb, macWindowInset, requireDesktop } from "../lib/platform";
+import { isEmbed, isMac, isWeb, macWindowInset, requireDesktop } from "../lib/platform";
 import { useStoredState } from "../lib/useStoredState";
 import SearchPanel from "./SearchPanel";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
@@ -375,7 +375,8 @@ export default function Sidebar(props: SidebarProps) {
         )}
       </div>
 
-      {!props.minimal && (
+      {/* Embedded, the host picks the folder. */}
+      {!props.minimal && !isEmbed && (
         <WorkspaceSwitcher
           root={root}
           recents={props.recents}
