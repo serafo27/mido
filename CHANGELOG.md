@@ -9,6 +9,8 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-08
+
 ### Added
 
 - **Mido inside other apps.** Another desktop app can show Mido as its reader and editor for a folder of documents: the installed Mido.app now carries an embeddable build (`Contents/Resources/embed`), so the app loads whatever Mido you have, with its updates. The host opens the folder and answers Mido's file, search and comment requests, limited to that folder; it can also show Mido's terminals alone. Embedded, Mido takes the host's theme and leaves the terminal, git, updates and window controls to it. The protocol is in [docs/embed.md](docs/embed.md).
