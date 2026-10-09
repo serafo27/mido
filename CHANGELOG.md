@@ -9,6 +9,8 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-09
+
 ### Added
 
 - **Mido Pro: the assistant.** Chat with Claude Code about your documents in a panel beside them (`⌘⇧L`). It runs the Claude Code installed on your Mac, with your own Claude account, and reads what you choose: the documents open in tabs (unsaved changes included), the folder, or every folder open in Mido. Answers stream in as formatted Markdown, show the files it read, and link to them.
