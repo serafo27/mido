@@ -116,9 +116,10 @@ una tantum con il benefit License Keys (`src-tauri/src/license.rs`).
   giorni (`validate` con l'ID di attivazione); offline funziona fino a 30 giorni
   dall'ultima verifica. Chiave revocata (rimborso) o computer liberato dal
   portale: Mido Pro si spegne e lo dice.
-- Endpoint pubblici di Polar: nessun token nell'app. Le build di sviluppo usano
-  il sandbox; quelle rilasciate lo store vero, che non c'è ancora (`LIVE`), quindi
-  per ora non offrono Mido Pro.
+- Endpoint pubblici di Polar: nessun token nell'app. Le build rilasciate usano
+  lo store vero (`LIVE`, organizzazione `heptartle`); quelle di sviluppo il
+  sandbox, o lo store vero con `MIDO_POLAR=live` per provare un acquisto reale.
+  Nelle build rilasciate l'override non c'è: una licenza del sandbox è gratis.
 - I comandi `ai_send` e `ai_answer` rifiutano senza licenza. Senza licenza il
   pannello mostra l'attivazione al posto della chat; in Impostazioni c'è la
   sezione "Mido Pro" (attivazione, oppure stato, portale acquisti, disattivazione

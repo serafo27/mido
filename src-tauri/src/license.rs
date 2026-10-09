@@ -3,7 +3,8 @@
 //! activates it once, keeps its activation id, and checks with Polar every
 //! week that it's still valid (it isn't after a refund, or when the customer
 //! frees the computer from their purchases page). Offline, it keeps working
-//! for a month after the last check.
+//! for a month after the last check. A license from the sandbox (Polar's test
+//! store, which development builds use) doesn't count with the real one.
 //!
 //! The calls are Polar's public license key API: no token in the app.
 
@@ -35,14 +36,22 @@ static SANDBOX: Store = Store {
     ),
 };
 
-/// The real store: not open yet, so released builds have no Pro until it is.
-static LIVE: Option<Store> = None;
+/// The real store: released builds sell and check licenses here.
+static LIVE: Store = Store {
+    api: "https://api.polar.sh",
+    organization: "6d5af3c8-e4b5-419b-903a-d5f16e2f7cd6",
+    portal: "https://polar.sh/heptartle/portal",
+    checkout: Some("https://buy.polar.sh/polar_cl_7rx2EA2d5ZJutB9mOA0gM5FukZuDnSSG2Dqgf06sHzz"),
+};
 
+/// Released builds use the real store, whatever the environment says (a test
+/// license is free). Development builds use the sandbox, or the real store
+/// with `MIDO_POLAR=live`, to try a real purchase.
 fn store() -> Option<&'static Store> {
-    if cfg!(debug_assertions) {
-        Some(&SANDBOX)
+    if !cfg!(debug_assertions) || std::env::var("MIDO_POLAR").is_ok_and(|v| v == "live") {
+        Some(&LIVE)
     } else {
-        LIVE.as_ref()
+        Some(&SANDBOX)
     }
 }
 
@@ -366,6 +375,17 @@ mod tests {
             assert!(checked.email.is_some());
             let Reply::Answered(204, _) = post(&SANDBOX, "deactivate", body.clone()).await else { panic!("deactivate") };
             assert!(after_check(&license, &post(&SANDBOX, "validate", body).await, 6).is_err());
+        });
+    }
+
+    /// The real store knows the organization: a made-up key isn't found (and nothing is activated).
+    /// `cargo test license::tests::real_store -- --ignored`
+    #[test]
+    #[ignore]
+    fn real_store_answers() {
+        tauri::async_runtime::block_on(async {
+            let body = json!({ "key": "MIDO-00000000-0000-4000-8000-000000000000", "organization_id": LIVE.organization });
+            assert!(matches!(post(&LIVE, "validate", body).await, Reply::Answered(404, _)));
         });
     }
 }
