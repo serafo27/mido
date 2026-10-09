@@ -9,6 +9,8 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-10-09
+
 ### Changed
 
 - **Mido Pro** checks its license with Polar when Mido opens, at most twice a day, instead of once a week. Offline it still works for a month after the last check.
