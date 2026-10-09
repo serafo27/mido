@@ -5887,3 +5887,27 @@ body.resizing-row * {
 .ai-chat-history .recent-path {
   direction: ltr;
 }
+.ai-chat-close-chat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 550;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.ai-chat-close-chat:hover {
+  border-color: var(--text-faint);
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.ai-chat .outline-header .comments-actions {
+  align-items: center;
+  flex: none;
+}

@@ -10,11 +10,11 @@ import {
   FileText,
   History,
   MessageSquare,
-  PanelRightClose,
+  MessageSquareX,
+  Plus,
   Search,
   ShieldQuestion,
   Sparkles,
-  SquarePen,
   Square,
   X,
 } from "lucide-react";
@@ -116,6 +116,8 @@ export default function AiChat(props: AiChatProps) {
   const chat: Chat = current ?? EMPTY_CHAT;
   const [draft, setDraft] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  // The history shown in place of the conversation, from its button.
+  const [historyShown, setHistoryShown] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // Following the answer: scrolled to the bottom, until the user scrolls up.
@@ -211,6 +213,7 @@ export default function AiChat(props: AiChatProps) {
     const item: ChatItem = quote ? { kind: "user", text, quote: quote.text } : { kind: "user", text };
     setDraft("");
     onDropQuote();
+    setHistoryShown(false);
     following.current = true;
     setConvs((cs) => {
       const all = cs.all.some((c) => c.id === conv.id) ? cs.all : [...cs.all, conv];
@@ -246,6 +249,7 @@ export default function AiChat(props: AiChatProps) {
   /** A new, empty conversation (or the empty one already open). */
   const newChat = () => {
     setMenuOpen(false);
+    setHistoryShown(false);
     const empty = convs.all.find((c) => convs.open.includes(c.id) && c.items.length === 0);
     if (empty) setConvs((cs) => openConversation(cs, empty.id));
     else {
@@ -257,6 +261,7 @@ export default function AiChat(props: AiChatProps) {
 
   const show = (id: string) => {
     setMenuOpen(false);
+    setHistoryShown(false);
     setConvs((cs) => openConversation(cs, id));
   };
 
@@ -303,13 +308,16 @@ export default function AiChat(props: AiChatProps) {
 
   const licensed = props.license.active;
   const past = history(convs);
+  // Every conversation with something in it, latest first: the history button's list.
+  const everything = convs.all.filter((c) => c.items.length > 0).sort((a, b) => b.updated - a.updated);
+  const showingHistory = (historyShown && everything.length > 0) || (!current && past.length > 0);
   const openConvs = convs.open.flatMap((id) => convs.all.filter((c) => c.id === id));
   return (
     <aside className="outline ai-chat" aria-label="Assistant">
       <header className="outline-header">
         {licensed && (current || past.length > 0) ? (
           <ConversationMenu
-            title={current ? current.title || "New chat" : "History"}
+            title={showingHistory ? "History" : current ? current.title || "New chat" : "History"}
             open={menuOpen}
             onToggle={() => setMenuOpen((o) => !o)}
             onDismiss={() => setMenuOpen(false)}
@@ -326,12 +334,23 @@ export default function AiChat(props: AiChatProps) {
         <span className="comments-actions">
           {licensed && (
             <button className="icon-button" onClick={newChat} title="New chat">
-              <SquarePen size={14} />
+              <Plus size={15} />
             </button>
           )}
-          {licensed && current && (
-            <button className="icon-button" onClick={() => close(current.id)} title="Close this chat (it stays in the history)">
-              <PanelRightClose size={14} />
+          {licensed && everything.length > 0 && (
+            <button
+              className={`icon-button ${showingHistory ? "active" : ""}`}
+              onClick={() => setHistoryShown((h) => !h)}
+              title="History: every chat about this folder"
+              aria-pressed={showingHistory}
+            >
+              <History size={14} />
+            </button>
+          )}
+          {licensed && current && !showingHistory && (
+            <button className="ai-chat-close-chat" onClick={() => close(current.id)} title="Close this chat: it stays in the history">
+              <MessageSquareX size={13} />
+              <span>Close chat</span>
             </button>
           )}
           <button className="icon-button" onClick={onClose} title="Close the assistant">
@@ -376,9 +395,10 @@ export default function AiChat(props: AiChatProps) {
               following.current = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
             }}
           >
-            {!current && past.length > 0 ? (
+            {showingHistory ? (
               <HistoryList
-                past={past}
+                past={historyShown ? everything : past}
+                openIds={convs.open}
                 onShow={show}
                 onForget={(id) => setConvs((cs) => forgetConversation(cs, id))}
               />
@@ -549,7 +569,7 @@ function ConversationMenu(props: {
           ))}
           <div className="ai-chat-menu-sep" />
           <button className="menu-item" role="menuitem" onClick={props.onNew}>
-            <SquarePen size={13} />
+            <Plus size={13} />
             <span>New chat</span>
           </button>
         </div>
@@ -559,7 +579,13 @@ function ConversationMenu(props: {
 }
 
 /** With no chat open: the latest ones, to pick one up again. */
-function HistoryList(props: { past: Conversation[]; onShow: (id: string) => void; onForget: (id: string) => void }) {
+function HistoryList(props: {
+  past: Conversation[];
+  /** The conversations open in the panel, marked so. */
+  openIds: string[];
+  onShow: (id: string) => void;
+  onForget: (id: string) => void;
+}) {
   return (
     <div className="recents ai-chat-history">
       <h2>Recent chats</h2>
@@ -567,7 +593,10 @@ function HistoryList(props: { past: Conversation[]; onShow: (id: string) => void
         <div key={c.id} className="recent-row">
           <button className="recent" onClick={() => props.onShow(c.id)} title={c.title}>
             <span className="recent-name">{c.title || "Chat"}</span>
-            <span className="recent-path">{ago(c.updated)}</span>
+            <span className="recent-path">
+              {ago(c.updated)}
+              {props.openIds.includes(c.id) && " · open"}
+            </span>
           </button>
           <button className="recent-remove" title="Remove from the history" aria-label="Remove from the history" onClick={() => props.onForget(c.id)}>
             <X size={13} />
