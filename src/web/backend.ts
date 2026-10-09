@@ -225,6 +225,7 @@ export const commands: Record<string, (args: Record<string, unknown>, options?: 
   /** The assistant runs Claude Code on the computer: the web version has none. */
   ai_detect: () => null,
   ai_send: desktopOnly,
+  ai_projects: () => [],
   ai_stop: () => undefined,
 
   /** Comments can't be written here, so nobody needs to sign them. */

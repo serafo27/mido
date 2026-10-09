@@ -99,6 +99,12 @@ impl Workspaces {
         Ok(self.0.lock().map_err(err)?.get(window).map(|f| f.root.clone()))
     }
 
+    /// The folders the other windows have open.
+    pub(crate) fn others(&self, window: &str) -> Result<Vec<PathBuf>, String> {
+        let folders = self.0.lock().map_err(err)?;
+        Ok(folders.iter().filter(|(label, _)| *label != window).map(|(_, f)| f.root.clone()).collect())
+    }
+
     /// The window that has a folder containing `path` open, if any.
     fn window_with(&self, path: &Path) -> Option<String> {
         let folders = self.0.lock().ok()?;
@@ -1002,6 +1008,7 @@ pub fn run() {
             save_asset,
             ai::ai_detect,
             ai::ai_send,
+            ai::ai_projects,
             ai::ai_stop,
             terminal::pty_spawn,
             terminal::pty_write,

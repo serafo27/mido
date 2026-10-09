@@ -804,6 +804,9 @@ export default function App() {
     setDraft({ path: tab.path, anchor: createAnchor(tab.content, range) });
   }, [setCommentsOpen, selectedText]);
 
+  /** The documents in the tabs, as they are now (asked for when a message is sent, not at each keystroke). */
+  const openDocuments = useCallback(() => live.current.tabs.map((t) => ({ path: t.path, content: t.content })), []);
+
   // A passage to ask the assistant about; `n` tells a new ask from the same text asked again.
   const [aiQuote, setAiQuote] = useState<{ text: string; n: number } | null>(null);
   const askAi = useCallback(() => {
@@ -2343,6 +2346,7 @@ export default function App() {
               <AiChat
                 root={root}
                 activePath={activePath}
+                openDocuments={openDocuments}
                 quote={aiQuote}
                 onDropQuote={() => setAiQuote(null)}
                 onOpenFile={openLink}

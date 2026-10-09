@@ -22,9 +22,14 @@ export type ChatItem =
   | ToolUse
   | { kind: "error"; text: string };
 
+/** What the assistant can read: the documents open in the window, its folder, or every folder open in Mido. */
+export type Scope = "openFiles" | "project" | "allProjects";
+
 export interface Chat {
   /** The conversation to resume; null until the first answer starts one. */
   session: string | null;
+  /** The open documents sent in this conversation, by path, as a hash of what was sent (see `documentsToShare`). */
+  shared?: Record<string, string>;
   items: ChatItem[];
   /** An answer is on its way. */
   busy: boolean;
@@ -174,9 +179,53 @@ export function describeTool(tool: ToolUse, root: string): { verb: string; detai
   return { verb: tool.name, detail: "" };
 }
 
+export interface SharedDocument {
+  /** Relative to the folder. */
+  path: string;
+  content: string;
+}
+
+/** The most of a document sent, and of all of them in one message. */
+const MAX_DOCUMENT = 100_000;
+const MAX_DOCUMENTS = 300_000;
+
+/** A short fingerprint of a document's text (FNV-1a), to tell whether it changed since it was sent. */
+function fingerprint(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193);
+  return `${text.length}:${(hash >>> 0).toString(36)}`;
+}
+
+/**
+ * The open documents to send with the next message: those not sent yet in
+ * this conversation, or changed since (unsaved edits too). With what's been
+ * sent once they are.
+ */
+export function documentsToShare(open: SharedDocument[], shared: Record<string, string> = {}) {
+  const documents: SharedDocument[] = [];
+  const next = { ...shared };
+  let budget = MAX_DOCUMENTS;
+  for (const doc of open) {
+    const print = fingerprint(doc.content);
+    if (shared[doc.path] === print) continue;
+    const room = Math.min(MAX_DOCUMENT, budget);
+    if (room <= 0) break;
+    const cut = doc.content.length > room;
+    documents.push({ path: doc.path, content: cut ? `${doc.content.slice(0, room)}\n\n[… cut: too long to send whole]` : doc.content });
+    budget -= Math.min(doc.content.length, room);
+    next[doc.path] = print;
+  }
+  return { documents, shared: next };
+}
+
 /** The message sent for what the user wrote: with the document they're reading and the text they selected. */
-export function composeMessage(text: string, context: { document?: string; quote?: string }): string {
+export function composeMessage(
+  text: string,
+  context: { document?: string; quote?: string; open?: string[]; documents?: SharedDocument[] },
+): string {
   const parts: string[] = [];
+  for (const doc of context.documents ?? []) parts.push(`<document path="${doc.path}">\n${doc.content}\n</document>`);
+  if (context.open) parts.push(`(Open in Mido: ${context.open.join(", ") || "nothing"}.)`);
   if (context.document) parts.push(`(I'm reading ${context.document} in Mido.)`);
   if (context.quote) parts.push(`About this passage:\n\n${context.quote.replace(/^/gm, "> ")}`);
   parts.push(text);
@@ -200,13 +249,13 @@ function storedChats(): Record<string, Chat> {
 /** The chat last held about `root`. */
 export function loadChat(root: string): Chat {
   const chat = storedChats()[root];
-  return chat ? { session: chat.session ?? null, items: chat.items ?? [], busy: false } : EMPTY_CHAT;
+  return chat ? { session: chat.session ?? null, shared: chat.shared, items: chat.items ?? [], busy: false } : EMPTY_CHAT;
 }
 
 export function saveChat(root: string, chat: Chat) {
   const chats = storedChats();
   if (chat.items.length === 0) delete chats[root];
-  else chats[root] = { session: chat.session, items: chat.items.slice(-MAX_ITEMS), busy: false };
+  else chats[root] = { session: chat.session, shared: chat.shared, items: chat.items.slice(-MAX_ITEMS), busy: false };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(chats));
   } catch {
@@ -220,11 +269,14 @@ export function saveChat(root: string, chat: Chat) {
 export const detectAssistant = () => invoke<string | null>("ai_detect");
 
 /** Sends a message; the assistant's events (JSON lines) go to `onEvent`. */
-export function sendToAssistant(message: string, session: string | null, onEvent: (line: string) => void) {
+export function sendToAssistant(message: string, session: string | null, scope: Scope, onEvent: (line: string) => void) {
   const channel = new Channel<string>();
   channel.onmessage = onEvent;
-  return invoke<void>("ai_send", { message, session, onEvent: channel });
+  return invoke<void>("ai_send", { message, session, scope, onEvent: channel });
 }
+
+/** The folders open in the other windows. */
+export const otherProjects = () => invoke<string[]>("ai_projects");
 
 /** Stops the answer on its way; the next message resumes the conversation. */
 export const stopAssistant = () => invoke<void>("ai_stop");

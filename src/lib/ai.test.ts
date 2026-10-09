@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { composeMessage, describeTool, EMPTY_CHAT, reduce, type Chat, type ToolUse } from "./ai";
+import { composeMessage, describeTool, documentsToShare, EMPTY_CHAT, reduce, type Chat, type ToolUse } from "./ai";
 // What Claude Code printed for "Read a.md and reply in 5 words", trimmed.
 import stream from "./fixtures/claude-stream.jsonl?raw";
 
@@ -89,5 +89,43 @@ describe("composeMessage", () => {
       "(I'm reading guide/a.md in Mido.)\n\nAbout this passage:\n\n> Cats sleep.\n> A lot.\n\nWhy?",
     );
     expect(composeMessage("Hi", {})).toBe("Hi");
+  });
+});
+
+describe("documentsToShare", () => {
+  const a = { path: "a.md", content: "# A" };
+  const b = { path: "b.md", content: "# B" };
+
+  it("sends each open document once, and again when it changes", () => {
+    const first = documentsToShare([a, b]);
+    expect(first.documents).toEqual([a, b]);
+    expect(documentsToShare([a, b], first.shared).documents).toEqual([]);
+    const edited = { ...a, content: "# A, edited" };
+    expect(documentsToShare([edited, b], first.shared).documents).toEqual([edited]);
+  });
+
+  it("cuts what's too long to send", () => {
+    const long = { path: "long.md", content: "x".repeat(150_000) };
+    const { documents } = documentsToShare([long, a]);
+    expect(documents[0].content.length).toBeLessThan(101_000);
+    expect(documents[0].content).toMatch(/cut: too long/);
+    expect(documents[1]).toEqual(a);
+  });
+
+  it("stops at the limit for one message, leaving the rest for the next", () => {
+    const docs = [1, 2, 3, 4].map((n) => ({ path: `${n}.md`, content: "y".repeat(100_000) }));
+    const first = documentsToShare(docs);
+    expect(first.documents.map((d) => d.path)).toEqual(["1.md", "2.md", "3.md"]);
+    expect(documentsToShare(docs, first.shared).documents.map((d) => d.path)).toEqual(["4.md"]);
+  });
+});
+
+describe("composeMessage with the open files", () => {
+  it("puts the documents first, then what's open", () => {
+    const message = composeMessage("Compare them", {
+      open: ["a.md", "b.md"],
+      documents: [{ path: "a.md", content: "# A" }],
+    });
+    expect(message).toBe('<document path="a.md">\n# A\n</document>\n\n(Open in Mido: a.md, b.md.)\n\nCompare them');
   });
 });

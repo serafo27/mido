@@ -5,25 +5,31 @@ import {
   composeMessage,
   describeTool,
   detectAssistant,
+  documentsToShare,
   EMPTY_CHAT,
   INSTALL_COMMAND,
   loadChat,
+  otherProjects,
   reduce,
   saveChat,
   sendToAssistant,
   stopAssistant,
   type Chat,
   type ChatItem,
+  type Scope,
   type ToolUse,
 } from "../lib/ai";
 import { BlockRenderer } from "../lib/blockRenderer";
 import { basename, isMarkdown, relative, resolve, splitLink } from "../lib/paths";
+import { useStoredState } from "../lib/useStoredState";
 
 interface AiChatProps {
   /** The window's open folder: what the chat is about. */
   root: string;
   /** The document being read, if any. */
   activePath: string | null;
+  /** The documents open in the window's tabs, with their unsaved changes: what the "Open files" scope reads. */
+  openDocuments: () => { path: string; content: string }[];
   /** Text selected in the document to ask about, until it's sent or dropped. */
   quote: { text: string; n: number } | null;
   onDropQuote: () => void;
@@ -32,6 +38,12 @@ interface AiChatProps {
 }
 
 const EXTERNAL = /^[a-z][a-z0-9+.-]*:/i;
+
+const SCOPES: { id: Scope; label: string; title: string }[] = [
+  { id: "openFiles", label: "Open files", title: "Only the documents open in tabs, unsaved changes included" },
+  { id: "project", label: "Project", title: "Every file in this folder" },
+  { id: "allProjects", label: "All projects", title: "Every folder open in Mido's windows" },
+];
 
 /** What's usually asked about a passage, sent with one click. */
 const QUICK_ASKS = [
@@ -45,7 +57,11 @@ const QUICK_ASKS = [
  * computer (src-tauri/src/ai.rs). One conversation per folder, resumed when
  * the folder opens again.
  */
-export default function AiChat({ root, activePath, quote, onDropQuote, onOpenFile, onClose }: AiChatProps) {
+export default function AiChat(props: AiChatProps) {
+  const { root, activePath, openDocuments, quote, onDropQuote, onOpenFile, onClose } = props;
+  const [scope, setScope] = useStoredState<Scope>("mido.aiScope", "project", { shared: true });
+  // The folders "All projects" adds, shown in its tooltip.
+  const [others, setOthers] = useState<string[]>([]);
   // undefined: still looking for it.
   const [program, setProgram] = useState<string | null | undefined>(undefined);
   const [chat, setChat] = useState<Chat>(() => loadChat(root));
@@ -90,14 +106,21 @@ export default function AiChat({ root, activePath, quote, onDropQuote, onOpenFil
     const text = asked.trim();
     if (!text || chat.busy) return;
     const document = activePath ? relative(root, activePath) : undefined;
-    const message = composeMessage(text, { document, quote: quote?.text });
+    const open = openDocuments().map((d) => ({ path: relative(root, d.path), content: d.content }));
+    const share = scope === "openFiles" ? documentsToShare(open, chat.shared) : null;
+    const message = composeMessage(text, {
+      document,
+      quote: quote?.text,
+      open: share ? open.map((d) => d.path) : undefined,
+      documents: share?.documents,
+    });
     const forRoot = root;
     const item: ChatItem = quote ? { kind: "user", text, quote: quote.text } : { kind: "user", text };
     setDraft("");
     onDropQuote();
     following.current = true;
-    setChat((c) => ({ ...c, busy: true, items: [...c.items, item] }));
-    sendToAssistant(message, chat.session, (line) => {
+    setChat((c) => ({ ...c, busy: true, shared: share?.shared ?? c.shared, items: [...c.items, item] }));
+    sendToAssistant(message, chat.session, scope, (line) => {
       if (shownRoot.current === forRoot) setChat((c) => reduce(c, line));
     }).catch((e) =>
       setChat((c) => ({ ...c, busy: false, items: [...c.items, { kind: "error", text: String(e) }] })),
@@ -152,6 +175,25 @@ export default function AiChat({ root, activePath, quote, onDropQuote, onOpenFil
           </button>
         </span>
       </header>
+      <div className="segmented ai-chat-scope" role="radiogroup" aria-label="What the assistant reads">
+        {SCOPES.map((s) => (
+          <button
+            key={s.id}
+            role="radio"
+            aria-checked={scope === s.id}
+            className={scope === s.id ? "selected" : ""}
+            onMouseEnter={() => s.id === "allProjects" && void otherProjects().then(setOthers, () => {})}
+            onClick={() => setScope(s.id)}
+            title={
+              s.id === "allProjects"
+                ? `${s.title}: ${[basename(root), ...others.map(basename)].join(", ")}`
+                : s.title
+            }
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
 
       {program === null ? (
         <NotInstalled onRetry={detect} />
