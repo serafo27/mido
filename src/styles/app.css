@@ -596,6 +596,10 @@ body.resizing .resizer {
 .toolbar.mac-inset {
   padding-left: 80px;
 }
+/* Read · Split · Edit, a little apart from the buttons after it. */
+.toolbar > .segmented {
+  margin-right: 6px;
+}
 
 /* ---------- Minimal Mode: the document, its tabs and Read · Split · Edit ---------- */
 /* The editor writes on the reading column, as the preview reads. */
