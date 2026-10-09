@@ -1,3 +1,4 @@
+mod ai;
 mod assets;
 mod background;
 mod comments;
@@ -893,6 +894,7 @@ pub fn run() {
         .manage(git::RepoLocks::default())
         .manage(OpenRequests::default())
         .manage(terminal::Terminals::default())
+        .manage(ai::Assistants::default())
         .manage(floating::FloatingWindows::default())
         .manage(MinimalWindows::default())
         .setup(|app| {
@@ -978,6 +980,7 @@ pub fn run() {
                 }
                 // Ends its shells, and closes its floating terminals.
                 window.state::<terminal::Terminals>().close_window(label);
+                window.state::<ai::Assistants>().close_window(label);
                 floating::window_destroyed(window.app_handle(), label);
             }
         })
@@ -997,6 +1000,9 @@ pub fn run() {
             export_html,
             export_word,
             save_asset,
+            ai::ai_detect,
+            ai::ai_send,
+            ai::ai_stop,
             terminal::pty_spawn,
             terminal::pty_write,
             terminal::pty_resize,

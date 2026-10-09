@@ -222,6 +222,11 @@ export const commands: Record<string, (args: Record<string, unknown>, options?: 
   git_outgoing: desktopOnly,
   git_last_message: desktopOnly,
 
+  /** The assistant runs Claude Code on the computer: the web version has none. */
+  ai_detect: () => null,
+  ai_send: desktopOnly,
+  ai_stop: () => undefined,
+
   /** Comments can't be written here, so nobody needs to sign them. */
   git_identity: () => null,
 

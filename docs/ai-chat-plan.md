@@ -70,8 +70,9 @@ Un selettore in cima al pannello:
 
 ### 3. Pannello: `AiChat.tsx`
 
-- Pulsante nella toolbar accanto a quello dei commenti. Commenti e AI diventano
-  due tab dello stesso pannello laterale.
+- Pulsante nella toolbar (✨, ⌘⇧L). Il pannello è una colonna a tutta
+  altezza a destra, ridimensionabile, indipendente dai commenti: resta aperto
+  anche senza documento e durante i diff.
 - Risposte rese come markdown mentre arrivano; chiamate ai tool compresse in
   righe come "📄 Letto docs/api.md".
 - Stop, Nuova chat, cronologia. La lista delle sessioni per progetto sta nello

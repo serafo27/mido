@@ -58,6 +58,8 @@ export interface Settings {
   terminalFont: string;
   /** Anonymous usage statistics, once a day: see lib/analytics.ts. */
   usageStats: boolean;
+  /** The assistant (a Pro feature, in progress): not in the settings panel yet. */
+  aiChat: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -92,6 +94,7 @@ export const DEFAULT_SETTINGS: Settings = {
   gitShowAllFiles: false,
   terminalFont: "",
   usageStats: true,
+  aiChat: false,
 };
 
 /**

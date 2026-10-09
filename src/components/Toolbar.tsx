@@ -11,6 +11,7 @@ import {
   PenLine,
   Printer,
   Settings as SettingsIcon,
+  Sparkles,
   TableOfContents,
   TextWrap,
 } from "lucide-react";
@@ -45,6 +46,9 @@ interface ToolbarProps {
   onMoveTab: (from: number, to: number) => void;
   onToggleOutline: () => void;
   onToggleComments: () => void;
+  /** The assistant's panel: absent when it isn't available. */
+  aiOpen?: boolean;
+  onToggleAi?: () => void;
   onMode: (mode: ViewMode) => void;
   onWrap: () => void;
   onToggleSidebar: () => void;
@@ -153,6 +157,11 @@ export default function Toolbar(props: ToolbarProps) {
             </>
           )}
         </>
+      )}
+      {props.onToggleAi && !props.minimal && (
+        <IconButton title={`Assistant (${modKey}⇧L)`} active={props.aiOpen} onClick={props.onToggleAi}>
+          <Sparkles size={15} />
+        </IconButton>
       )}
       {!props.minimal && (
         <span data-settings-toggle>

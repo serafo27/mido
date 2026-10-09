@@ -77,6 +77,7 @@ import Preview, {
 } from "./components/Preview";
 import Outline from "./components/Outline";
 import Comments, { CommentPeek, type PlacedThread } from "./components/Comments";
+import AiChat from "./components/AiChat";
 import SelectionMenu from "./components/SelectionMenu";
 import {
   buildThreads,
@@ -172,6 +173,8 @@ export default function App() {
   const [splitRatio, setSplitRatio] = useStoredState("mido.splitRatio", 0.5);
   const [outlineOpen, setOutlineOpen] = useStoredState("mido.outlineOpen", false);
   const [commentsOpen, setCommentsOpen] = useStoredState("mido.commentsOpen", false);
+  const [aiOpen, setAiOpen] = useStoredState("mido.aiOpen", false);
+  const [aiWidth, setAiWidth] = useStoredState("mido.aiWidth", 380);
 
   // The source line at the top of the view being left, to show at the top of the next one
   // (0: the view was scrolled to the very top).
@@ -199,6 +202,10 @@ export default function App() {
   }, []);
 
   const settings = useMemo<Settings>(() => ({ ...DEFAULT_SETTINGS, ...storedSettings }), [storedSettings]);
+  // The assistant runs Claude Code on this computer: the desktop app's own, still behind a setting.
+  const hasAssistant = hasTerminal && (import.meta.env.DEV || settings.aiChat);
+  const hasAssistantRef = useRef(hasAssistant);
+  hasAssistantRef.current = hasAssistant;
   const updateSettings = useCallback(
     (patch: Partial<Settings>) => setStoredSettings((s) => ({ ...s, ...patch })),
     [setStoredSettings],
@@ -1765,6 +1772,9 @@ export default function App() {
         } else if (e.code === "KeyM") {
           e.preventDefault();
           setCommentsOpen((o) => !o);
+        } else if (e.code === "KeyL" && hasAssistantRef.current && live.current.root) {
+          e.preventDefault();
+          setAiOpen((o) => !o);
         } else if (e.code === "KeyE") {
           e.preventDefault();
           exportHtml();
@@ -1802,7 +1812,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, startComment, changeMode, exportHtml, exportWord, printDocument, fail, git.repo, setGitOpen, newTerminal, toggleTerminal, updateSettings, openCommitDialog, openPushDialog]);
+  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, setAiOpen, startComment, changeMode, exportHtml, exportWord, printDocument, fail, git.repo, setGitOpen, newTerminal, toggleTerminal, updateSettings, openCommitDialog, openPushDialog]);
 
   const dragResize = (e: ReactPointerEvent<HTMLDivElement>, onMove: (ev: PointerEvent) => void) => {
     e.preventDefault();
@@ -2029,6 +2039,8 @@ export default function App() {
       onMoveTab={moveAnyTab}
       onToggleOutline={() => setOutlineOpen((o) => !o)}
       onToggleComments={() => setCommentsOpen((o) => !o)}
+      aiOpen={aiOpen}
+      onToggleAi={hasAssistant && root ? () => setAiOpen((o) => !o) : undefined}
       onMode={changeMode}
       // Without the macOS menu (web, embedded), the toolbar offers them.
       onExport={isWeb || isEmbed ? exportHtml : undefined}
@@ -2289,6 +2301,23 @@ export default function App() {
             />
           )}
         </main>
+        {aiOpen && hasAssistant && !minimal && (
+          <>
+            <div
+              className="resizer ai-resizer"
+              onPointerDown={(e) => {
+                const startX = e.clientX;
+                const startWidth = aiWidth;
+                dragResize(e, (ev) =>
+                  setAiWidth(clamp(startWidth + startX - ev.clientX, 300, Math.max(300, window.innerWidth / 2))),
+                );
+              }}
+            />
+            <div className="ai-column" style={{ width: aiWidth }}>
+              <AiChat root={root} activePath={activePath} onOpenFile={openLink} onClose={() => setAiOpen(false)} />
+            </div>
+          </>
+        )}
         {overlays}
         {toast && (
           <div className="toast" onClick={() => setToast(null)}>
