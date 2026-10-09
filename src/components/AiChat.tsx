@@ -115,12 +115,12 @@ export default function AiChat(props: AiChatProps) {
   const past = history(convs);
   // Every conversation with something in it, latest first: the history button's list.
   const everything = convs.all.filter((c) => c.items.length > 0).sort((a, b) => b.updated - a.updated);
-  const showingHistory = (historyShown && everything.length > 0) || (!current && past.length > 0);
+  const showingHistory = historyShown || (!current && past.length > 0);
   const openConvs = convs.open.flatMap((id) => convs.all.filter((c) => c.id === id));
   return (
     <aside className="outline ai-chat" aria-label="Assistant">
       <header className="outline-header">
-        {licensed && (current || past.length > 0) ? (
+        {licensed && (current || past.length > 0 || historyShown) ? (
           <ConversationMenu
             title={showingHistory ? "History" : current ? current.title || "New chat" : "History"}
             open={menuOpen}
@@ -142,7 +142,7 @@ export default function AiChat(props: AiChatProps) {
               <Plus size={15} />
             </button>
           )}
-          {licensed && everything.length > 0 && (
+          {licensed && (
             <button
               className={`icon-button ${showingHistory ? "active" : ""}`}
               onClick={() => setHistoryShown((h) => !h)}
@@ -181,6 +181,7 @@ export default function AiChat(props: AiChatProps) {
           replaceList={
             showingHistory ? (
               <HistoryList
+                folder={basename(root)}
                 past={historyShown ? everything : past}
                 openIds={convs.open}
                 onShow={show}
@@ -512,6 +513,8 @@ function ConversationMenu(props: {
 
 /** With no chat open: the latest ones, to pick one up again. */
 function HistoryList(props: {
+  /** The folder, named when it has no chats yet. */
+  folder: string;
   past: Conversation[];
   /** The conversations open in the panel, marked so. */
   openIds: string[];
@@ -521,6 +524,11 @@ function HistoryList(props: {
   return (
     <div className="recents ai-chat-history">
       <h2>Recent chats</h2>
+      {props.past.length === 0 && (
+        <p className="ai-chat-history-empty">
+          No chats about <b>{props.folder}</b> yet. Ask something below to start one.
+        </p>
+      )}
       {props.past.map((c) => (
         <div key={c.id} className="recent-row">
           <button className="recent" onClick={() => props.onShow(c.id)} title={c.title}>

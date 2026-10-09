@@ -5997,3 +5997,9 @@ body.resizing-row * {
   max-width: 420px;
   margin: 0 auto;
 }
+.ai-chat-history-empty {
+  margin: 4px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
