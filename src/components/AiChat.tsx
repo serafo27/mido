@@ -1,13 +1,29 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
-import { ArrowUp, CircleAlert, FilePen, FilePlus2, FileText, Search, Sparkles, SquarePen, Square, X } from "lucide-react";
 import {
+  ArrowUp,
+  Check,
+  CircleAlert,
+  FilePen,
+  FilePlus2,
+  FileText,
+  Search,
+  ShieldQuestion,
+  Sparkles,
+  SquarePen,
+  Square,
+  X,
+} from "lucide-react";
+import {
+  answerAssistant,
   composeMessage,
+  decide,
   describeTool,
   detectAssistant,
   documentsToShare,
   EMPTY_CHAT,
   INSTALL_COMMAND,
+  lineDiff,
   loadChat,
   otherProjects,
   reduce,
@@ -18,11 +34,14 @@ import {
   writesFiles,
   type Chat,
   type ChatItem,
+  type DiffLine,
+  type PermissionRequest,
   type Scope,
   type ToolUse,
 } from "../lib/ai";
+import { api } from "../lib/api";
 import { BlockRenderer } from "../lib/blockRenderer";
-import { basename, isMarkdown, relative, resolve, splitLink } from "../lib/paths";
+import { basename, isInside, isMarkdown, relative, resolve, splitLink } from "../lib/paths";
 import { useStoredState } from "../lib/useStoredState";
 
 interface AiChatProps {
@@ -39,6 +58,8 @@ interface AiChatProps {
   notesFolder: string;
   /** Saves a question and its answer as a note in the project. */
   onSaveNote: (turn: { question: string; quote?: string; answer: string }) => void;
+  /** Whether a document has changes not saved yet, which a change from the assistant would conflict with. */
+  isUnsaved: (path: string) => boolean;
   onOpenFile: (path: string, anchor?: string) => void;
   onClose: () => void;
 }
@@ -64,7 +85,9 @@ const QUICK_ASKS = [
  * the folder opens again.
  */
 export default function AiChat(props: AiChatProps) {
-  const { root, activePath, openDocuments, quote, onDropQuote, notesFolder, onSaveNote, onOpenFile, onClose } = props;
+  const { root, activePath, openDocuments, quote, onDropQuote, notesFolder, onSaveNote, isUnsaved, onOpenFile, onClose } = props;
+  // "Allow all": the rest of this conversation's changes are allowed without asking.
+  const [allowAll, setAllowAll] = useState(false);
   const [scope, setScope] = useStoredState<Scope>("mido.aiScope", "project", { shared: true });
   // The folders "All projects" adds, shown in its tooltip.
   const [others, setOthers] = useState<string[]>([]);
@@ -97,6 +120,19 @@ export default function AiChat(props: AiChatProps) {
     opened.current = toolIds(next.items);
     setChat(next);
   }, [root]);
+
+  /** The user's answer to a request to write. */
+  const answer = useCallback((requestId: string, allow: boolean) => {
+    setChat((c) => decide(c, requestId, allow));
+    answerAssistant(requestId, allow).catch((e) =>
+      setChat((c) => ({ ...c, items: [...c.items, { kind: "error", text: String(e) }] })),
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!allowAll) return;
+    for (const item of chat.items) if (item.kind === "permission" && item.status === "pending") answer(item.requestId, true);
+  }, [allowAll, chat.items, answer]);
 
   // A document it wrote opens, to see it.
   useEffect(() => {
@@ -156,6 +192,7 @@ export default function AiChat(props: AiChatProps) {
 
   const newChat = () => {
     void stopAssistant().catch(() => {});
+    setAllowAll(false);
     setChat(EMPTY_CHAT);
     inputRef.current?.focus();
   };
@@ -169,6 +206,9 @@ export default function AiChat(props: AiChatProps) {
       stop();
     }
   };
+
+  // Changes it asked about show as their request, not as a tool line too.
+  const asked = new Set(chat.items.flatMap((i) => (i.kind === "permission" ? [i.toolUseId] : [])));
 
   // Where each answered turn ends, for its actions (the one on its way has none yet).
   const turnEnds = new Map<number, ReturnType<typeof turns>[number]>();
@@ -252,7 +292,18 @@ export default function AiChat(props: AiChatProps) {
                 const turn = turnEnds.get(i);
                 return (
                   <Fragment key={"key" in item ? item.key : i}>
-                    <Item item={item} root={root} onOpenFile={onOpenFile} />
+                    {item.kind === "permission" ? (
+                      <Permission
+                        request={item}
+                        root={root}
+                        isUnsaved={isUnsaved}
+                        onAnswer={(allow) => answer(item.requestId, allow)}
+                        onAllowAll={() => setAllowAll(true)}
+                        onOpenFile={onOpenFile}
+                      />
+                    ) : item.kind === "tool" && asked.has(item.id) ? null : (
+                      <Item item={item} root={root} onOpenFile={onOpenFile} />
+                    )}
                     {turn && (
                       <div className="ai-chat-turn-actions">
                         <button onClick={() => onSaveNote(turn)} title={`Save the question and its answer in ${notesFolder}/`}>
@@ -328,6 +379,8 @@ function Item({ item, root, onOpenFile }: { item: ChatItem; root: string; onOpen
       return <Answer text={item.text} />;
     case "tool":
       return <Tool tool={item} root={root} onOpenFile={onOpenFile} />;
+    case "permission":
+      return null;
     case "error":
       return (
         <div className="ai-chat-error">
@@ -364,6 +417,87 @@ function Tool({ tool, root, onOpenFile }: { tool: ToolUse; root: string; onOpenF
         </button>
       ) : (
         <span className="ai-chat-tool-detail">{detail}</span>
+      )}
+    </div>
+  );
+}
+
+/** The most diff lines shown for a change; the rest are counted. */
+const MAX_DIFF_LINES = 200;
+
+/** It asks to write a file outside its notes folder: the change, and Allow or Decline. */
+function Permission(props: {
+  request: PermissionRequest;
+  root: string;
+  isUnsaved: (path: string) => boolean;
+  onAnswer: (allow: boolean) => void;
+  onAllowAll: () => void;
+  onOpenFile: (path: string) => void;
+}) {
+  const { request, root } = props;
+  const input = useMemo(() => JSON.parse(request.input) as Record<string, string>, [request.input]);
+  const path = input.file_path ?? "";
+  const shown = isInside(root, path) ? relative(root, path) : path;
+  // For a whole file: what's there now, if anything (null: nothing, undefined: still reading).
+  const [current, setCurrent] = useState<string | null | undefined>(request.name === "Write" ? undefined : null);
+  useEffect(() => {
+    if (request.name !== "Write") return;
+    if (!isInside(root, path)) return setCurrent(null);
+    api.readFile(path).then(setCurrent, () => setCurrent(null));
+  }, [request.name, root, path]);
+
+  const lines: DiffLine[] = useMemo(() => {
+    if (request.name === "Edit") return lineDiff(input.old_string ?? "", input.new_string ?? "");
+    if (current === undefined) return [];
+    if (current === null) return (input.content ?? "").split("\n").map((text) => ({ type: "+" as const, text }));
+    return lineDiff(current, input.content ?? "");
+  }, [request.name, input, current]);
+
+  const verb = request.name === "Edit" ? "edit" : current ? "replace" : "create";
+  const pending = request.status === "pending";
+  return (
+    <div className={`ai-chat-permission ${request.status}`}>
+      <div className="ai-chat-permission-title">
+        <ShieldQuestion size={13} />
+        <span>
+          {pending ? "Claude wants to " : request.status === "allowed" ? "Allowed to " : "Asked to "}
+          {verb}{" "}
+          {isMarkdown(path) && isInside(root, path) ? (
+            <button className="ai-chat-tool-file" onClick={() => props.onOpenFile(path)}>
+              {shown}
+            </button>
+          ) : (
+            <code>{shown}</code>
+          )}
+        </span>
+      </div>
+      {pending && props.isUnsaved(path) && (
+        <div className="ai-chat-permission-note">It has changes you haven't saved: save them first, or they'll conflict.</div>
+      )}
+      <div className="ai-chat-diff">
+        {lines.slice(0, MAX_DIFF_LINES).map((line, i) => (
+          <div key={i} className={`ai-chat-diff-line ${line.type === "+" ? "add" : line.type === "-" ? "del" : line.type === "…" ? "gap" : ""}`}>
+            <span>{line.type === "…" ? "⋯" : line.type}</span>
+            <code>{line.text || " "}</code>
+          </div>
+        ))}
+        {lines.length > MAX_DIFF_LINES && <div className="ai-chat-diff-more">{lines.length - MAX_DIFF_LINES} more lines</div>}
+      </div>
+      {pending ? (
+        <div className="ai-chat-permission-actions">
+          <button className="ai-chat-allow" onClick={() => props.onAnswer(true)}>
+            <Check size={12} />
+            Allow
+          </button>
+          <button onClick={() => props.onAnswer(false)}>Decline</button>
+          <button className="ai-chat-allow-all" onClick={props.onAllowAll} title="Allow this and the next changes in this chat">
+            Allow all in this chat
+          </button>
+        </div>
+      ) : (
+        request.status !== "allowed" && (
+          <div className="ai-chat-permission-status">{request.status === "declined" ? "Declined" : "Not answered"}</div>
+        )
       )}
     </div>
   );

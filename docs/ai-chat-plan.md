@@ -100,8 +100,11 @@ Un selettore in cima al pannello:
   git. Nulla di automatico su git.
 - "Salva come .md" su ogni risposta (fatto da Mido, senza l'AI) ed "Esporta
   chat".
-- In seguito: `--permission-prompt-tool` per una conferma nell'interfaccia di
-  Mido prima di ogni scrittura.
+- Modifiche agli altri file: Claude chiede il permesso (`--permission-prompt-tool
+  stdio`, un `control_request` sul suo output); il pannello mostra il diff con
+  Allow / Decline / Allow all in this chat, e la risposta torna sul suo input.
+  Il backend accetta solo richieste davvero in attesa, con l'input originale, e
+  solo per file nelle cartelle aperte.
 
 ### 6. Solo per utenti Pro
 
@@ -143,6 +146,6 @@ le future funzioni Pro.
    subito, per aggiungere poi Codex o Gemini CLI. Alternativa: l'Agent Client
    Protocol di Zed, standard per più agenti ma con un adattatore Node in più.
    Proposta: partire solo con Claude Code.
-2. **Scrittura**: basta la revisione con git o serve una conferma prima di
-   ogni file?
+2. ~~**Scrittura**~~: deciso. File nuovi liberi nella cartella note, modifiche
+   agli altri file con conferma e diff.
 3. **Servizio di vendita delle licenze**: quale?

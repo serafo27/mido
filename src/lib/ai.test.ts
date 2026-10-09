@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { composeMessage, describeTool, documentsToShare, EMPTY_CHAT, noteFor, reduce, turns, type Chat, type ToolUse } from "./ai";
+import {
+  composeMessage,
+  decide,
+  describeTool,
+  documentsToShare,
+  EMPTY_CHAT,
+  lineDiff,
+  noteFor,
+  reduce,
+  turns,
+  type Chat,
+  type ToolUse,
+} from "./ai";
 // What Claude Code printed for "Read a.md and reply in 5 words", trimmed.
 import stream from "./fixtures/claude-stream.jsonl?raw";
 
@@ -154,11 +166,60 @@ describe("notes", () => {
     ]);
   });
 
-  it("tells what it wrote, and what it wasn't allowed to", () => {
+  it("tells what it wrote, and what it didn't", () => {
     const write = (status: ToolUse["status"]): ToolUse => ({
       kind: "tool", key: "w", id: "w", name: "Write", input: JSON.stringify({ file_path: "/docs/ai/sum.md" }), status,
     });
     expect(describeTool(write("done"), "/docs")).toMatchObject({ verb: "Wrote", detail: "ai/sum.md" });
-    expect(describeTool(write("error"), "/docs").verb).toBe("Wasn't allowed to write");
+    expect(describeTool(write("error"), "/docs").verb).toBe("Didn't write");
+  });
+});
+
+describe("permission requests", () => {
+  // What Claude Code printed when asked to edit a file outside its notes folder.
+  const request = event({
+    type: "control_request",
+    request_id: "r1",
+    request: {
+      subtype: "can_use_tool",
+      tool_name: "Edit",
+      input: { file_path: "/docs/doc.md", old_string: "# Doc\n", new_string: "# Doc\nedited\n", replace_all: false },
+      tool_use_id: "toolu_1",
+    },
+  });
+
+  it("shows the request until the user answers it", () => {
+    const chat = reduce(asking, request);
+    expect(chat.items.at(-1)).toMatchObject({ kind: "permission", requestId: "r1", toolUseId: "toolu_1", name: "Edit", status: "pending" });
+    expect(decide(chat, "r1", true).items.at(-1)).toMatchObject({ status: "allowed" });
+    expect(decide(chat, "r1", false).items.at(-1)).toMatchObject({ status: "declined" });
+  });
+
+  it("lets a request go when the answer ends without one", () => {
+    const chat = reduce(reduce(asking, request), event({ type: "mido_exit", stderr: "" }));
+    expect(chat.items.find((i) => i.kind === "permission")).toMatchObject({ status: "expired" });
+  });
+
+  it("ignores other requests", () => {
+    expect(reduce(asking, event({ type: "control_request", request_id: "r2", request: { subtype: "interrupt" } }))).toBe(asking);
+  });
+});
+
+describe("lineDiff", () => {
+  const text = (lines: string[]) => lines.join("\n");
+  const diff = (a: string, b: string, context?: number) => lineDiff(a, b, context).map((l) => `${l.type}${l.text}`);
+
+  it("shows the lines changed, with some around them", () => {
+    const before = text(["a", "b", "c", "d", "e", "f", "g", "h"]);
+    const after = text(["a", "b", "c", "D", "e", "f", "g", "h"]);
+    expect(diff(before, after, 1)).toEqual(["…", " c", "-d", "+D", " e", "…"]);
+  });
+
+  it("finds lines added and removed in the middle", () => {
+    expect(diff(text(["one", "two", "three"]), text(["one", "1.5", "two"]))).toEqual([" one", "+1.5", " two", "-three"]);
+  });
+
+  it("is all added for a new text", () => {
+    expect(diff("", "x\ny")).toEqual(["-", "+x", "+y"]);
   });
 });

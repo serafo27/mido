@@ -13,9 +13,11 @@
 //! Glob) only, confined to those folders, without the user's settings or MCP
 //! servers (`--restricted`).
 //!
-//! It writes only in the project's notes folder (`ai/` unless the user picked
-//! another): summaries, answers saved as files. Writing anywhere else needs
-//! permission, which nobody can give it here, so it's refused.
+//! It writes freely only in the project's notes folder (`ai/` unless the user
+//! picked another): summaries, answers saved as files. Writing anywhere else
+//! needs the user's permission: it asks on its output (`--permission-prompt-tool
+//! stdio`, a `control_request`), the panel shows the change, and the answer
+//! goes back on its input (`ai_answer`).
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -103,12 +105,22 @@ impl Setup {
 
     fn system_prompt(&self) -> String {
         let notes = &self.notes;
-        let writing = format!(
-            " When the user asks you to write something to a file (notes, a summary, an answer), create a Markdown \
-             file in the project's `{notes}/` folder, with a short descriptive kebab-case name, and say which. That \
-             folder is the only place you can write: you can't change the user's other files. If asked to, say so \
-             and show the change in your reply instead."
-        );
+        let writing = if self.scope == Scope::OpenFiles {
+            format!(
+                " When the user asks you to write something to a file (notes, a summary, an answer), create a \
+                 Markdown file in the project's `{notes}/` folder, with a short descriptive kebab-case name, and say \
+                 which. You can't change the user's documents in this conversation: if asked to, show the change in \
+                 your reply instead."
+            )
+        } else {
+            format!(
+                " When the user asks you to write something to a file (notes, a summary, an answer), create a \
+                 Markdown file in the project's `{notes}/` folder, with a short descriptive kebab-case name, and say \
+                 which: you can write there freely. You can also change the user's other documents when they ask \
+                 you to (Edit, or Write for a new file): Mido shows them each change to approve. If they decline \
+                 one, don't try it again: show the change in your reply instead."
+            )
+        };
         let scope = match self.scope {
             Scope::OpenFiles => format!(
                 "{SYSTEM_PROMPT} In this conversation you can't read files: the user's messages include the documents \
@@ -132,12 +144,28 @@ impl Setup {
 type EventChannel = Channel<String>;
 
 /// The assistant running for a window: one process, kept for the whole conversation.
+/// The assistant's input, shared by the messages and the answers to its requests.
+type Input = Arc<Mutex<ChildStdin>>;
+
+fn write_line(input: &Input, line: &serde_json::Value) -> Result<(), String> {
+    let mut input = input.lock().map_err(crate::err)?;
+    writeln!(input, "{line}").map_err(crate::err)?;
+    input.flush().map_err(crate::err)
+}
+
+/// Its requests to write outside the notes folder, waiting for the user: what it asked to write, by request id.
+type Pending = Arc<Mutex<HashMap<String, serde_json::Value>>>;
+
+/// The tools it asks permission for: those that write.
+const ASKS_FOR: &[&str] = &["Write", "Edit"];
+
 struct Session {
     setup: Setup,
+    pending: Pending,
     /// The conversation it resumed or started (its first event says which).
     id: Arc<Mutex<Option<String>>>,
     child: Child,
-    stdin: ChildStdin,
+    stdin: Input,
     /// Where its events go: the channel of the latest message.
     events: Arc<Mutex<EventChannel>>,
 }
@@ -218,6 +246,8 @@ fn command(program: &Path, setup: &Setup, session: Option<&str>) -> Command {
     command.args(["--include-partial-messages", "--restricted", "--strict-mcp-config"]);
     command.arg("--tools").args(setup.tools());
     command.arg("--allowedTools").arg(setup.write_rule());
+    // Writing elsewhere: it asks, on its output.
+    command.args(["--permission-prompt-tool", "stdio"]);
     if !setup.others.is_empty() {
         command.arg("--add-dir").args(&setup.others);
     }
@@ -245,7 +275,8 @@ fn command(program: &Path, setup: &Setup, session: Option<&str>) -> Command {
 /// Starts the assistant set up as `setup`, sending its events to `events`.
 fn start(program: &Path, setup: Setup, session: Option<&str>, events: EventChannel) -> Result<Session, String> {
     let mut child = command(program, &setup, session).spawn().map_err(crate::err)?;
-    let stdin = child.stdin.take().ok_or("The assistant has no input")?;
+    let stdin: Input = Arc::new(Mutex::new(child.stdin.take().ok_or("The assistant has no input")?));
+    let pending = Pending::default();
     let stdout = child.stdout.take().ok_or("The assistant has no output")?;
     let mut stderr = child.stderr.take().ok_or("The assistant has no error output")?;
     let events = Arc::new(Mutex::new(events));
@@ -269,6 +300,7 @@ fn start(program: &Path, setup: Setup, session: Option<&str>, events: EventChann
 
     let channel = events.clone();
     let started = id.clone();
+    let (input, asked) = (stdin.clone(), pending.clone());
     std::thread::spawn(move || {
         for line in BufReader::new(stdout).lines() {
             let Ok(line) = line else { break };
@@ -279,6 +311,25 @@ fn start(program: &Path, setup: Setup, session: Option<&str>, events: EventChann
                 if event["type"] == "system" && event["subtype"] == "init" {
                     if let (Some(session), Ok(mut id)) = (event["session_id"].as_str(), started.lock()) {
                         *id = Some(session.to_string());
+                    }
+                }
+                if event["type"] == "control_request" {
+                    let request = &event["request"];
+                    let asks = request["subtype"] == "can_use_tool"
+                        && ASKS_FOR.iter().any(|t| request["tool_name"] == *t);
+                    match event["request_id"].as_str() {
+                        // The panel asks the user.
+                        Some(id) if asks => {
+                            if let Ok(mut asked) = asked.lock() {
+                                asked.insert(id.to_string(), request["input"].clone());
+                            }
+                        }
+                        // Nothing else is expected: it's refused.
+                        Some(id) => {
+                            let _ = write_line(&input, &refusal(id, "Mido doesn't support that request."));
+                            continue;
+                        }
+                        None => continue,
                     }
                 }
             }
@@ -294,7 +345,7 @@ fn start(program: &Path, setup: Setup, session: Option<&str>, events: EventChann
         }
     });
 
-    Ok(Session { setup, id, child, stdin, events })
+    Ok(Session { setup, pending, id, child, stdin, events })
 }
 
 /// Where `claude` is installed, or null when it isn't (the panel then explains how to install it).
@@ -349,9 +400,52 @@ pub async fn ai_send<R: Runtime>(
     }
     let current = running.get_mut(&label).ok_or("The assistant has stopped")?;
     *current.events.lock().map_err(crate::err)? = on_event;
-    let line = json!({ "type": "user", "message": { "role": "user", "content": message } });
-    writeln!(current.stdin, "{line}").map_err(crate::err)?;
-    current.stdin.flush().map_err(crate::err)
+    write_line(&current.stdin, &json!({ "type": "user", "message": { "role": "user", "content": message } }))
+}
+
+fn refusal(request_id: &str, message: &str) -> serde_json::Value {
+    json!({ "type": "control_response", "response": { "subtype": "success", "request_id": request_id,
+        "response": { "behavior": "deny", "message": message } } })
+}
+
+/// Whether `path` is one the assistant may be allowed to write: in the folder, or another one it reads.
+fn writable(setup: &Setup, path: &str) -> bool {
+    let path = Path::new(path);
+    let plain = path.is_absolute() && path.components().all(|c| !matches!(c, std::path::Component::ParentDir));
+    let inside = |dir: &Path| {
+        path.starts_with(dir) || dir.canonicalize().is_ok_and(|dir| path.starts_with(dir))
+    };
+    plain && std::iter::once(&setup.root).chain(&setup.others).any(|dir| inside(dir))
+}
+
+/// The answer to a request to write: allowed (with what it asked to write, as it asked) or not.
+fn permission(setup: &Setup, request_id: &str, input: serde_json::Value, allow: bool) -> serde_json::Value {
+    let path = input["file_path"].as_str().unwrap_or_default();
+    if !allow {
+        return refusal(request_id, "The user declined this change.");
+    }
+    if !writable(setup, path) {
+        return refusal(request_id, "Mido only lets the assistant write in the folders open in it.");
+    }
+    json!({ "type": "control_response", "response": { "subtype": "success", "request_id": request_id,
+        "response": { "behavior": "allow", "updatedInput": input } } })
+}
+
+/// Answers the assistant's request to write a file (`request_id`, from its
+/// `control_request`): what the user decided in the panel.
+#[tauri::command]
+pub async fn ai_answer<R: Runtime>(
+    window: WebviewWindow<R>,
+    assistants: State<'_, Assistants>,
+    request_id: String,
+    allow: bool,
+) -> Result<(), String> {
+    let running = assistants.running.lock().map_err(crate::err)?;
+    let session = running.get(window.label()).ok_or("The assistant has stopped")?;
+    // Only what it asked, and as it asked it: the webview only says yes or no.
+    let input = session.pending.lock().map_err(crate::err)?.remove(&request_id);
+    let input = input.ok_or("The assistant isn't waiting for that anymore")?;
+    write_line(&session.stdin, &permission(&session.setup, &request_id, input, allow))
 }
 
 /// Stops the window's assistant, in the middle of an answer too. The next
@@ -433,6 +527,10 @@ mod tests {
     /// Asks the real `claude` in `setup` and returns its answer and the tools it used. It needs it installed and
     /// signed in, and spends a little of the user's plan: `cargo test ai::tests::real -- --ignored`
     fn ask_claude(setup: Setup, message: &str) -> (String, Vec<String>) {
+        ask_claude_allowing(setup, message, false)
+    }
+
+    fn ask_claude_allowing(setup: Setup, message: &str, allow: bool) -> (String, Vec<String>) {
         let program = find_claude().expect("claude is installed");
         let (send, receive) = std::sync::mpsc::channel::<String>();
         let events = Channel::new(move |body| {
@@ -442,9 +540,7 @@ mod tests {
             Ok(())
         });
         let mut session = start(&program, setup, None, events).unwrap();
-        let line = json!({ "type": "user", "message": { "role": "user", "content": message } });
-        writeln!(session.stdin, "{line}").unwrap();
-        session.stdin.flush().unwrap();
+        write_line(&session.stdin, &json!({ "type": "user", "message": { "role": "user", "content": message } })).unwrap();
         let mut tools = Vec::new();
         let mut answer = None;
         while let Ok(line) = receive.recv_timeout(Duration::from_secs(120)) {
@@ -455,6 +551,12 @@ mod tests {
                         tools.push(block["name"].as_str().unwrap_or_default().to_string());
                     }
                 }
+            }
+            // Writing elsewhere: allowed, if the test says so.
+            if event["type"] == "control_request" {
+                let id = event["request_id"].as_str().unwrap();
+                let input = session.pending.lock().unwrap().remove(id).unwrap();
+                write_line(&session.stdin, &permission(&session.setup, id, input, allow)).unwrap();
             }
             if event["type"] == "result" {
                 answer = event["result"].as_str().map(str::to_string);
@@ -517,5 +619,34 @@ mod tests {
         assert_eq!(notes.len(), 1);
         let cats = std::fs::read_to_string(dir.path().join("cats.md")).unwrap();
         assert!(!cats.contains("Edited"), "{cats}");
+    }
+
+    #[test]
+    #[ignore]
+    fn real_asks_to_edit() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("cats.md"), "# Cats\n\nThe cat is called Mirtillo.\n").unwrap();
+        let setup = Setup::new(dir.path().to_path_buf(), Scope::Project, vec![], "ai");
+        ask_claude_allowing(setup, "Add the line \"Edited.\" at the end of cats.md.", true);
+        let cats = std::fs::read_to_string(dir.path().join("cats.md")).unwrap();
+        assert!(cats.contains("Edited."), "{cats}");
+    }
+
+    #[test]
+    fn allows_writing_only_in_its_folders() {
+        let root = tempfile::tempdir().unwrap();
+        let setup = Setup::new(root.path().to_path_buf(), Scope::Project, vec![], "ai");
+        let inside = root.path().join("cats.md").to_string_lossy().into_owned();
+        assert!(writable(&setup, &inside));
+        assert!(!writable(&setup, "/etc/hosts"));
+        assert!(!writable(&setup, &format!("{}/../x.md", root.path().display())));
+        assert!(!writable(&setup, "cats.md"));
+        let input = json!({ "file_path": inside, "content": "x" });
+        let allowed = permission(&setup, "r1", input.clone(), true);
+        assert_eq!(allowed["response"]["response"]["behavior"], "allow");
+        assert_eq!(allowed["response"]["response"]["updatedInput"], input);
+        assert_eq!(permission(&setup, "r1", input, false)["response"]["response"]["behavior"], "deny");
+        let outside = permission(&setup, "r2", json!({ "file_path": "/etc/hosts" }), true);
+        assert_eq!(outside["response"]["response"]["behavior"], "deny");
     }
 }

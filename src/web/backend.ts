@@ -226,6 +226,7 @@ export const commands: Record<string, (args: Record<string, unknown>, options?: 
   ai_detect: () => null,
   ai_send: desktopOnly,
   ai_projects: () => [],
+  ai_answer: desktopOnly,
   ai_stop: () => undefined,
 
   /** Comments can't be written here, so nobody needs to sign them. */

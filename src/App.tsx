@@ -1184,6 +1184,9 @@ export default function App() {
     [gitStatus],
   );
   const unsavedPaths = useMemo(() => new Set(tabs.filter(isDirty).map((t) => t.path)), [tabs]);
+  const unsavedRef = useRef(unsavedPaths);
+  unsavedRef.current = unsavedPaths;
+  const isUnsaved = useCallback((path: string) => unsavedRef.current.has(path), []);
   // Changes whenever the repository does, so an open diff loads both sides again.
   const gitVersion = useMemo(() => JSON.stringify(gitStatus), [gitStatus]);
 
@@ -2351,6 +2354,7 @@ export default function App() {
                   onDropQuote={() => setAiQuote(null)}
                   notesFolder={settings.aiFolder}
                   onSaveNote={saveAiNote}
+                  isUnsaved={isUnsaved}
                   onOpenFile={openLink}
                   onClose={() => setAiOpen(false)}
                 />

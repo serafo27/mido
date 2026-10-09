@@ -1009,6 +1009,7 @@ pub fn run() {
             ai::ai_detect,
             ai::ai_send,
             ai::ai_projects,
+            ai::ai_answer,
             ai::ai_stop,
             terminal::pty_spawn,
             terminal::pty_write,

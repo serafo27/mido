@@ -16,10 +16,26 @@ export interface ToolUse {
   status: "running" | "done" | "error";
 }
 
+/** It asks to write a file outside its notes folder: the user allows it or not. */
+export interface PermissionRequest {
+  kind: "permission";
+  key: string;
+  requestId: string;
+  /** The tool call it's for. */
+  toolUseId: string;
+  /** Write (a whole file) or Edit (a part of one). */
+  name: string;
+  /** What it asked to write, as JSON: `file_path`, and `content` or `old_string` and `new_string`. */
+  input: string;
+  /** Expired: the answer ended (or was stopped) before the user decided. */
+  status: "pending" | "allowed" | "declined" | "expired";
+}
+
 export type ChatItem =
   | { kind: "user"; text: string; /** The text selected in the document it's about. */ quote?: string }
   | { kind: "text"; key: string; text: string }
   | ToolUse
+  | PermissionRequest
   | { kind: "error"; text: string };
 
 /** What the assistant can read: the documents open in the window, its folder, or every folder open in Mido. */
@@ -123,6 +139,22 @@ export function reduce(chat: Chat, line: string): Chat {
       return { ...chat, items };
     }
 
+    // It asks to write outside its notes folder.
+    case "control_request": {
+      const request: Json = event.request ?? {};
+      if (request.subtype !== "can_use_tool" || typeof event.request_id !== "string") return chat;
+      const item: PermissionRequest = {
+        kind: "permission",
+        key: `permission:${event.request_id}`,
+        requestId: event.request_id,
+        toolUseId: String(request.tool_use_id ?? ""),
+        name: String(request.tool_name),
+        input: JSON.stringify(request.input ?? {}),
+        status: "pending",
+      };
+      return { ...chat, items: [...chat.items, item] };
+    }
+
     // The results of the tools it used.
     case "user": {
       const content: Json[] = Array.isArray(event.message?.content) ? event.message.content : [];
@@ -156,8 +188,23 @@ export function reduce(chat: Chat, line: string): Chat {
   return chat;
 }
 
-/** Tools still running when the answer ended won't finish. */
-const settle = (items: ChatItem[]) => items.map((i) => (i.kind === "tool" && i.status === "running" ? { ...i, status: "done" as const } : i));
+/** Tools still running when the answer ended won't finish, and its requests won't be answered. */
+const settle = (items: ChatItem[]) =>
+  items.map((i) =>
+    i.kind === "tool" && i.status === "running"
+      ? { ...i, status: "done" as const }
+      : i.kind === "permission" && i.status === "pending"
+        ? { ...i, status: "expired" as const }
+        : i,
+  );
+
+/** The user's answer to a request, in the chat. */
+export const decide = (chat: Chat, requestId: string, allow: boolean): Chat => ({
+  ...chat,
+  items: chat.items.map((i) =>
+    i.kind === "permission" && i.requestId === requestId ? { ...i, status: allow ? "allowed" : "declined" } : i,
+  ),
+});
 
 /** What a tool use is about, in a few words: the file read, the text searched for. */
 export function describeTool(tool: ToolUse, root: string): { verb: string; detail: string; path?: string } {
@@ -173,7 +220,7 @@ export function describeTool(tool: ToolUse, root: string): { verb: string; detai
       return { verb: "Read", detail: show(input.file_path), path: typeof input.file_path === "string" ? input.file_path : undefined };
     case "Write":
     case "Edit": {
-      const verb = tool.status === "error" ? "Wasn't allowed to write" : tool.name === "Write" ? "Wrote" : "Edited";
+      const verb = tool.status === "error" ? "Didn't write" : tool.name === "Write" ? "Wrote" : "Edited";
       return { verb, detail: show(input.file_path), path: typeof input.file_path === "string" ? input.file_path : undefined };
     }
     case "Grep":
@@ -272,6 +319,65 @@ export function turns(items: ChatItem[]): { at: number; question: string; quote?
   return out;
 }
 
+/** A line of a diff: kept (" "), removed ("-") or added ("+"); "…" stands for unchanged lines left out. */
+export type DiffLine = { type: " " | "-" | "+" | "…"; text: string };
+
+/** The most lines compared line by line; past it, the diff is the old text removed and the new one added. */
+const MAX_DIFF_CELLS = 4_000_000;
+
+/** The lines that changed from `before` to `after`, with `context` unchanged lines around each change. */
+export function lineDiff(before: string, after: string, context = 2): DiffLine[] {
+  const a = before.split("\n");
+  const b = after.split("\n");
+  // Lines in common at the start and the end are cheap to set aside.
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start++;
+  let endA = a.length;
+  let endB = b.length;
+  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) endA--, endB--;
+  const midA = a.slice(start, endA);
+  const midB = b.slice(start, endB);
+
+  let middle: DiffLine[];
+  if (midA.length * midB.length > MAX_DIFF_CELLS) {
+    middle = [...midA.map((text) => ({ type: "-" as const, text })), ...midB.map((text) => ({ type: "+" as const, text }))];
+  } else {
+    // Longest common subsequence, from the end.
+    const n = midA.length;
+    const m = midB.length;
+    const lcs = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+    for (let i = n - 1; i >= 0; i--)
+      for (let j = m - 1; j >= 0; j--)
+        lcs[i][j] = midA[i] === midB[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    middle = [];
+    let i = 0;
+    let j = 0;
+    while (i < n || j < m) {
+      if (i < n && j < m && midA[i] === midB[j]) middle.push({ type: " ", text: midA[i++] }), j++;
+      // Lines removed before those added in their place.
+      else if (i < n && (j === m || lcs[i + 1][j] >= lcs[i][j + 1])) middle.push({ type: "-", text: midA[i++] });
+      else middle.push({ type: "+", text: midB[j++] });
+    }
+  }
+  const all: DiffLine[] = [
+    ...a.slice(0, start).map((text) => ({ type: " " as const, text })),
+    ...middle,
+    ...a.slice(endA).map((text) => ({ type: " " as const, text })),
+  ];
+  // Only the changes, with their context.
+  const near = all.map(() => false);
+  all.forEach((line, k) => {
+    if (line.type === " ") return;
+    for (let c = Math.max(0, k - context); c <= Math.min(all.length - 1, k + context); c++) near[c] = true;
+  });
+  const out: DiffLine[] = [];
+  all.forEach((line, k) => {
+    if (near[k]) out.push(line);
+    else if (out.at(-1)?.type !== "…") out.push({ type: "…", text: "" });
+  });
+  return out;
+}
+
 /* ---------- the chats, kept per folder ---------- */
 
 const STORAGE_KEY = "mido.aiChats";
@@ -323,6 +429,9 @@ export function sendToAssistant(
 
 /** The folders open in the other windows. */
 export const otherProjects = () => invoke<string[]>("ai_projects");
+
+/** Answers its request to write a file. */
+export const answerAssistant = (requestId: string, allow: boolean) => invoke<void>("ai_answer", { requestId, allow });
 
 /** Stops the answer on its way; the next message resumes the conversation. */
 export const stopAssistant = () => invoke<void>("ai_stop");
