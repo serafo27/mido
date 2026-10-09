@@ -378,13 +378,70 @@ export function lineDiff(before: string, after: string, context = 2): DiffLine[]
   return out;
 }
 
-/* ---------- the chats, kept per folder ---------- */
+/* ---------- the conversations, kept per folder ---------- */
+
+/** A conversation: its chat, a title, and when it was last asked something. */
+export interface Conversation extends Chat {
+  id: string;
+  /** Its first question, cut short. */
+  title: string;
+  /** Milliseconds since 1970. */
+  updated: number;
+}
+
+/** A folder's conversations: those open in the panel (one shown), and the rest, its history. */
+export interface Conversations {
+  all: Conversation[];
+  /** Open ones, by id, in the order they were opened. */
+  open: string[];
+  /** The one shown; null: none open, the history shows. */
+  active: string | null;
+}
 
 const STORAGE_KEY = "mido.aiChats";
-/** The most items kept for a chat; older ones go (the assistant still remembers them). */
-const MAX_ITEMS = 300;
+/** The most items kept for a conversation; older ones go (the assistant still remembers them). */
+const MAX_ITEMS = 200;
+/** The most conversations kept for a folder: open ones, then the latest. */
+const MAX_KEPT = 20;
+const MAX_TITLE = 60;
 
-function storedChats(): Record<string, Chat> {
+export function newConversation(): Conversation {
+  const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  return { ...EMPTY_CHAT, id, title: "", updated: Date.now() };
+}
+
+/** What a conversation is called: its first question. */
+export const titleFor = (question: string) => {
+  const line = question.trim().split("\n")[0];
+  return line.length > MAX_TITLE ? `${line.slice(0, MAX_TITLE - 1).trimEnd()}…` : line;
+};
+
+/** A conversation shown: added to the open ones if it wasn't. */
+export function openConversation(convs: Conversations, id: string): Conversations {
+  return { ...convs, open: convs.open.includes(id) ? convs.open : [...convs.open, id], active: id };
+}
+
+/** A conversation closed: into the history. The one next to it shows, or the history when none is left. */
+export function closeConversation(convs: Conversations, id: string): Conversations {
+  const at = convs.open.indexOf(id);
+  const open = convs.open.filter((o) => o !== id);
+  const active = convs.active !== id ? convs.active : (open[Math.min(at, open.length - 1)] ?? null);
+  // An empty conversation leaves nothing to remember.
+  const all = convs.all.filter((c) => c.id !== id || c.items.length > 0);
+  return { all, open, active };
+}
+
+/** A conversation forgotten: out of the history. */
+export const forgetConversation = (convs: Conversations, id: string): Conversations => ({
+  ...closeConversation(convs, id),
+  all: convs.all.filter((c) => c.id !== id),
+});
+
+/** The closed conversations, latest first. */
+export const history = (convs: Conversations) =>
+  convs.all.filter((c) => !convs.open.includes(c.id) && c.items.length > 0).sort((a, b) => b.updated - a.updated);
+
+function stored(): Record<string, unknown> {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") ?? {};
   } catch {
@@ -392,20 +449,52 @@ function storedChats(): Record<string, Chat> {
   }
 }
 
-/** The chat last held about `root`. */
-export function loadChat(root: string): Chat {
-  const chat = storedChats()[root];
-  return chat ? { session: chat.session ?? null, shared: chat.shared, items: chat.items ?? [], busy: false } : EMPTY_CHAT;
+const EMPTY_CONVERSATIONS: Conversations = { all: [], open: [], active: null };
+
+/** A folder's conversations, as kept (and as kept before there were several: one chat). */
+export function readConversations(value: unknown): Conversations {
+  if (!value || typeof value !== "object") return EMPTY_CONVERSATIONS;
+  const v = value as Partial<Conversations> & Partial<Chat>;
+  if (Array.isArray(v.items)) {
+    if (v.items.length === 0) return EMPTY_CONVERSATIONS;
+    const first = v.items.find((i) => i.kind === "user");
+    const conv: Conversation = {
+      ...newConversation(),
+      session: v.session ?? null,
+      shared: v.shared,
+      items: v.items,
+      title: first && first.kind === "user" ? titleFor(first.text) : "",
+    };
+    return { all: [conv], open: [conv.id], active: conv.id };
+  }
+  const all = (Array.isArray(v.all) ? v.all : []).map((c) => ({ ...c, busy: false, streaming: undefined }));
+  const ids = new Set(all.map((c) => c.id));
+  const open = (Array.isArray(v.open) ? v.open : []).filter((id) => ids.has(id));
+  const active = v.active && open.includes(v.active) ? v.active : (open[0] ?? null);
+  return { all, open, active };
 }
 
-export function saveChat(root: string, chat: Chat) {
-  const chats = storedChats();
-  if (chat.items.length === 0) delete chats[root];
-  else chats[root] = { session: chat.session, shared: chat.shared, items: chat.items.slice(-MAX_ITEMS), busy: false };
+/** The conversations held about `root`. */
+export const loadConversations = (root: string) => readConversations(stored()[root]);
+
+/** What's kept of a folder's conversations: the open ones and the latest, without what's on its way. */
+export function keptConversations(convs: Conversations): Conversations {
+  const latest = new Set(history(convs).slice(0, Math.max(0, MAX_KEPT - convs.open.length)).map((c) => c.id));
+  const all = convs.all
+    .filter((c) => convs.open.includes(c.id) || latest.has(c.id))
+    .map((c) => ({ ...c, busy: false, streaming: undefined, items: settle(c.items).slice(-MAX_ITEMS) }));
+  return { ...convs, all };
+}
+
+export function saveConversations(root: string, convs: Conversations) {
+  const chats = stored();
+  const kept = keptConversations(convs);
+  if (kept.all.length === 0) delete chats[root];
+  else chats[root] = kept;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(chats));
   } catch {
-    // Storage full or unavailable: the chat lasts while the window is open.
+    // Storage full or unavailable: the conversations last while the window is open.
   }
 }
 

@@ -5638,3 +5638,252 @@ body.resizing-row * {
   color: var(--text);
   font-size: 13px;
 }
+
+/* The Mido Pro offer in the assistant's panel, after the welcome page. */
+.pro-offer {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 22px 24px;
+  text-align: center;
+}
+.pro-badge {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #2d6a5f, #173a34);
+  color: #f7f3ea;
+  box-shadow: 0 14px 32px -14px rgba(23, 58, 52, 0.65);
+}
+.pro-badge svg {
+  color: #f7f3ea;
+}
+.pro-offer h2 {
+  margin: 16px 0 4px;
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--md-heading);
+}
+.pro-tagline {
+  margin: 0 0 22px;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-style: italic;
+  color: var(--text-muted);
+}
+.pro-features {
+  width: 100%;
+  margin: 0 0 22px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+}
+.pro-features li {
+  display: flex;
+  gap: 11px;
+}
+.pro-features svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.pro-features div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.pro-features b {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.primary-button.pro-buy {
+  justify-content: center;
+  width: 100%;
+  padding: 0 16px;
+}
+.pro-once {
+  font-size: 11.5px;
+  font-weight: 500;
+  opacity: 0.75;
+}
+.pro-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 22px 0 12px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.pro-divider::before,
+.pro-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-soft);
+}
+.pro-find {
+  margin-top: 10px;
+  font-size: 12px;
+}
+.pro-note {
+  margin: auto 0 0;
+  padding-top: 22px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
+/* Switching conversations, from the header. */
+.ai-chat .outline-header {
+  padding-left: 8px;
+}
+.ai-chat .outline-header > span:first-child {
+  padding-left: 8px;
+}
+.ai-chat-switcher {
+  position: relative;
+  min-width: 0;
+}
+.ai-chat-switcher-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 26px;
+  padding: 0 7px 0 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+.ai-chat-switcher-button > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-chat-switcher-button svg {
+  flex: none;
+  color: var(--text-faint);
+}
+.ai-chat-switcher-button:hover,
+.ai-chat-switcher-button.active {
+  background: var(--bg-hover);
+}
+.context-menu.ai-chat-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  /* Solid: the chat's text would show through. */
+  background: var(--bg-elev);
+  width: 300px;
+  max-height: 420px;
+  overflow-y: auto;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.ai-chat-menu-section {
+  padding: 6px 9px 3px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.ai-chat-menu .menu-item {
+  color: var(--text);
+  font-weight: 400;
+}
+.ai-chat-menu-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-chat-menu .menu-hint {
+  flex: none;
+  font-size: 11px;
+}
+.ai-chat-menu-row {
+  position: relative;
+}
+.ai-chat-menu-row .menu-item {
+  padding-right: 30px;
+}
+.ai-chat-menu-row.active .menu-item {
+  background: var(--accent-soft);
+}
+.ai-chat-menu-close {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateY(-50%);
+}
+.ai-chat-menu-row:hover .ai-chat-menu-close,
+.ai-chat-menu-close:focus-visible {
+  opacity: 1;
+}
+.ai-chat-menu-close:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.ai-chat-menu-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 3px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: ai-pulse 1s ease-in-out infinite;
+}
+.ai-chat-menu-sep {
+  height: 1px;
+  margin: 5px 4px;
+  background: var(--border-soft);
+}
+/* No chat open: the latest, as the welcome page lists recent folders. */
+.recents.ai-chat-history {
+  width: 100%;
+  margin-top: 8px;
+}
+.ai-chat-history .recent {
+  flex-direction: column;
+  gap: 1px;
+}
+.ai-chat-history .recent-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.ai-chat-history .recent-path {
+  font-size: 11px;
+}
+.ai-chat-history .recent-path {
+  direction: ltr;
+}

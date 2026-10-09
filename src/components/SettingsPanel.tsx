@@ -298,33 +298,6 @@ export default function SettingsPanel(props: SettingsPanelProps) {
           </Section>
         )}
 
-        {props.license?.available && (
-          <Section title="Mido Pro">
-            {props.license.active ? (
-              <>
-                <LicenseSummary status={props.license} onChange={props.onLicense} />
-                <Row label="Assistant notes folder">
-                  <input
-                    className="text-input settings-folder"
-                    value={settings.aiFolder}
-                    spellCheck={false}
-                    onChange={(e) => onChange({ aiFolder: e.target.value })}
-                    onBlur={(e) => !e.target.value.trim() && onChange({ aiFolder: DEFAULT_SETTINGS.aiFolder })}
-                  />
-                </Row>
-              </>
-            ) : (
-              <>
-                <p className="settings-note">
-                  The assistant: chat with Claude Code about your documents, ask about a passage, and have it write notes
-                  and changes. Bought once; paste your license key to turn it on.
-                </p>
-                <LicenseForm status={props.license} onChange={props.onLicense} />
-              </>
-            )}
-          </Section>
-        )}
-
         {hasUpdates && (
           <Section title="Updates">
             <Toggle
@@ -352,6 +325,33 @@ export default function SettingsPanel(props: SettingsPanelProps) {
             terminal. Never file names, paths or what you write.
           </p>
         </Section>
+
+        {props.license?.available && (
+          <Section title="Mido Pro">
+            {props.license.active ? (
+              <>
+                <LicenseSummary status={props.license} onChange={props.onLicense} />
+                <Row label="Assistant notes folder">
+                  <input
+                    className="text-input settings-folder"
+                    value={settings.aiFolder}
+                    spellCheck={false}
+                    onChange={(e) => onChange({ aiFolder: e.target.value })}
+                    onBlur={(e) => !e.target.value.trim() && onChange({ aiFolder: DEFAULT_SETTINGS.aiFolder })}
+                  />
+                </Row>
+              </>
+            ) : (
+              <>
+                <p className="settings-note">
+                  The assistant: chat with Claude Code about your documents, ask about a passage, and have it write notes
+                  and changes. Bought once; paste your license key to turn it on.
+                </p>
+                <LicenseForm status={props.license} onChange={props.onLicense} />
+              </>
+            )}
+          </Section>
+        )}
 
         {/* Custom themes are user content, not a setting: keep them. */}
         <button

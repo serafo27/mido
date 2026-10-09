@@ -9,7 +9,17 @@ import {
   noteFor,
   reduce,
   turns,
+  closeConversation,
+  forgetConversation,
+  history,
+  keptConversations,
+  newConversation,
+  openConversation,
+  readConversations,
+  titleFor,
   type Chat,
+  type Conversation,
+  type Conversations,
   type ToolUse,
 } from "./ai";
 // What Claude Code printed for "Read a.md and reply in 5 words", trimmed.
@@ -221,5 +231,65 @@ describe("lineDiff", () => {
 
   it("is all added for a new text", () => {
     expect(diff("", "x\ny")).toEqual(["-", "+x", "+y"]);
+  });
+});
+
+describe("conversations", () => {
+  const conv = (id: string, updated: number, asked = true): Conversation => ({
+    ...newConversation(),
+    id,
+    updated,
+    title: id,
+    items: asked ? [{ kind: "user", text: id }] : [],
+  });
+  const three: Conversations = { all: [conv("a", 1), conv("b", 2), conv("c", 3)], open: ["a", "b", "c"], active: "b" };
+
+  it("shows the one next to a closed one, and the history when none is left", () => {
+    expect(closeConversation(three, "b")).toMatchObject({ open: ["a", "c"], active: "c" });
+    expect(closeConversation(three, "a")).toMatchObject({ open: ["b", "c"], active: "b" });
+    const last = closeConversation(closeConversation(closeConversation(three, "a"), "b"), "c");
+    expect(last).toMatchObject({ open: [], active: null });
+    expect(history(last).map((c) => c.id)).toEqual(["c", "b", "a"]);
+  });
+
+  it("opens one from the history again", () => {
+    const closed = closeConversation(three, "a");
+    expect(openConversation(closed, "a")).toMatchObject({ open: ["b", "c", "a"], active: "a" });
+    expect(openConversation(three, "a")).toMatchObject({ open: ["a", "b", "c"], active: "a" });
+  });
+
+  it("forgets an empty conversation as it closes, and any when asked", () => {
+    const withEmpty: Conversations = { all: [...three.all, conv("d", 4, false)], open: [...three.open, "d"], active: "d" };
+    expect(closeConversation(withEmpty, "d").all.map((c) => c.id)).toEqual(["a", "b", "c"]);
+    expect(forgetConversation(three, "a")).toMatchObject({ open: ["b", "c"] });
+    expect(forgetConversation(three, "a").all.map((c) => c.id)).toEqual(["b", "c"]);
+  });
+
+  it("keeps the open ones and the latest, without answers on their way", () => {
+    const many: Conversations = {
+      all: Array.from({ length: 30 }, (_, n) => ({ ...conv(`${n}`, n), busy: n === 0 })),
+      open: ["0"],
+      active: "0",
+    };
+    const kept = keptConversations(many);
+    expect(kept.all).toHaveLength(20);
+    expect(kept.all.map((c) => c.id)).toContain("0");
+    expect(kept.all.map((c) => c.id)).toContain("29");
+    expect(kept.all.every((c) => !c.busy)).toBe(true);
+  });
+
+  it("reads the chat kept before there were several", () => {
+    const old = { session: "s1", items: [{ kind: "user", text: "How does it work?" }] };
+    const read = readConversations(old);
+    expect(read.all).toHaveLength(1);
+    expect(read.all[0]).toMatchObject({ session: "s1", title: "How does it work?" });
+    expect(read.open).toEqual([read.all[0].id]);
+    expect(readConversations({ session: null, items: [] })).toEqual({ all: [], open: [], active: null });
+    expect(readConversations(undefined)).toEqual({ all: [], open: [], active: null });
+  });
+
+  it("names a conversation after its first question", () => {
+    expect(titleFor("  What is this?\nAnd that?")).toBe("What is this?");
+    expect(titleFor("x".repeat(80))).toHaveLength(60);
   });
 });
