@@ -30,7 +30,9 @@ static SANDBOX: Store = Store {
     api: "https://sandbox-api.polar.sh",
     organization: "ba13ae17-5462-4daa-ae4c-7a053f07dc7e",
     portal: "https://sandbox.polar.sh/heptartle/portal",
-    checkout: None,
+    checkout: Some(
+        "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_xq96K9fCthPTBnp9cbmBrGUl1H34pKcekYCCF1JIzc5/redirect",
+    ),
 };
 
 /// The real store: not open yet, so released builds have no Pro until it is.
