@@ -1,9 +1,12 @@
 //! Mido Pro: a license bought once from Polar (polar.sh), which sells it and
 //! handles the taxes. A license key works on a few computers: each one
-//! activates it once, keeps its activation id, and checks with Polar every
-//! week that it's still valid (it isn't after a refund, or when the customer
-//! frees the computer from their purchases page). Offline, it keeps working
-//! for a month after the last check. A license from the sandbox (Polar's test
+//! activates it once, keeps its activation id, and checks with Polar at
+//! launch, at most twice a day, that it's still valid (it isn't after a
+//! refund, or when the customer frees the computer from their purchases
+//! page). Offline, it keeps working for a month after the last check.
+//!
+//! The saved license is only a record of Polar's last answer: one that claims
+//! a check in the future, or that Polar doesn't confirm, doesn't count. A license from the sandbox (Polar's test
 //! store, which development builds use) doesn't count with the real one.
 //!
 //! The calls are Polar's public license key API: no token in the app.
@@ -56,8 +59,10 @@ fn store() -> Option<&'static Store> {
 }
 
 /// How often it checks with Polar, and how long it keeps working when it can't.
-const REFRESH: Duration = Duration::from_secs(7 * 24 * 3600);
+const REFRESH: Duration = Duration::from_secs(12 * 3600);
 const GRACE: Duration = Duration::from_secs(30 * 24 * 3600);
+/// How far ahead of this computer's clock a check may seem (clocks drift, and get set).
+const SKEW: Duration = Duration::from_secs(24 * 3600);
 const TIMEOUT: Duration = Duration::from_secs(15);
 
 /// The license activated on this computer, as saved.
@@ -75,8 +80,14 @@ struct Saved {
 }
 
 impl Saved {
+    /// Whether it counts at `now`: checked by this store, within the last month, and not in the future.
     fn valid_at(&self, now: u64, store: &Store) -> bool {
-        self.api == store.api && now.saturating_sub(self.checked) < GRACE.as_secs()
+        self.api == store.api && self.checked <= now + SKEW.as_secs() && now.saturating_sub(self.checked) < GRACE.as_secs()
+    }
+
+    /// Whether to check it with Polar again: it's been a while, or its last check claims to be in the future.
+    fn due_at(&self, now: u64) -> bool {
+        self.checked > now + SKEW.as_secs() || now.saturating_sub(self.checked) >= REFRESH.as_secs()
     }
 }
 
@@ -227,7 +238,7 @@ fn after_check(saved: &Saved, reply: &Reply, now: u64) -> Result<Saved, String> 
 pub async fn license_check(licenses: State<'_, Licenses>) -> Result<Status, String> {
     let saved = licenses.saved.lock().map_err(crate::err)?.clone();
     let (Some(store), Some(saved)) = (store(), saved) else { return Ok(licenses.status()) };
-    if saved.api != store.api || now().saturating_sub(saved.checked) < REFRESH.as_secs() {
+    if saved.api != store.api || !saved.due_at(now()) {
         return Ok(licenses.status());
     }
     let body = json!({ "key": saved.key, "organization_id": store.organization, "activation_id": saved.activation });
@@ -322,6 +333,9 @@ mod tests {
         let day = 24 * 3600;
         assert!(saved(1000 * day).valid_at(1029 * day, &SANDBOX));
         assert!(!saved(1000 * day).valid_at(1031 * day, &SANDBOX));
+        // Checked twice a day at most.
+        assert!(!saved(1000 * day).due_at(1000 * day + 3600));
+        assert!(saved(1000 * day).due_at(1001 * day));
         // A test license doesn't count against another store.
         let other = Store { api: "https://api.polar.sh", ..SANDBOX };
         assert!(!saved(1000 * day).valid_at(1000 * day, &other));
@@ -387,5 +401,16 @@ mod tests {
             let body = json!({ "key": "MIDO-00000000-0000-4000-8000-000000000000", "organization_id": LIVE.organization });
             assert!(matches!(post(&LIVE, "validate", body).await, Reply::Answered(404, _)));
         });
+    }
+
+    #[test]
+    fn a_check_in_the_future_doesnt_count() {
+        let day = 24 * 3600;
+        // A saved license edited to claim a check years ahead: not valid, and checked again at once.
+        let forged = saved(5000 * day);
+        assert!(!forged.valid_at(1000 * day, &SANDBOX));
+        assert!(forged.due_at(1000 * day));
+        // A clock a few hours behind is fine.
+        assert!(saved(1000 * day + 3 * 3600).valid_at(1000 * day, &SANDBOX));
     }
 }

@@ -112,9 +112,10 @@ Fatto con **Polar** (Merchant of Record: IVA e fatture a carico suo), prodotto
 una tantum con il benefit License Keys (`src-tauri/src/license.rs`).
 
 - Attivazione online per computer (`activate`), con l'ID di attivazione salvato
-  in `license.json` nella cartella dati dell'app; verifica con Polar ogni 7
-  giorni (`validate` con l'ID di attivazione); offline funziona fino a 30 giorni
-  dall'ultima verifica. Chiave revocata (rimborso) o computer liberato dal
+  in `license.json` nella cartella dati dell'app; verifica con Polar all'avvio,
+  al massimo due volte al giorno (`validate` con l'ID di attivazione); offline
+  funziona fino a 30 giorni dall'ultima verifica. Una verifica salvata con una
+  data nel futuro non vale e viene rifatta subito. Chiave revocata (rimborso) o computer liberato dal
   portale: Mido Pro si spegne e lo dice.
 - Endpoint pubblici di Polar: nessun token nell'app. Le build rilasciate usano
   lo store vero (`LIVE`, organizzazione `heptartle`); quelle di sviluppo il
