@@ -36,7 +36,7 @@ Mido isn't code-signed yet: the first time, right-click the app and choose **Ope
 
 ## Privacy
 
-Your documents stay on your computer: Mido never uploads files, their names, paths or contents. To learn how many people use it and which features matter, the desktop app and the web version send anonymous usage statistics to [PostHog](https://posthog.com) (EU servers), at most once a day: that Mido was used, its version, platform and processor, the theme, and whether git and the terminal were used, under a random id that identifies nobody. IP addresses aren't stored. Turn it off in **Settings → Privacy**. The website counts page views and download clicks the same way, without cookies.
+Your documents stay on your computer: Mido never uploads files, their names, paths or contents. To learn how many people use it and which features matter, the desktop app and the web version send anonymous usage statistics to [PostHog](https://posthog.com) (EU servers), at most once a day: that Mido was used, its version, platform and processor, the theme, and whether git and the terminal were used, under a random id that identifies nobody. IP addresses aren't stored. Turn it off in **Settings → Privacy**. With **Mido Pro**, the assistant is Claude Code on your Mac: what it reads goes to Anthropic under your own Claude account and its terms, only when you ask it something, and only from the scope you pick. The license check sends Polar your license key, the Mac's name (to list it in your purchases) and Mido's version. The website counts page views and download clicks the same way, without cookies.
 
 ## Features
 
@@ -59,6 +59,7 @@ Your documents stay on your computer: Mido never uploads files, their names, pat
 - **Export and print** — **File → Export as HTML…** (`⌘⇧E`) saves a standalone page with the current theme and reading style, images embedded and diagrams included. **File → Print…** (`⌥⌘P`) prints the document on its own in the light theme; choose **Save as PDF** in the print panel for a PDF.
 - **Saving** — autosave while you type (can be turned off) or `⌘S`. Mido asks before closing with unsaved changes.
 - **File path bar** — shows `folder › … › file` above the tabs; turn it off in settings to move the tabs into the title bar.
+- **Assistant (Mido Pro)** (`⌘⇧L`) — chat with [Claude Code](https://claude.com/claude-code), installed on your Mac and signed in to your Claude account, about the documents open in tabs, the folder, or every folder open in Mido. Select text and click **Ask** (`⌥⌘L`) to ask about a passage. It writes notes into an `ai` folder in the project, and asks before changing any other document, showing the change as a diff. Several conversations per folder, with their history; any of them can open in a tab. Mido Pro is a one-time purchase through [Polar](https://polar.sh), activated with a license key per Mac.
 
 ## Keyboard shortcuts
 
@@ -76,6 +77,8 @@ Your documents stay on your computer: Mido never uploads files, their names, pat
 | `⌘⇧O` | Toggle outline |
 | `⌘⇧M` | Toggle comments |
 | `⌥⌘M` | Comment on the selected text |
+| `⌘⇧L` | Toggle the assistant (Mido Pro) |
+| `⌥⌘L` | Ask the assistant about the selected text |
 | `⌘\` | Toggle sidebar |
 | `⌘,` | Settings |
 | `⌥Z` | Toggle line wrap |

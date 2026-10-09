@@ -1379,3 +1379,15 @@ code {
     transform: translateY(28px);
   }
 }
+
+/* Mido Pro: buying it, under its feature. */
+.pro-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 24px;
+}
+.pro-cta .cta-note {
+  margin: 0;
+}

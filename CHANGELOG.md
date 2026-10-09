@@ -9,6 +9,18 @@ GitHub and on the website's changelog page.
 
 ## [Unreleased]
 
+### Added
+
+- **Mido Pro: the assistant.** Chat with Claude Code about your documents in a panel beside them (`⌘⇧L`). It runs the Claude Code installed on your Mac, with your own Claude account, and reads what you choose: the documents open in tabs (unsaved changes included), the folder, or every folder open in Mido. Answers stream in as formatted Markdown, show the files it read, and link to them.
+- **Ask about a passage.** Select text in the preview or the editor and click **Ask** (`⌥⌘L`): the passage goes with your question, and **Explain**, **Simplify** and **Summarize** ask in one click.
+- **Notes and changes from the assistant.** It writes notes and summaries into an `ai` folder in your project (the folder can be changed in **Settings → Mido Pro**), and they open as they're written; **Save as note** keeps any answer there too. To change one of your documents it asks first, showing the change as a diff, with **Allow**, **Decline** and **Allow all in this chat**. Everything it writes shows in source control.
+- **Several conversations.** Start a new chat with **+**, switch between the open ones from the panel's header, close one with **Close chat**, and find every chat about a folder in its **History**. A chat can open in a **tab**, to read it in the document's reading column, and go back to the side panel.
+- **Mido Pro** is a one-time purchase, sold through Polar: buy it from the assistant's panel, paste the license key, and it's on for that Mac. **Settings → Mido Pro** shows it, links to your purchases and frees the Mac for another. Mido checks the license with Polar once a week and keeps working offline for a month.
+
+### Changed
+
+- A little more room between **Read · Split · Edit** and the buttons after it in the toolbar.
+
 ## [0.21.0] - 2026-10-08
 
 ### Added
