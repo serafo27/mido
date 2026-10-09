@@ -24,18 +24,28 @@ interface AiChatProps {
   root: string;
   /** The document being read, if any. */
   activePath: string | null;
+  /** Text selected in the document to ask about, until it's sent or dropped. */
+  quote: { text: string; n: number } | null;
+  onDropQuote: () => void;
   onOpenFile: (path: string, anchor?: string) => void;
   onClose: () => void;
 }
 
 const EXTERNAL = /^[a-z][a-z0-9+.-]*:/i;
 
+/** What's usually asked about a passage, sent with one click. */
+const QUICK_ASKS = [
+  { label: "Explain", text: "Explain this passage." },
+  { label: "Simplify", text: "Say this more simply." },
+  { label: "Summarize", text: "Summarize this passage in a few points." },
+];
+
 /**
  * A chat about the open folder's documents with Claude Code, installed on the
  * computer (src-tauri/src/ai.rs). One conversation per folder, resumed when
  * the folder opens again.
  */
-export default function AiChat({ root, activePath, onOpenFile, onClose }: AiChatProps) {
+export default function AiChat({ root, activePath, quote, onDropQuote, onOpenFile, onClose }: AiChatProps) {
   // undefined: still looking for it.
   const [program, setProgram] = useState<string | null | undefined>(undefined);
   const [chat, setChat] = useState<Chat>(() => loadChat(root));
@@ -73,17 +83,20 @@ export default function AiChat({ root, activePath, onOpenFile, onClose }: AiChat
     if (list && following.current) list.scrollTop = list.scrollHeight;
   }, [chat.items]);
 
-  useEffect(() => inputRef.current?.focus(), [program]);
+  // Ready to ask: when it's found, and for each passage picked.
+  useEffect(() => inputRef.current?.focus(), [program, quote?.n]);
 
-  const send = () => {
-    const text = draft.trim();
+  const send = (asked = draft) => {
+    const text = asked.trim();
     if (!text || chat.busy) return;
     const document = activePath ? relative(root, activePath) : undefined;
-    const message = composeMessage(text, { document });
+    const message = composeMessage(text, { document, quote: quote?.text });
     const forRoot = root;
+    const item: ChatItem = quote ? { kind: "user", text, quote: quote.text } : { kind: "user", text };
     setDraft("");
+    onDropQuote();
     following.current = true;
-    setChat((c) => ({ ...c, busy: true, items: [...c.items, { kind: "user", text }] }));
+    setChat((c) => ({ ...c, busy: true, items: [...c.items, item] }));
     sendToAssistant(message, chat.session, (line) => {
       if (shownRoot.current === forRoot) setChat((c) => reduce(c, line));
     }).catch((e) =>
@@ -167,11 +180,30 @@ export default function AiChat({ root, activePath, onOpenFile, onClose }: AiChat
             {chat.busy && <div className="ai-chat-thinking" aria-label="Answering" />}
           </div>
           <div className="ai-chat-composer">
+            {quote && (
+              <div className="ai-chat-quote">
+                <blockquote>{quote.text}</blockquote>
+                <button className="icon-button" onClick={onDropQuote} title="Don't ask about this passage">
+                  <X size={12} />
+                </button>
+                {!draft.trim() && !chat.busy && program && (
+                  <div className="ai-chat-quick">
+                    {QUICK_ASKS.map((q) => (
+                      <button key={q.label} className="ai-chat-chip" onClick={() => send(q.text)}>
+                        {q.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <textarea
               ref={inputRef}
               className="text-input"
               rows={1}
-              placeholder={program === undefined ? "Looking for Claude Code…" : "Ask about these documents…"}
+              placeholder={
+                program === undefined ? "Looking for Claude Code…" : quote ? "Ask about this passage…" : "Ask about these documents…"
+              }
               disabled={program === undefined}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -182,7 +214,7 @@ export default function AiChat({ root, activePath, onOpenFile, onClose }: AiChat
                 <Square size={11} fill="currentColor" />
               </button>
             ) : (
-              <button className="ai-chat-send" onClick={send} disabled={!draft.trim() || !program} title="Send (↩)">
+              <button className="ai-chat-send" onClick={() => send()} disabled={!draft.trim() || !program} title="Send (↩)">
                 <ArrowUp size={14} />
               </button>
             )}
@@ -196,7 +228,12 @@ export default function AiChat({ root, activePath, onOpenFile, onClose }: AiChat
 function Item({ item, root, onOpenFile }: { item: ChatItem; root: string; onOpenFile: (path: string) => void }) {
   switch (item.kind) {
     case "user":
-      return <div className="ai-chat-user">{item.text}</div>;
+      return (
+        <div className="ai-chat-user">
+          {item.quote && <blockquote>{item.quote}</blockquote>}
+          {item.text}
+        </div>
+      );
     case "text":
       return <Answer text={item.text} />;
     case "tool":

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import type { Command } from "@codemirror/view";
-import { Bold, Code, Italic, Link, List, MessageSquarePlus, Strikethrough, TextQuote } from "lucide-react";
+import { Bold, Code, Italic, Link, List, MessageSquarePlus, Sparkles, Strikethrough, TextQuote } from "lucide-react";
 import { activeEditor, editorSelectionLine, type LineRect } from "./Editor";
 import {
   formatAt,
@@ -18,6 +18,8 @@ interface SelectionMenuProps {
   /** Where selections count: the editor and the preview. */
   containerRef: RefObject<HTMLElement | null>;
   onComment: () => void;
+  /** Asks the assistant about the selection; absent when there's no assistant. */
+  onAskAi?: () => void;
 }
 
 /** The first line of the text selected in the preview, if any. */
@@ -62,10 +64,10 @@ function FormatButton(props: { title: string; active: boolean; onClick: () => vo
 /**
  * A small menu over text selected with the mouse: formatting where the
  * document is written (the editor), "Comment" where it's read (the
- * preview). Selecting with the keyboard doesn't show it, so it stays out of
- * the way while typing.
+ * preview), and "Ask" the assistant in both. Selecting with the keyboard
+ * doesn't show it, so it stays out of the way while typing.
  */
-export default function SelectionMenu({ containerRef, onComment }: SelectionMenuProps) {
+export default function SelectionMenu({ containerRef, onComment, onAskAi }: SelectionMenuProps) {
   const [place, setPlace] = useState<Place | null>(null);
   const line = place?.line ?? null;
 
@@ -107,7 +109,7 @@ export default function SelectionMenu({ containerRef, onComment }: SelectionMenu
   // Above the first selected line, or below it near the top of the window.
   const below = line.top < 90;
   // Kept over the document (not the sidebar), by about half the menu's width.
-  const half = place.in === "editor" ? 125 : 70;
+  const half = (place.in === "editor" ? 125 : 70) + (onAskAi ? (place.in === "editor" ? 18 : 40) : 0);
   const bounds = containerRef.current?.getBoundingClientRect();
   const minX = (bounds?.left ?? 0) + half;
   const maxX = Math.max(minX, (bounds?.right ?? window.innerWidth) - half);
@@ -160,6 +162,21 @@ export default function SelectionMenu({ containerRef, onComment }: SelectionMenu
         <FormatButton title="Quote" active={format?.list === "quote"} onClick={() => run(toggleList("quote"))}>
           <TextQuote size={14} />
         </FormatButton>
+        {onAskAi && (
+          <>
+            <span className="selection-menu-sep" />
+            <FormatButton
+              title={`Ask the assistant about it (${altKey}${modKey}L)`}
+              active={false}
+              onClick={() => {
+                setPlace(null);
+                onAskAi();
+              }}
+            >
+              <Sparkles size={14} />
+            </FormatButton>
+          </>
+        )}
       </div>
     );
   }
@@ -182,6 +199,19 @@ export default function SelectionMenu({ containerRef, onComment }: SelectionMenu
           {modKey}M
         </kbd>
       </button>
+      {onAskAi && (
+        <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            setPlace(null);
+            onAskAi();
+          }}
+          title={`Ask the assistant about it (${altKey}${modKey}L)`}
+        >
+          <Sparkles size={14} />
+          <span>Ask</span>
+        </button>
+      )}
     </div>
   );
 }

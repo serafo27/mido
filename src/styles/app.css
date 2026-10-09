@@ -1629,6 +1629,10 @@ body.resizing .resizer {
 .selection-menu.below {
   transform: translate(-50%, 0);
 }
+.selection-menu:not(.format) {
+  display: flex;
+  gap: 6px;
+}
 .selection-menu button {
   display: inline-flex;
   align-items: center;
@@ -5276,6 +5280,59 @@ body.resizing-row * {
   position: relative;
   margin: 0 10px 10px;
 }
+.ai-chat-user blockquote,
+.ai-chat-quote blockquote {
+  margin: 0 0 6px;
+  padding-left: 8px;
+  border-left: 2px solid var(--accent);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* The passage being asked about, over the input. */
+.ai-chat-quote {
+  position: relative;
+  margin-bottom: 6px;
+  padding: 8px 28px 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--bg-elev);
+}
+.ai-chat-quote blockquote {
+  margin: 0;
+}
+.ai-chat-quote > .icon-button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+.ai-chat-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+.ai-chat-chip {
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  font-size: 11.5px;
+  font-weight: 550;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.ai-chat-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
 .ai-chat-composer textarea.text-input {
   display: block;
   width: 100%;
@@ -5292,6 +5349,7 @@ body.resizing-row * {
 }
 .ai-chat-send {
   position: absolute;
+  z-index: 1;
   right: 7px;
   bottom: 7px;
   display: grid;

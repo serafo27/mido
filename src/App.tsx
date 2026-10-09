@@ -780,22 +780,43 @@ export default function App() {
   const openThreadCount = placedThreads.filter((t) => !t.thread.resolved).length;
 
   /** Starts a comment on the text selected in the editor or the preview. */
-  const startComment = useCallback(() => {
-    if (requireDesktop("Commenting")) return;
+  /** The active document and the text selected in it (in the editor, or else the preview), as source offsets. */
+  const selectedText = useCallback(() => {
     const tab = live.current.tabs.find((t) => t.path === live.current.activePath);
-    if (!tab) return;
+    if (!tab) return null;
     const { mode } = live.current;
     let range = mode !== "view" ? editorSelection() : null;
     if (!range && mode !== "edit" && previewRef.current) range = previewSelection(previewRef.current, tab.content);
     range = range && trimRange(tab.content, range);
-    if (!range || range.from === range.to) {
-      setToast("Select the text you want to comment on.");
+    return range && range.from !== range.to ? { tab, range } : null;
+  }, []);
+
+  const startComment = useCallback(() => {
+    if (requireDesktop("Commenting")) return;
+    const selected = selectedText();
+    if (!selected) {
+      if (live.current.activePath) setToast("Select the text you want to comment on.");
       return;
     }
+    const { tab, range } = selected;
     setCommentsOpen(true);
     setActiveThread(null);
     setDraft({ path: tab.path, anchor: createAnchor(tab.content, range) });
-  }, [setCommentsOpen]);
+  }, [setCommentsOpen, selectedText]);
+
+  // A passage to ask the assistant about; `n` tells a new ask from the same text asked again.
+  const [aiQuote, setAiQuote] = useState<{ text: string; n: number } | null>(null);
+  const askAi = useCallback(() => {
+    if (!hasAssistantRef.current) return;
+    const selected = selectedText();
+    if (!selected) {
+      if (live.current.activePath) setToast("Select the text you want to ask about.");
+      return;
+    }
+    const { tab, range } = selected;
+    setAiOpen(true);
+    setAiQuote((q) => ({ text: tab.content.slice(range.from, range.to), n: (q?.n ?? 0) + 1 }));
+  }, [setAiOpen, selectedText]);
 
   /** The author of a new comment; `name` when they had to type one, which is remembered. */
   const signer = useCallback(
@@ -1736,6 +1757,11 @@ export default function App() {
         startComment();
         return;
       }
+      if (mod && e.altKey && !e.shiftKey && e.code === "KeyL" && hasAssistantRef.current) {
+        e.preventDefault();
+        askAi();
+        return;
+      }
       if (!mod || e.altKey) return;
       // Line spacing: ⌘⇧+ and ⌘⇧− (⇧+ is * on Italian keyboards, ⇧− is _ on most).
       const spacing = !e.shiftKey ? null : ["+", "*", "="].includes(e.key) ? 1 : ["_", "-"].includes(e.key) ? -1 : null;
@@ -1812,7 +1838,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, setAiOpen, startComment, changeMode, exportHtml, exportWord, printDocument, fail, git.repo, setGitOpen, newTerminal, toggleTerminal, updateSettings, openCommitDialog, openPushDialog]);
+  }, [saveActive, openFolder, closeAnyTab, cycleTab, toggleWrap, setSidebarOpen, setOutlineOpen, setCommentsOpen, setAiOpen, startComment, askAi, changeMode, exportHtml, exportWord, printDocument, fail, git.repo, setGitOpen, newTerminal, toggleTerminal, updateSettings, openCommitDialog, openPushDialog]);
 
   const dragResize = (e: ReactPointerEvent<HTMLDivElement>, onMove: (ev: PointerEvent) => void) => {
     e.preventDefault();
@@ -2220,7 +2246,7 @@ export default function App() {
                 {peekThread && hover?.x !== undefined && hover.y !== undefined && !minimal && (
                   <CommentPeek thread={peekThread} x={hover.x} y={hover.y} />
                 )}
-                {!isWeb && !minimal && <SelectionMenu containerRef={workspaceRef} onComment={startComment} />}
+                {!isWeb && !minimal && <SelectionMenu containerRef={workspaceRef} onComment={startComment} onAskAi={hasAssistant ? askAi : undefined} />}
                 {outlineOpen && !minimal && (
                   <div
                     className="resizer outline-resizer"
@@ -2314,7 +2340,14 @@ export default function App() {
               }}
             />
             <div className="ai-column" style={{ width: aiWidth }}>
-              <AiChat root={root} activePath={activePath} onOpenFile={openLink} onClose={() => setAiOpen(false)} />
+              <AiChat
+                root={root}
+                activePath={activePath}
+                quote={aiQuote}
+                onDropQuote={() => setAiQuote(null)}
+                onOpenFile={openLink}
+                onClose={() => setAiOpen(false)}
+              />
             </div>
           </>
         )}
