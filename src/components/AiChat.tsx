@@ -43,6 +43,8 @@ import { api } from "../lib/api";
 import { BlockRenderer } from "../lib/blockRenderer";
 import { basename, isInside, isMarkdown, relative, resolve, splitLink } from "../lib/paths";
 import { useStoredState } from "../lib/useStoredState";
+import type { LicenseStatus } from "../lib/license";
+import { LicenseForm } from "./License";
 
 interface AiChatProps {
   /** The window's open folder: what the chat is about. */
@@ -60,6 +62,9 @@ interface AiChatProps {
   onSaveNote: (turn: { question: string; quote?: string; answer: string }) => void;
   /** Whether a document has changes not saved yet, which a change from the assistant would conflict with. */
   isUnsaved: (path: string) => boolean;
+  /** Mido Pro's license: without it, the panel offers it instead of the chat. */
+  license: LicenseStatus;
+  onLicense: (status: LicenseStatus) => void;
   onOpenFile: (path: string, anchor?: string) => void;
   onClose: () => void;
 }
@@ -246,27 +251,39 @@ export default function AiChat(props: AiChatProps) {
           </button>
         </span>
       </header>
-      <div className="segmented ai-chat-scope" role="radiogroup" aria-label="What the assistant reads">
-        {SCOPES.map((s) => (
-          <button
-            key={s.id}
-            role="radio"
-            aria-checked={scope === s.id}
-            className={scope === s.id ? "selected" : ""}
-            onMouseEnter={() => s.id === "allProjects" && void otherProjects().then(setOthers, () => {})}
-            onClick={() => setScope(s.id)}
-            title={
-              s.id === "allProjects"
-                ? `${s.title}: ${[basename(root), ...others.map(basename)].join(", ")}`
-                : s.title
-            }
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
+      {props.license.active && (
+        <div className="segmented ai-chat-scope" role="radiogroup" aria-label="What the assistant reads">
+          {SCOPES.map((s) => (
+            <button
+              key={s.id}
+              role="radio"
+              aria-checked={scope === s.id}
+              className={scope === s.id ? "selected" : ""}
+              onMouseEnter={() => s.id === "allProjects" && void otherProjects().then(setOthers, () => {})}
+              onClick={() => setScope(s.id)}
+              title={
+                s.id === "allProjects"
+                  ? `${s.title}: ${[basename(root), ...others.map(basename)].join(", ")}`
+                  : s.title
+              }
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {program === null ? (
+      {!props.license.active ? (
+        <div className="outline-empty ai-chat-empty ai-chat-pro">
+          <Sparkles size={18} />
+          <b>The assistant is part of Mido Pro</b>
+          <span>
+            Chat with Claude Code about your documents, ask about a passage, and have it write notes and changes. Bought
+            once.
+          </span>
+          <LicenseForm status={props.license} onChange={props.onLicense} />
+        </div>
+      ) : program === null ? (
         <NotInstalled onRetry={detect} />
       ) : (
         <>

@@ -375,6 +375,7 @@ pub async fn ai_send<R: Runtime>(
     notes_folder: String,
     on_event: EventChannel,
 ) -> Result<(), String> {
+    crate::license::require(&window.state::<crate::license::Licenses>())?;
     // The folders come from the backend, not the webview.
     let workspaces = window.state::<crate::Workspaces>();
     let root = workspaces.root(window.label())?.filter(|p| p.is_dir()).ok_or("Open a folder to chat about it")?;
@@ -440,6 +441,7 @@ pub async fn ai_answer<R: Runtime>(
     request_id: String,
     allow: bool,
 ) -> Result<(), String> {
+    crate::license::require(&window.state::<crate::license::Licenses>())?;
     let running = assistants.running.lock().map_err(crate::err)?;
     let session = running.get(window.label()).ok_or("The assistant has stopped")?;
     // Only what it asked, and as it asked it: the webview only says yes or no.

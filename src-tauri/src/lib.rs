@@ -5,6 +5,7 @@ mod comments;
 mod floating;
 mod folders;
 mod git;
+mod license;
 mod search;
 mod terminal;
 mod window_state;
@@ -914,6 +915,7 @@ pub fn run() {
                 app.set_menu(build_menu(app.handle())?)?;
             }
             // The main window (not created from the config, to open on the theme's background).
+            app.manage(license::Licenses::load(app.path().app_data_dir()?.join("license.json")));
             app.manage(background::Background::load(app.path().app_data_dir()?.join("window-background")));
             // Where it was left (see `window_state`).
             app.manage(window_state::WindowState::load(app.path().app_data_dir()?.join("window-state.json")));
@@ -1010,6 +1012,9 @@ pub fn run() {
             ai::ai_send,
             ai::ai_projects,
             ai::ai_answer,
+            license::license_check,
+            license::license_activate,
+            license::license_deactivate,
             ai::ai_stop,
             terminal::pty_spawn,
             terminal::pty_write,

@@ -2196,6 +2196,8 @@ dependencies = [
  "percent-encoding",
  "portable-pty",
  "regex",
+ "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "tauri",

@@ -25,6 +25,9 @@ tempfile = "3"
 regex = "1"
 percent-encoding = "2"
 portable-pty = "0.9"
+# Mido Pro licenses (Polar): the same client and TLS the updater uses.
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 
 [profile.release]
 lto = true

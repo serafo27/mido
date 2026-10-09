@@ -17,6 +17,8 @@ import {
   type Settings,
 } from "../lib/settings";
 import ThemeSection from "./ThemeSection";
+import { LicenseForm, LicenseSummary } from "./License";
+import type { LicenseStatus } from "../lib/license";
 
 interface SettingsPanelProps {
   settings: Settings;
@@ -24,6 +26,9 @@ interface SettingsPanelProps {
   systemDark: boolean;
   onChange: (patch: Partial<Settings>) => void;
   onCheckForUpdates: () => void;
+  /** Mido Pro's license; null where there's none to have (web, embedded) or while it's checked. */
+  license: LicenseStatus | null;
+  onLicense: (status: LicenseStatus) => void;
   onClose: () => void;
 }
 
@@ -290,6 +295,33 @@ export default function SettingsPanel(props: SettingsPanelProps) {
         {!isEmbed && (
           <Section title="Themes">
             <ThemeSection settings={settings} systemDark={systemDark} onChange={onChange} />
+          </Section>
+        )}
+
+        {props.license?.available && (
+          <Section title="Mido Pro">
+            {props.license.active ? (
+              <>
+                <LicenseSummary status={props.license} onChange={props.onLicense} />
+                <Row label="Assistant notes folder">
+                  <input
+                    className="text-input settings-folder"
+                    value={settings.aiFolder}
+                    spellCheck={false}
+                    onChange={(e) => onChange({ aiFolder: e.target.value })}
+                    onBlur={(e) => !e.target.value.trim() && onChange({ aiFolder: DEFAULT_SETTINGS.aiFolder })}
+                  />
+                </Row>
+              </>
+            ) : (
+              <>
+                <p className="settings-note">
+                  The assistant: chat with Claude Code about your documents, ask about a passage, and have it write notes
+                  and changes. Bought once; paste your license key to turn it on.
+                </p>
+                <LicenseForm status={props.license} onChange={props.onLicense} />
+              </>
+            )}
           </Section>
         )}
 

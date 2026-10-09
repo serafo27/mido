@@ -227,6 +227,10 @@ export const commands: Record<string, (args: Record<string, unknown>, options?: 
   ai_send: desktopOnly,
   ai_projects: () => [],
   ai_answer: desktopOnly,
+  /** Mido Pro is for the desktop app. */
+  license_check: () => ({ available: false, active: false, key: null, email: null, problem: null, portal: null, checkout: null }),
+  license_activate: desktopOnly,
+  license_deactivate: desktopOnly,
   ai_stop: () => undefined,
 
   /** Comments can't be written here, so nobody needs to sign them. */

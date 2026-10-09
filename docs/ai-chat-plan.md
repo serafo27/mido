@@ -108,20 +108,23 @@ Un selettore in cima al pannello:
 
 ### 6. Solo per utenti Pro
 
-Oggi non c'è infrastruttura di licenza: è il blocco più grosso e serve a tutte
-le future funzioni Pro.
+Fatto con **Polar** (Merchant of Record: IVA e fatture a carico suo), prodotto
+una tantum con il benefit License Keys (`src-tauri/src/license.rs`).
 
-- Vendita tramite Lemon Squeezy, Paddle o Keygen.
-- Verifica **offline in Rust**: la licenza è un JSON firmato Ed25519 (email,
-  piano, scadenza); la chiave pubblica sta nell'app, come per l'updater. La
-  chiave privata vive solo nel servizio che emette le licenze, mai nel repo.
-- I comandi `ai_*` controllano la licenza nel backend, non solo
-  nell'interfaccia.
-- Il sorgente è visibile: chi compila da sé può togliere il controllo. Con la
-  licenza proprietaria è un problema legale, non tecnico; niente
-  offuscamento.
-- Senza licenza il pulsante resta visibile con un lucchetto e porta a "Passa a
-  Pro".
+- Attivazione online per computer (`activate`), con l'ID di attivazione salvato
+  in `license.json` nella cartella dati dell'app; verifica con Polar ogni 7
+  giorni (`validate` con l'ID di attivazione); offline funziona fino a 30 giorni
+  dall'ultima verifica. Chiave revocata (rimborso) o computer liberato dal
+  portale: Mido Pro si spegne e lo dice.
+- Endpoint pubblici di Polar: nessun token nell'app. Le build di sviluppo usano
+  il sandbox; quelle rilasciate lo store vero, che non c'è ancora (`LIVE`), quindi
+  per ora non offrono Mido Pro.
+- I comandi `ai_send` e `ai_answer` rifiutano senza licenza. Senza licenza il
+  pannello mostra l'attivazione al posto della chat; in Impostazioni c'è la
+  sezione "Mido Pro" (attivazione, oppure stato, portale acquisti, disattivazione
+  su questo computer e cartella delle note).
+- Il cliente trova la chiave nel portale clienti di Polar, non nella pagina di
+  conferma: il link "Where's my license key?" porta lì.
 
 ### 7. Rifiniture
 
@@ -148,4 +151,4 @@ le future funzioni Pro.
    Proposta: partire solo con Claude Code.
 2. ~~**Scrittura**~~: deciso. File nuovi liberi nella cartella note, modifiche
    agli altri file con conferma e diff.
-3. **Servizio di vendita delle licenze**: quale?
+3. ~~**Servizio di vendita delle licenze**~~: Polar, una tantum.

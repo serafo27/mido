@@ -79,6 +79,7 @@ import Preview, {
 import Outline from "./components/Outline";
 import Comments, { CommentPeek, type PlacedThread } from "./components/Comments";
 import AiChat from "./components/AiChat";
+import { checkLicense, type LicenseStatus } from "./lib/license";
 import SelectionMenu from "./components/SelectionMenu";
 import {
   buildThreads,
@@ -203,8 +204,14 @@ export default function App() {
   }, []);
 
   const settings = useMemo<Settings>(() => ({ ...DEFAULT_SETTINGS, ...storedSettings }), [storedSettings]);
-  // The assistant runs Claude Code on this computer: the desktop app's own, still behind a setting.
-  const hasAssistant = hasTerminal && (import.meta.env.DEV || settings.aiChat);
+  // Mido Pro: its license, checked with the store at launch (now and then).
+  const [license, setLicense] = useState<LicenseStatus | null>(null);
+  useEffect(() => {
+    if (hasTerminal) checkLicense().then(setLicense, () => {});
+  }, []);
+  // The assistant runs Claude Code on this computer: the desktop app's own, offered once Mido Pro is on sale.
+  const hasAssistant = hasTerminal && !!license?.available;
+  const licensed = !!license?.active;
   const hasAssistantRef = useRef(hasAssistant);
   hasAssistantRef.current = hasAssistant;
   const updateSettings = useCallback(
@@ -2063,6 +2070,8 @@ export default function App() {
           systemDark={systemDark}
           onChange={updateSettings}
           onCheckForUpdates={() => runUpdateCheck(true)}
+          license={license}
+          onLicense={setLicense}
           onClose={() => setSettingsOpen(false)}
         />
       )}
@@ -2285,7 +2294,7 @@ export default function App() {
                     {peekThread && hover?.x !== undefined && hover.y !== undefined && !minimal && (
                       <CommentPeek thread={peekThread} x={hover.x} y={hover.y} />
                     )}
-                    {!isWeb && !minimal && <SelectionMenu containerRef={workspaceRef} onComment={startComment} onAskAi={hasAssistant ? askAi : undefined} />}
+                    {!isWeb && !minimal && <SelectionMenu containerRef={workspaceRef} onComment={startComment} onAskAi={licensed ? askAi : undefined} />}
                     {outlineOpen && !minimal && (
                       <div
                         className="resizer outline-resizer"
@@ -2355,6 +2364,8 @@ export default function App() {
                   notesFolder={settings.aiFolder}
                   onSaveNote={saveAiNote}
                   isUnsaved={isUnsaved}
+                  license={license!}
+                  onLicense={setLicense}
                   onOpenFile={openLink}
                   onClose={() => setAiOpen(false)}
                 />
