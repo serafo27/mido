@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, FileText, GitCompareArrows, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, GitCompareArrows, Sparkles, X } from "lucide-react";
 import { basename, dirname } from "../lib/paths";
 
 export interface TabInfo {
@@ -7,8 +7,10 @@ export interface TabInfo {
   path: string;
   dirty: boolean;
   preview: boolean;
-  /** A diff rather than a file. */
+  /** A diff rather than a file (or a chat, with `chat`): its name. */
   diff?: { name: string; detail: string; title: string };
+  /** An assistant's conversation. */
+  chat?: boolean;
 }
 
 interface TabBarProps {
@@ -135,7 +137,13 @@ export default function TabBar({ tabs, activePath, onSelect, onPin, onClose, onM
               setDropIndex(null);
             }}
           >
-            {tab.diff ? <GitCompareArrows size={13} className="tab-icon" /> : <FileText size={13} className="tab-icon" />}
+            {tab.chat ? (
+              <Sparkles size={13} className="tab-icon" />
+            ) : tab.diff ? (
+              <GitCompareArrows size={13} className="tab-icon" />
+            ) : (
+              <FileText size={13} className="tab-icon" />
+            )}
             <span className="tab-name">{names[i]}</span>
             {hint(i) && <span className="tab-hint">{hint(i)}</span>}
             <button

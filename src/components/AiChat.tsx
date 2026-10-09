@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   ArrowUp,
@@ -11,6 +11,8 @@ import {
   History,
   MessageSquare,
   MessageSquareX,
+  PanelRight,
+  PanelTop,
   Plus,
   Search,
   ShieldQuestion,
@@ -19,65 +21,52 @@ import {
   X,
 } from "lucide-react";
 import {
-  answerAssistant,
-  closeConversation,
-  composeMessage,
-  decide,
   describeTool,
-  detectAssistant,
-  documentsToShare,
   EMPTY_CHAT,
-  forgetConversation,
   history,
   INSTALL_COMMAND,
   lineDiff,
-  loadConversations,
-  newConversation,
-  openConversation,
   otherProjects,
-  reduce,
-  saveConversations,
-  sendToAssistant,
-  stopAssistant,
-  titleFor,
   turns,
   writesFiles,
   type Chat,
   type ChatItem,
   type Conversation,
-  type Conversations,
   type DiffLine,
   type PermissionRequest,
   type Scope,
   type ToolUse,
 } from "../lib/ai";
+import type { Assistant } from "../lib/useAssistant";
 import { api } from "../lib/api";
 import { BlockRenderer } from "../lib/blockRenderer";
 import { basename, isInside, isMarkdown, relative, resolve, splitLink } from "../lib/paths";
-import { useStoredState } from "../lib/useStoredState";
 import type { LicenseStatus } from "../lib/license";
 import { ProOffer } from "./License";
 
-interface AiChatProps {
-  /** The window's open folder: what the chat is about. */
+interface ChatProps {
+  /** The window's conversations, and talking to the assistant (lib/useAssistant.ts). */
+  assistant: Assistant;
+  /** The window's open folder: what the chats are about. */
   root: string;
-  /** The document being read, if any. */
-  activePath: string | null;
-  /** The documents open in the window's tabs, with their unsaved changes: what the "Open files" scope reads. */
-  openDocuments: () => { path: string; content: string }[];
-  /** Text selected in the document to ask about, until it's sent or dropped. */
-  quote: { text: string; n: number } | null;
-  onDropQuote: () => void;
   /** Where the assistant writes, relative to the folder. */
   notesFolder: string;
   /** Saves a question and its answer as a note in the project. */
   onSaveNote: (turn: { question: string; quote?: string; answer: string }) => void;
   /** Whether a document has changes not saved yet, which a change from the assistant would conflict with. */
   isUnsaved: (path: string) => boolean;
-  /** Mido Pro's license: without it, the panel offers it instead of the chat. */
+  /** Mido Pro's license: without it, the assistant offers it instead. */
   license: LicenseStatus;
   onLicense: (status: LicenseStatus) => void;
   onOpenFile: (path: string, anchor?: string) => void;
+}
+
+interface AiChatProps extends ChatProps {
+  /** Text selected in the document to ask about, until it's sent or dropped. */
+  quote: { text: string; n: number } | null;
+  onDropQuote: () => void;
+  /** Moves a conversation into a tab, to read it wide. */
+  onOpenInTab: (id: string) => void;
   onClose: () => void;
 }
 
@@ -97,177 +86,204 @@ const QUICK_ASKS = [
 ];
 
 /**
- * Chats about the open folder's documents with Claude Code, installed on the
- * computer (src-tauri/src/ai.rs). Several conversations per folder: the open
- * ones in a list in the header, the closed ones in the history, shown when
- * none is open. Kept per folder, and resumed when it opens again.
+ * The assistant's side panel: chats about the open folder's documents with
+ * Claude Code, installed on the computer. Several conversations per folder:
+ * the open ones in a list in the header, the closed ones in the history,
+ * shown when none is open. A conversation can move into a tab (ChatTab).
  */
 export default function AiChat(props: AiChatProps) {
-  const { root, activePath, openDocuments, quote, onDropQuote, notesFolder, onSaveNote, isUnsaved, onOpenFile, onClose } = props;
-  // Conversations whose changes are all allowed without asking ("Allow all in this chat").
-  const [allowAll, setAllowAll] = useState<Set<string>>(() => new Set());
-  const [scope, setScope] = useStoredState<Scope>("mido.aiScope", "project", { shared: true });
-  // The folders "All projects" adds, shown in its tooltip.
-  const [others, setOthers] = useState<string[]>([]);
-  // undefined: still looking for it.
-  const [program, setProgram] = useState<string | null | undefined>(undefined);
-  const [convs, setConvs] = useState<Conversations>(() => loadConversations(root));
+  const { assistant, root, quote, onDropQuote, onClose } = props;
+  const { convs } = assistant;
   const current = convs.all.find((c) => c.id === convs.active) ?? null;
-  const chat: Chat = current ?? EMPTY_CHAT;
-  const [draft, setDraft] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   // The history shown in place of the conversation, from its button.
   const [historyShown, setHistoryShown] = useState(false);
+  useEffect(() => setMenuOpen(false), [root]);
+
+  const show = (id: string) => {
+    setMenuOpen(false);
+    setHistoryShown(false);
+    assistant.show(id);
+  };
+  const newChat = () => {
+    setMenuOpen(false);
+    setHistoryShown(false);
+    assistant.newChat();
+  };
+
+  const licensed = props.license.active;
+  const past = history(convs);
+  // Every conversation with something in it, latest first: the history button's list.
+  const everything = convs.all.filter((c) => c.items.length > 0).sort((a, b) => b.updated - a.updated);
+  const showingHistory = (historyShown && everything.length > 0) || (!current && past.length > 0);
+  const openConvs = convs.open.flatMap((id) => convs.all.filter((c) => c.id === id));
+  return (
+    <aside className="outline ai-chat" aria-label="Assistant">
+      <header className="outline-header">
+        {licensed && (current || past.length > 0) ? (
+          <ConversationMenu
+            title={showingHistory ? "History" : current ? current.title || "New chat" : "History"}
+            open={menuOpen}
+            onToggle={() => setMenuOpen((o) => !o)}
+            onDismiss={() => setMenuOpen(false)}
+            openConvs={openConvs}
+            past={past}
+            active={convs.active}
+            onShow={show}
+            onClose={assistant.close}
+            onNew={newChat}
+          />
+        ) : (
+          <span>Assistant</span>
+        )}
+        <span className="comments-actions">
+          {licensed && (
+            <button className="icon-button" onClick={newChat} title="New chat">
+              <Plus size={15} />
+            </button>
+          )}
+          {licensed && everything.length > 0 && (
+            <button
+              className={`icon-button ${showingHistory ? "active" : ""}`}
+              onClick={() => setHistoryShown((h) => !h)}
+              title="History: every chat about this folder"
+              aria-pressed={showingHistory}
+            >
+              <History size={14} />
+            </button>
+          )}
+          {licensed && current && current.items.length > 0 && !showingHistory && (
+            <button className="icon-button" onClick={() => props.onOpenInTab(current.id)} title="Open in a tab, to read it wide">
+              <PanelTop size={14} />
+            </button>
+          )}
+          {licensed && current && !showingHistory && (
+            <button className="ai-chat-close-chat" onClick={() => assistant.close(current.id)} title="Close this chat: it stays in the history">
+              <MessageSquareX size={13} />
+              <span>Close chat</span>
+            </button>
+          )}
+          <button className="icon-button" onClick={onClose} title="Close the assistant">
+            <X size={14} />
+          </button>
+        </span>
+      </header>
+      {licensed && <ScopeSwitch assistant={assistant} root={root} />}
+      {!licensed ? (
+        <ProOffer status={props.license} onChange={props.onLicense} />
+      ) : (
+        <ChatView
+          {...props}
+          conv={current}
+          quote={quote}
+          onDropQuote={onDropQuote}
+          onSent={() => setHistoryShown(false)}
+          replaceList={
+            showingHistory ? (
+              <HistoryList
+                past={historyShown ? everything : past}
+                openIds={convs.open}
+                onShow={show}
+                onForget={assistant.forget}
+              />
+            ) : undefined
+          }
+        />
+      )}
+    </aside>
+  );
+}
+
+/** A conversation in a tab, to read it wide; it can go back to the side panel. */
+export function ChatTab(props: ChatProps & { id: string; onMoveToPanel: (id: string) => void }) {
+  const { assistant, id } = props;
+  const conv = assistant.convs.all.find((c) => c.id === id) ?? null;
+  return (
+    <div className="ai-chat-tab">
+      <header className="ai-chat-tab-header">
+        <Sparkles size={15} />
+        <h1>{conv?.title || "Chat"}</h1>
+        {props.license.active && <ScopeSwitch assistant={assistant} root={props.root} />}
+        <button className="ghost-button" onClick={() => props.onMoveToPanel(id)} title="Move this chat back to the assistant's panel">
+          <PanelRight size={14} />
+          Side panel
+        </button>
+      </header>
+      {!props.license.active ? (
+        <ProOffer status={props.license} onChange={props.onLicense} />
+      ) : (
+        <ChatView {...props} conv={conv} wide />
+      )}
+    </div>
+  );
+}
+
+const SCOPE_SWITCH = "segmented ai-chat-scope";
+
+/** What the assistant reads: the open files, the project, or every open project. */
+function ScopeSwitch({ assistant, root }: { assistant: Assistant; root: string }) {
+  // The folders "All projects" adds, shown in its tooltip.
+  const [others, setOthers] = useState<string[]>([]);
+  return (
+    <div className={SCOPE_SWITCH} role="radiogroup" aria-label="What the assistant reads">
+      {SCOPES.map((s) => (
+        <button
+          key={s.id}
+          role="radio"
+          aria-checked={assistant.scope === s.id}
+          className={assistant.scope === s.id ? "selected" : ""}
+          onMouseEnter={() => s.id === "allProjects" && void otherProjects().then(setOthers, () => {})}
+          onClick={() => assistant.setScope(s.id)}
+          title={s.id === "allProjects" ? `${s.title}: ${[basename(root), ...others.map(basename)].join(", ")}` : s.title}
+        >
+          {s.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A conversation and the box to ask in: in the panel (`conv` null: the next
+ * question starts one) or in a tab (`wide`).
+ */
+function ChatView(
+  props: ChatProps & {
+    conv: Conversation | null;
+    quote?: { text: string; n: number } | null;
+    onDropQuote?: () => void;
+    /** Shown in place of the conversation (the history). */
+    replaceList?: ReactNode;
+    onSent?: () => void;
+    wide?: boolean;
+  },
+) {
+  const { assistant, conv, root, quote, notesFolder, onSaveNote, isUnsaved, onOpenFile } = props;
+  const { program } = assistant;
+  const chat: Chat = conv ?? EMPTY_CHAT;
+  const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // Following the answer: scrolled to the bottom, until the user scrolls up.
   const following = useRef(true);
 
-  const detect = useCallback(() => {
-    setProgram(undefined);
-    detectAssistant().then(setProgram, () => setProgram(null));
-  }, []);
-  useEffect(detect, [detect]);
-
-  /** Changes the conversation `id`'s chat. */
-  const update = useCallback((id: string, change: (chat: Chat) => Chat) => {
-    setConvs((cs) => ({ ...cs, all: cs.all.map((c) => (c.id === id ? { ...c, ...change(c) } : c)) }));
-  }, []);
-
-  // The files it wrote that were opened: each opens once, when it's written (not when the chat is shown again).
-  const opened = useRef<Set<string> | null>(null);
-  if (!opened.current) opened.current = toolIds(convs.all.flatMap((c) => c.items));
-
-  // Another folder: its own conversations. The answer on its way for the last one stops.
-  const shownRoot = useRef(root);
-  useEffect(() => {
-    if (shownRoot.current === root) return;
-    shownRoot.current = root;
-    void stopAssistant().catch(() => {});
-    const next = loadConversations(root);
-    opened.current = toolIds(next.all.flatMap((c) => c.items));
-    setConvs(next);
-    setMenuOpen(false);
-  }, [root]);
-
-  /** The user's answer to a request to write. */
-  const answer = useCallback(
-    (id: string, requestId: string, allow: boolean) => {
-      update(id, (c) => decide(c, requestId, allow));
-      answerAssistant(requestId, allow).catch((e) =>
-        update(id, (c) => ({ ...c, items: [...c.items, { kind: "error", text: String(e) }] })),
-      );
-    },
-    [update],
-  );
-
-  useEffect(() => {
-    for (const conv of convs.all) {
-      if (!allowAll.has(conv.id)) continue;
-      for (const item of conv.items) if (item.kind === "permission" && item.status === "pending") answer(conv.id, item.requestId, true);
-    }
-  }, [allowAll, convs.all, answer]);
-
-  // A document it wrote opens, to see it.
-  useEffect(() => {
-    for (const item of convs.all.flatMap((c) => c.items)) {
-      if (item.kind !== "tool" || !writesFiles(item) || item.status !== "done" || opened.current!.has(item.id)) continue;
-      opened.current!.add(item.id);
-      const { path } = describeTool(item, root);
-      if (path && isMarkdown(path)) onOpenFile(path);
-    }
-  }, [convs.all, root, onOpenFile]);
-
-  // Kept once no answer is on its way.
-  const busy = convs.all.some((c) => c.busy);
-  useEffect(() => {
-    if (!busy && shownRoot.current === root) saveConversations(root, convs);
-  }, [busy, convs, root]);
-
-  // Stops the answer when the panel closes.
-  useEffect(() => () => void stopAssistant().catch(() => {}), []);
-
   useLayoutEffect(() => {
     const list = listRef.current;
     if (list && following.current) list.scrollTop = list.scrollHeight;
-  }, [chat.items, convs.active]);
+  }, [chat.items, conv?.id]);
 
   // Ready to ask: when it's found, for each passage picked, and in each conversation shown.
-  useEffect(() => inputRef.current?.focus(), [program, quote?.n, convs.active]);
+  useEffect(() => inputRef.current?.focus(), [program, quote?.n, conv?.id]);
+
+  if (program === null) return <NotInstalled onRetry={assistant.detect} />;
 
   const send = (asked = draft) => {
-    const text = asked.trim();
-    if (!text || chat.busy) return;
-    // Nothing open: a new conversation.
-    const conv = current ?? newConversation();
-    const document = activePath ? relative(root, activePath) : undefined;
-    const open = openDocuments().map((d) => ({ path: relative(root, d.path), content: d.content }));
-    const share = scope === "openFiles" ? documentsToShare(open, conv.shared) : null;
-    const message = composeMessage(text, {
-      document,
-      quote: quote?.text,
-      open: share ? open.map((d) => d.path) : undefined,
-      documents: share?.documents,
-    });
-    const forRoot = root;
-    const item: ChatItem = quote ? { kind: "user", text, quote: quote.text } : { kind: "user", text };
+    if (!asked.trim() || chat.busy) return;
+    if (!assistant.send(conv?.id ?? null, asked, quote?.text ?? undefined)) return;
     setDraft("");
-    onDropQuote();
-    setHistoryShown(false);
+    props.onDropQuote?.();
+    props.onSent?.();
     following.current = true;
-    setConvs((cs) => {
-      const all = cs.all.some((c) => c.id === conv.id) ? cs.all : [...cs.all, conv];
-      return openConversation(
-        {
-          ...cs,
-          all: all.map((c) =>
-            c.id === conv.id
-              ? {
-                  ...c,
-                  busy: true,
-                  shared: share?.shared ?? c.shared,
-                  items: [...c.items, item],
-                  title: c.title || titleFor(text),
-                  updated: Date.now(),
-                }
-              : c,
-          ),
-        },
-        conv.id,
-      );
-    });
-    sendToAssistant(message, conv.session, scope, notesFolder, (line) => {
-      if (shownRoot.current === forRoot) update(conv.id, (c) => reduce(c, line));
-    }).catch((e) => update(conv.id, (c) => ({ ...c, busy: false, items: [...c.items, { kind: "error", text: String(e) }] })));
-  };
-
-  const stop = () => {
-    for (const c of convs.all) if (c.busy) update(c.id, (chat) => ({ ...chat, busy: false, streaming: undefined }));
-    void stopAssistant().catch(() => {});
-  };
-
-  /** A new, empty conversation (or the empty one already open). */
-  const newChat = () => {
-    setMenuOpen(false);
-    setHistoryShown(false);
-    const empty = convs.all.find((c) => convs.open.includes(c.id) && c.items.length === 0);
-    if (empty) setConvs((cs) => openConversation(cs, empty.id));
-    else {
-      const conv = newConversation();
-      setConvs((cs) => openConversation({ ...cs, all: [...cs.all, conv] }, conv.id));
-    }
-    inputRef.current?.focus();
-  };
-
-  const show = (id: string) => {
-    setMenuOpen(false);
-    setHistoryShown(false);
-    setConvs((cs) => openConversation(cs, id));
-  };
-
-  const close = (id: string) => {
-    if (convs.all.find((c) => c.id === id)?.busy) stop();
-    setConvs((cs) => closeConversation(cs, id));
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -276,7 +292,7 @@ export default function AiChat(props: AiChatProps) {
       send();
     } else if (e.key === "Escape" && chat.busy) {
       e.preventDefault();
-      stop();
+      assistant.stop();
     }
   };
 
@@ -306,108 +322,25 @@ export default function AiChat(props: AiChatProps) {
     else void revealItemInDir(target).catch(console.error);
   };
 
-  const licensed = props.license.active;
-  const past = history(convs);
-  // Every conversation with something in it, latest first: the history button's list.
-  const everything = convs.all.filter((c) => c.items.length > 0).sort((a, b) => b.updated - a.updated);
-  const showingHistory = (historyShown && everything.length > 0) || (!current && past.length > 0);
-  const openConvs = convs.open.flatMap((id) => convs.all.filter((c) => c.id === id));
   return (
-    <aside className="outline ai-chat" aria-label="Assistant">
-      <header className="outline-header">
-        {licensed && (current || past.length > 0) ? (
-          <ConversationMenu
-            title={showingHistory ? "History" : current ? current.title || "New chat" : "History"}
-            open={menuOpen}
-            onToggle={() => setMenuOpen((o) => !o)}
-            onDismiss={() => setMenuOpen(false)}
-            openConvs={openConvs}
-            past={past}
-            active={convs.active}
-            onShow={show}
-            onClose={close}
-            onNew={newChat}
-          />
-        ) : (
-          <span>Assistant</span>
-        )}
-        <span className="comments-actions">
-          {licensed && (
-            <button className="icon-button" onClick={newChat} title="New chat">
-              <Plus size={15} />
-            </button>
-          )}
-          {licensed && everything.length > 0 && (
-            <button
-              className={`icon-button ${showingHistory ? "active" : ""}`}
-              onClick={() => setHistoryShown((h) => !h)}
-              title="History: every chat about this folder"
-              aria-pressed={showingHistory}
-            >
-              <History size={14} />
-            </button>
-          )}
-          {licensed && current && !showingHistory && (
-            <button className="ai-chat-close-chat" onClick={() => close(current.id)} title="Close this chat: it stays in the history">
-              <MessageSquareX size={13} />
-              <span>Close chat</span>
-            </button>
-          )}
-          <button className="icon-button" onClick={onClose} title="Close the assistant">
-            <X size={14} />
-          </button>
-        </span>
-      </header>
-      {licensed && (
-        <div className="segmented ai-chat-scope" role="radiogroup" aria-label="What the assistant reads">
-          {SCOPES.map((s) => (
-            <button
-              key={s.id}
-              role="radio"
-              aria-checked={scope === s.id}
-              className={scope === s.id ? "selected" : ""}
-              onMouseEnter={() => s.id === "allProjects" && void otherProjects().then(setOthers, () => {})}
-              onClick={() => setScope(s.id)}
-              title={
-                s.id === "allProjects"
-                  ? `${s.title}: ${[basename(root), ...others.map(basename)].join(", ")}`
-                  : s.title
-              }
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {!licensed ? (
-        <ProOffer status={props.license} onChange={props.onLicense} />
-      ) : program === null ? (
-        <NotInstalled onRetry={detect} />
-      ) : (
-        <>
-          <div
-            className="ai-chat-list"
-            ref={listRef}
-            onClick={followLink}
-            onScroll={(e) => {
-              const list = e.currentTarget;
-              following.current = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
-            }}
-          >
-            {showingHistory ? (
-              <HistoryList
-                past={historyShown ? everything : past}
-                openIds={convs.open}
-                onShow={show}
-                onForget={(id) => setConvs((cs) => forgetConversation(cs, id))}
-              />
-            ) : chat.items.length === 0 ? (
+    <>
+      <div
+        className={`ai-chat-list ${props.wide ? "wide" : ""}`}
+        ref={listRef}
+        onClick={followLink}
+        onScroll={(e) => {
+          const list = e.currentTarget;
+          following.current = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+        }}
+      >
+        <div className="ai-chat-column">
+          {props.replaceList ??
+            (chat.items.length === 0 ? (
               <div className="outline-empty ai-chat-empty">
                 <Sparkles size={18} />
                 <span>
-                  Ask Claude about the documents in <b>{basename(root)}</b>: to explain them, find something, or
-                  compare them.
+                  Ask Claude about the documents in <b>{basename(root)}</b>: to explain them, find something, or compare
+                  them.
                 </span>
               </div>
             ) : (
@@ -420,8 +353,8 @@ export default function AiChat(props: AiChatProps) {
                         request={item}
                         root={root}
                         isUnsaved={isUnsaved}
-                        onAnswer={(allow) => current && answer(current.id, item.requestId, allow)}
-                        onAllowAll={() => current && setAllowAll((a) => new Set(a).add(current.id))}
+                        onAnswer={(allow) => conv && assistant.answer(conv.id, item.requestId, allow)}
+                        onAllowAll={() => conv && assistant.allowAllIn(conv.id)}
                         onOpenFile={onOpenFile}
                       />
                     ) : item.kind === "tool" && asked.has(item.id) ? null : (
@@ -438,58 +371,57 @@ export default function AiChat(props: AiChatProps) {
                   </Fragment>
                 );
               })
-            )}
-            {chat.busy && <div className="ai-chat-thinking" aria-label="Answering" />}
-          </div>
-          <div className="ai-chat-composer">
-            {quote && (
-              <div className="ai-chat-quote">
-                <blockquote>{quote.text}</blockquote>
-                <button className="icon-button" onClick={onDropQuote} title="Don't ask about this passage">
-                  <X size={12} />
-                </button>
-                {!draft.trim() && !chat.busy && program && (
-                  <div className="ai-chat-quick">
-                    {QUICK_ASKS.map((q) => (
-                      <button key={q.label} className="ai-chat-chip" onClick={() => send(q.text)}>
-                        {q.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+            ))}
+          {!props.replaceList && chat.busy && <div className="ai-chat-thinking" aria-label="Answering" />}
+        </div>
+      </div>
+      <div className={`ai-chat-composer ${props.wide ? "wide" : ""}`}>
+        {quote && (
+          <div className="ai-chat-quote">
+            <blockquote>{quote.text}</blockquote>
+            <button className="icon-button" onClick={props.onDropQuote} title="Don't ask about this passage">
+              <X size={12} />
+            </button>
+            {!draft.trim() && !chat.busy && program && (
+              <div className="ai-chat-quick">
+                {QUICK_ASKS.map((q) => (
+                  <button key={q.label} className="ai-chat-chip" onClick={() => send(q.text)}>
+                    {q.label}
+                  </button>
+                ))}
               </div>
             )}
-            <textarea
-              ref={inputRef}
-              className="text-input"
-              rows={1}
-              placeholder={
-                program === undefined
-                  ? "Looking for Claude Code…"
-                  : quote
-                    ? "Ask about this passage…"
-                    : current
-                      ? "Ask about these documents…"
-                      : "Start a new chat…"
-              }
-              disabled={program === undefined}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={onKeyDown}
-            />
-            {chat.busy ? (
-              <button className="ai-chat-send" onClick={stop} title="Stop (Esc)">
-                <Square size={11} fill="currentColor" />
-              </button>
-            ) : (
-              <button className="ai-chat-send" onClick={() => send()} disabled={!draft.trim() || !program} title="Send (↩)">
-                <ArrowUp size={14} />
-              </button>
-            )}
           </div>
-        </>
-      )}
-    </aside>
+        )}
+        <textarea
+          ref={inputRef}
+          className="text-input"
+          rows={1}
+          placeholder={
+            program === undefined
+              ? "Looking for Claude Code…"
+              : quote
+                ? "Ask about this passage…"
+                : conv && !props.replaceList
+                  ? "Ask about these documents…"
+                  : "Start a new chat…"
+          }
+          disabled={program === undefined}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={onKeyDown}
+        />
+        {chat.busy ? (
+          <button className="ai-chat-send" onClick={assistant.stop} title="Stop (Esc)">
+            <Square size={11} fill="currentColor" />
+          </button>
+        ) : (
+          <button className="ai-chat-send" onClick={() => send()} disabled={!draft.trim() || !program} title="Send (↩)">
+            <ArrowUp size={14} />
+          </button>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -606,8 +538,6 @@ function HistoryList(props: {
     </div>
   );
 }
-
-const toolIds = (items: ChatItem[]) => new Set(items.flatMap((i) => (i.kind === "tool" ? [i.id] : [])));
 
 function Item({ item, root, onOpenFile }: { item: ChatItem; root: string; onOpenFile: (path: string) => void }) {
   switch (item.kind) {

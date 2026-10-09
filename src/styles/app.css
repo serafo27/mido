@@ -5172,10 +5172,13 @@ body.resizing-row * {
   flex: 1;
   overflow-y: auto;
   padding: 4px 14px 16px;
+  user-select: text;
+}
+.ai-chat-column {
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  user-select: text;
 }
 .ai-chat-empty {
   margin: auto 0;
@@ -5910,4 +5913,83 @@ body.resizing-row * {
 .ai-chat .outline-header .comments-actions {
   align-items: center;
   flex: none;
+}
+
+/* A chat in a tab: the conversation in a reading column, as wide as a document's. */
+.ai-chat-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.ai-chat-tab-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.ai-chat-tab-header > svg {
+  flex: none;
+  color: var(--accent);
+}
+.ai-chat-tab-header h1 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--md-heading);
+}
+.ai-chat-tab-header .segmented.ai-chat-scope {
+  flex: none;
+  width: 300px;
+  margin: 0;
+}
+.ai-chat-tab-header .ghost-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ai-chat-list.wide {
+  padding: 28px 32px 24px;
+}
+.ai-chat-list.wide .ai-chat-column {
+  max-width: var(--md-width, 780px);
+  margin: 0 auto;
+  gap: 12px;
+}
+.ai-chat-list.wide .markdown.ai-chat-answer {
+  font-family: var(--md-font-body, var(--font-sans));
+  font-size: var(--md-font-size, 15px);
+  line-height: var(--md-line-height, 1.7);
+}
+.ai-chat-list.wide .markdown.ai-chat-answer :is(h1, h2, h3) {
+  font-size: 1.25em;
+}
+.ai-chat-list.wide .markdown.ai-chat-answer pre {
+  font-size: 13px;
+}
+.ai-chat-list.wide .ai-chat-user {
+  max-width: 75%;
+  font-size: 14px;
+}
+.ai-chat-list.wide .ai-chat-tool {
+  font-size: 12px;
+}
+.ai-chat-composer.wide {
+  width: calc(100% - 64px);
+  max-width: var(--md-width, 780px);
+  margin: 0 auto 18px;
+}
+.ai-chat-tab .pro-offer {
+  max-width: 420px;
+  margin: 0 auto;
 }

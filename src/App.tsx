@@ -78,7 +78,8 @@ import Preview, {
 } from "./components/Preview";
 import Outline from "./components/Outline";
 import Comments, { CommentPeek, type PlacedThread } from "./components/Comments";
-import AiChat from "./components/AiChat";
+import AiChat, { ChatTab } from "./components/AiChat";
+import { useAssistant } from "./lib/useAssistant";
 import { checkLicense, type LicenseStatus } from "./lib/license";
 import SelectionMenu from "./components/SelectionMenu";
 import {
@@ -134,6 +135,9 @@ interface DiffTab {
 
 const diffTabKey = (target: DiffTarget) => `diff:${diffKey(target)}`;
 const isDiffKey = (key: string) => key.startsWith("diff:");
+/** An assistant's conversation open in a tab: "chat:" and its id. */
+const isChatKey = (key: string) => key.startsWith("chat:");
+const chatKey = (id: string) => `chat:${id}`;
 
 /** What a diff tab is called, as in VS Code: "a.md (Working Tree)". */
 function diffTabInfo(target: DiffTarget) {
@@ -223,7 +227,10 @@ export default function App() {
   const [tabs, setTabs] = useState<Tab[]>([]);
   // Diffs open in tabs next to the files' (see `openDiff`); one of them may be the active tab.
   const [diffTabs, setDiffTabs] = useState<DiffTab[]>([]);
+  // The active tab that isn't a file's: a diff's, or a chat's.
   const [activeDiff, setActiveDiff] = useState<string | null>(null);
+  // The assistant's conversations open in tabs, by id.
+  const [chatTabs, setChatTabs] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -251,8 +258,14 @@ export default function App() {
   // Latest values for async callbacks and event listeners.
   const live = useRef({ tabs, activePath, mode, settings, root });
   live.current = { tabs, activePath, mode, settings, root };
-  const liveDiffs = useRef({ diffTabs, activeDiff });
-  liveDiffs.current = { diffTabs, activeDiff };
+  const liveDiffs = useRef({ diffTabs, activeDiff, chatTabs });
+  liveDiffs.current = { diffTabs, activeDiff, chatTabs };
+  /** The keys of every tab, in their order: files, diffs, then chats. */
+  const tabKeys = () => [
+    ...live.current.tabs.map((t) => t.path),
+    ...liveDiffs.current.diffTabs.map((t) => t.key),
+    ...liveDiffs.current.chatTabs.map(chatKey),
+  ];
   const activeDiffInfo = useMemo(() => {
     const tab = diffTabs.find((t) => t.key === activeDiff);
     return tab ? diffTabInfo(tab.target) : null;
@@ -261,7 +274,7 @@ export default function App() {
   /** Activates a file's tab or a diff's. */
   const selectTab = useCallback(
     (key: string) => {
-      if (isDiffKey(key)) return setActiveDiff(key);
+      if (isDiffKey(key) || isChatKey(key)) return setActiveDiff(key);
       setActiveDiff(null);
       setActivePath(key);
     },
@@ -459,9 +472,9 @@ export default function App() {
 
   const cycleTab = useCallback(
     (delta: number) => {
-      const { tabs, activePath } = live.current;
-      const { diffTabs, activeDiff } = liveDiffs.current;
-      const keys = [...tabs.map((t) => t.path), ...diffTabs.map((t) => t.key)];
+      const { activePath } = live.current;
+      const { activeDiff } = liveDiffs.current;
+      const keys = tabKeys();
       if (keys.length < 2) return;
       const i = keys.indexOf(activeDiff ?? activePath ?? "");
       selectTab(keys[(i + delta + keys.length) % keys.length]);
@@ -1137,16 +1150,17 @@ export default function App() {
 
   const closeDiff = useCallback(
     (key: string) => {
-      const { tabs, activePath } = live.current;
-      const { diffTabs, activeDiff } = liveDiffs.current;
+      const { activePath } = live.current;
+      const { activeDiff } = liveDiffs.current;
       setDiffTabs((ts) => ts.filter((t) => t.key !== key));
+      setChatTabs((ts) => ts.filter((id) => chatKey(id) !== key));
       if (activeDiff !== key) return;
       // Activate the neighbour, like closing a file's tab does.
-      const keys = [...tabs.map((t) => t.path), ...diffTabs.map((t) => t.key)];
+      const keys = tabKeys();
       const index = keys.indexOf(key);
       const remaining = keys.filter((k) => k !== key);
       const neighbour = remaining[Math.min(index, remaining.length - 1)];
-      if (neighbour && isDiffKey(neighbour)) setActiveDiff(neighbour);
+      if (neighbour && (isDiffKey(neighbour) || isChatKey(neighbour))) setActiveDiff(neighbour);
       else {
         setActiveDiff(null);
         if (neighbour) setActivePath(neighbour);
@@ -1482,19 +1496,24 @@ export default function App() {
     },
     [pinTab],
   );
-  const closeAnyTab = useCallback((key: string) => (isDiffKey(key) ? closeDiff(key) : closeTab(key)), [closeDiff, closeTab]);
+  const closeAnyTab = useCallback(
+    (key: string) => (isDiffKey(key) || isChatKey(key) ? closeDiff(key) : closeTab(key)),
+    [closeDiff, closeTab],
+  );
   // Files and diffs each keep their own order: a tab only moves among its kind.
   const moveAnyTab = useCallback(
     (from: number, to: number) => {
       const files = live.current.tabs.length;
+      const diffs = files + liveDiffs.current.diffTabs.length;
+      const move = <T,>(list: T[], start: number) => {
+        const next = [...list];
+        const [tab] = next.splice(from - start, 1);
+        next.splice(to - start, 0, tab);
+        return next;
+      };
       if (from < files && to < files) moveTab(from, to);
-      else if (from >= files && to >= files)
-        setDiffTabs((ts) => {
-          const next = [...ts];
-          const [tab] = next.splice(from - files, 1);
-          next.splice(to - files, 0, tab);
-          return next;
-        });
+      else if (from >= files && to >= files && from < diffs && to < diffs) setDiffTabs((ts) => move(ts, files));
+      else if (from >= diffs && to >= diffs) setChatTabs((ts) => move(ts, diffs));
     },
     [moveTab],
   );
@@ -1977,6 +1996,53 @@ export default function App() {
     [openFile],
   );
 
+  // The assistant's conversations, shared by its panel and the chats open in tabs.
+  const assistant = useAssistant({
+    root,
+    enabled: hasAssistant && licensed,
+    activePath,
+    openDocuments,
+    notesFolder: settings.aiFolder,
+    onOpenFile: openLink,
+  });
+  const activeChatId = activeDiff && isChatKey(activeDiff) ? activeDiff.slice("chat:".length) : null;
+  // Each chat's tab: its title, and an icon of its own.
+  const allTabInfos = useMemo(
+    () => [
+      ...tabInfos,
+      ...chatTabs.map((id) => {
+        const title = assistant.convs.all.find((c) => c.id === id)?.title || "Chat";
+        return { path: chatKey(id), dirty: false, preview: false, chat: true, diff: { name: title, detail: "", title } };
+      }),
+    ],
+    [tabInfos, chatTabs, assistant.convs.all],
+  );
+  /** Moves a conversation from the panel into a tab, to read it wide. */
+  const openChatInTab = useCallback(
+    (id: string) => {
+      assistant.detach(id);
+      setChatTabs((ts) => (ts.includes(id) ? ts : [...ts, id]));
+      setActiveDiff(chatKey(id));
+      // Nothing else open in the panel: it makes room.
+      if (assistant.convs.open.every((o) => o === id)) setAiOpen(false);
+    },
+    [assistant, setAiOpen],
+  );
+  /** Moves a conversation from its tab back into the panel. */
+  const moveChatToPanel = useCallback(
+    (id: string) => {
+      closeDiff(chatKey(id));
+      assistant.show(id);
+      setAiOpen(true);
+    },
+    [assistant, closeDiff, setAiOpen],
+  );
+  // Another folder: its chats' tabs go.
+  useEffect(() => {
+    setChatTabs([]);
+    setActiveDiff((key) => (key && isChatKey(key) ? null : key));
+  }, [root]);
+
   useEffect(() => {
     const target = pendingReveal.current;
     if (!target || target.path !== activePath) return;
@@ -2093,7 +2159,7 @@ export default function App() {
       showSidebarToggle={root !== null}
       sidebarOpen={root !== null && sidebarOpen}
       root={root}
-      activePath={active && !activeDiffTab ? active.path : null}
+      activePath={active && !activeDiffTab && !activeChatId ? active.path : null}
       dirty={dirty}
       mode={mode}
       wrap={settings.wrap}
@@ -2102,7 +2168,7 @@ export default function App() {
       commentsOpen={commentsOpen}
       commentCount={openThreadCount}
       // Minimal Mode shows the open file's path, as the path bar does, rather than every tab.
-      tabs={root && !settings.showPathBar && !minimal && tabInfos.length > 0 ? tabInfos : undefined}
+      tabs={root && !settings.showPathBar && !minimal && allTabInfos.length > 0 ? allTabInfos : undefined}
       activeTab={activeTabKey}
       onSelectTab={selectTab}
       onPinTab={pinAnyTab}
@@ -2208,9 +2274,9 @@ export default function App() {
         )}
         <main className="main">
           {toolbar}
-          {settings.showPathBar && tabInfos.length > 0 && !minimal && (
+          {settings.showPathBar && allTabInfos.length > 0 && !minimal && (
             <TabBar
-              tabs={tabInfos}
+              tabs={allTabInfos}
               activePath={activeTabKey}
               onSelect={selectTab}
               onPin={pinAnyTab}
@@ -2221,7 +2287,21 @@ export default function App() {
           {/* The document, and the assistant beside it: under the toolbar, over the terminal, as the comments. */}
           <div className="main-row">
             <div className="main-column">
-              {activeDiffTab ? (
+              {activeChatId && license ? (
+                <ChatTab
+                  key={activeChatId}
+                  id={activeChatId}
+                  assistant={assistant}
+                  root={root}
+                  notesFolder={settings.aiFolder}
+                  onSaveNote={saveAiNote}
+                  isUnsaved={isUnsaved}
+                  license={license}
+                  onLicense={setLicense}
+                  onOpenFile={openLink}
+                  onMoveToPanel={moveChatToPanel}
+                />
+              ) : activeDiffTab ? (
                 <DiffView
                   key={activeDiffTab.key}
                   target={activeDiffTab.target}
@@ -2356,9 +2436,9 @@ export default function App() {
               />
               <div className="ai-column" style={{ width: aiWidth }}>
                 <AiChat
+                  assistant={assistant}
                   root={root}
-                  activePath={activePath}
-                  openDocuments={openDocuments}
+                  onOpenInTab={openChatInTab}
                   quote={aiQuote}
                   onDropQuote={() => setAiQuote(null)}
                   notesFolder={settings.aiFolder}
@@ -2384,7 +2464,7 @@ export default function App() {
               onError={fail}
             />
           )}
-          {active && !activeDiffTab && !minimal && (
+          {active && !activeDiffTab && !activeChatId && !minimal && (
             <StatusBar
               content={active.content}
               dirty={dirty}
