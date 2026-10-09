@@ -16,7 +16,8 @@ import { emit, emitTo } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorView } from "@codemirror/view";
 import { api, type FileNode, type OpenRequest } from "./lib/api";
-import { basename, dirname, isInside, isMarkdown, join } from "./lib/paths";
+import { basename, dirname, isInside, isMarkdown, join, relative } from "./lib/paths";
+import { noteFor } from "./lib/ai";
 import { recordActiveDay, recordFeature, setUsageStats } from "./lib/analytics";
 import { hostTerminal } from "./embed/host";
 import { useHostThemeVersion } from "./lib/hostTheme";
@@ -803,6 +804,35 @@ export default function App() {
     setActiveThread(null);
     setDraft({ path: tab.path, anchor: createAnchor(tab.content, range) });
   }, [setCommentsOpen, selectedText]);
+
+  /** Saves a question to the assistant and its answer as a note in the project's notes folder, and opens it. */
+  const saveAiNote = useCallback(
+    async (turn: { question: string; quote?: string; answer: string }) => {
+      const root = live.current.root;
+      if (!root) return;
+      const folder = live.current.settings.aiFolder.replace(/^\/+|\/+$/g, "") || DEFAULT_SETTINGS.aiFolder;
+      const { name, content } = noteFor(turn.question, turn.answer, turn.quote);
+      for (let n = 1; n < 100; n++) {
+        const path = join(join(root, folder), `${n === 1 ? name : `${name}-${n}`}.md`);
+        try {
+          await api.createFile(path);
+        } catch (e) {
+          if (String(e).includes("already exists")) continue;
+          return fail(e);
+        }
+        try {
+          await api.writeFile(path, content, null);
+          await refreshTree();
+          await openFile(path);
+          setToast(`Saved as ${relative(root, path)}`);
+        } catch (e) {
+          fail(e);
+        }
+        return;
+      }
+    },
+    [refreshTree, openFile, fail],
+  );
 
   /** The documents in the tabs, as they are now (asked for when a message is sent, not at each keystroke). */
   const openDocuments = useCallback(() => live.current.tabs.map((t) => ({ path: t.path, content: t.content })), []);
@@ -2176,126 +2206,158 @@ export default function App() {
               onMove={moveAnyTab}
             />
           )}
-          {activeDiffTab ? (
-            <DiffView
-              key={activeDiffTab.key}
-              target={activeDiffTab.target}
-              version={gitVersion}
-              busy={git.busy !== null}
-              onOpenFile={openFile}
-              onStage={stage}
-              onUnstage={unstage}
-              onResolve={resolveConflict}
-            />
-          ) : active ? (
-            <>
-              {mode === "edit" && settings.formatBar && !minimal && <FormatBar />}
-              <div className="content-row">
-                <div
-                  ref={workspaceRef}
-                  className={`workspace mode-${mode}`}
-                  style={{ gridTemplateColumns: mode === "split" ? `${splitRatio}fr 1px ${1 - splitRatio}fr` : "1fr" }}
-                >
-                  {mode !== "view" && (
-                    // A column, so in Split the format bar sits over the editor side only.
-                    <div key="editor" className="editor-column">
-                      {mode === "split" && settings.formatBar && !minimal && <FormatBar />}
-                      <Editor
-                        docKey={active.path}
-                        value={active.content}
-                        wrap={settings.wrap}
-                        onChange={updateContent}
-                        onScroll={onEditorScroll}
-                        onAddImages={addImages}
-                        highlights={minimal ? NO_HIGHLIGHTS : highlights}
-                        onSelectHighlight={showThread}
-                        onHoverHighlight={hoverHighlight}
-                        minimap={settings.minimap && !minimal}
-                      />
-                    </div>
-                  )}
-                  {mode === "split" && (
+          {/* The document, and the assistant beside it: under the toolbar, over the terminal, as the comments. */}
+          <div className="main-row">
+            <div className="main-column">
+              {activeDiffTab ? (
+                <DiffView
+                  key={activeDiffTab.key}
+                  target={activeDiffTab.target}
+                  version={gitVersion}
+                  busy={git.busy !== null}
+                  onOpenFile={openFile}
+                  onStage={stage}
+                  onUnstage={unstage}
+                  onResolve={resolveConflict}
+                />
+              ) : active ? (
+                <>
+                  {mode === "edit" && settings.formatBar && !minimal && <FormatBar />}
+                  <div className="content-row">
                     <div
-                      key="split-resizer"
-                      className="resizer split-resizer"
-                      onPointerDown={(e) =>
-                        dragResize(e, (ev) => {
-                          const rect = workspaceRef.current!.getBoundingClientRect();
-                          setSplitRatio(clamp((ev.clientX - rect.left) / rect.width, 0.2, 0.8));
-                        })
-                      }
-                    />
-                  )}
-                  {mode !== "edit" && (
-                    <Preview
-                      key={`preview:${active.path}`}
-                      content={active.content}
-                      filePath={active.path}
-                      root={root}
-                      wrap={settings.wrap}
-                      justify={settings.justify}
-                      showFrontmatter={settings.showFrontmatter}
-                      scrollRef={previewRef}
-                      onScroll={onPreviewScroll}
-                      onOpenFile={openLink}
-                      highlights={minimal ? NO_HIGHLIGHTS : highlights}
-                      onSelectHighlight={showThread}
-                      onHoverHighlight={hoverHighlight}
-                      minimap={settings.minimap && !minimal}
-                      remoteImages={settings.remoteImages}
-                    />
-                  )}
-                </div>
-                {peekThread && hover?.x !== undefined && hover.y !== undefined && !minimal && (
-                  <CommentPeek thread={peekThread} x={hover.x} y={hover.y} />
-                )}
-                {!isWeb && !minimal && <SelectionMenu containerRef={workspaceRef} onComment={startComment} onAskAi={hasAssistant ? askAi : undefined} />}
-                {outlineOpen && !minimal && (
-                  <div
-                    className="resizer outline-resizer"
-                    onPointerDown={(e) => {
-                      const startX = e.clientX;
-                      const startWidth = outlineWidth;
-                      // At most half the window, so the document keeps room.
-                      dragResize(e, (ev) =>
-                        setOutlineWidth(clamp(startWidth + startX - ev.clientX, 180, Math.max(180, window.innerWidth / 2))),
-                      );
-                    }}
-                  />
-                )}
-                {outlineOpen && !minimal && (
-                  <Outline
-                    width={outlineWidth}
-                    headings={headings}
-                    activeIndex={headingAt(headings, currentLine)}
-                    onSelect={goToHeading}
-                    onClose={() => setOutlineOpen(false)}
-                  />
-                )}
-                {commentsOpen && !minimal && (
-                  <Comments
-                    threads={placedThreads}
-                    activeId={activeThread}
-                    draft={draft && draft.path === active.path ? { quote: draft.anchor.exact } : null}
-                    author={author}
-                    readOnly={isWeb}
-                    onSelect={selectThread}
-                    onHover={hoverHighlight}
-                    onNewComment={startComment}
-                    onSubmitDraft={submitDraft}
-                    onCancelDraft={() => setDraft(null)}
-                    onReply={replyToThread}
-                    onResolve={resolveThread}
-                    onReopen={reopenThread}
-                    onDelete={deleteComment}
-                    onClose={() => setCommentsOpen(false)}
-                  />
-                )}
+                      ref={workspaceRef}
+                      className={`workspace mode-${mode}`}
+                      style={{ gridTemplateColumns: mode === "split" ? `${splitRatio}fr 1px ${1 - splitRatio}fr` : "1fr" }}
+                    >
+                      {mode !== "view" && (
+                        // A column, so in Split the format bar sits over the editor side only.
+                        <div key="editor" className="editor-column">
+                          {mode === "split" && settings.formatBar && !minimal && <FormatBar />}
+                          <Editor
+                            docKey={active.path}
+                            value={active.content}
+                            wrap={settings.wrap}
+                            onChange={updateContent}
+                            onScroll={onEditorScroll}
+                            onAddImages={addImages}
+                            highlights={minimal ? NO_HIGHLIGHTS : highlights}
+                            onSelectHighlight={showThread}
+                            onHoverHighlight={hoverHighlight}
+                            minimap={settings.minimap && !minimal}
+                          />
+                        </div>
+                      )}
+                      {mode === "split" && (
+                        <div
+                          key="split-resizer"
+                          className="resizer split-resizer"
+                          onPointerDown={(e) =>
+                            dragResize(e, (ev) => {
+                              const rect = workspaceRef.current!.getBoundingClientRect();
+                              setSplitRatio(clamp((ev.clientX - rect.left) / rect.width, 0.2, 0.8));
+                            })
+                          }
+                        />
+                      )}
+                      {mode !== "edit" && (
+                        <Preview
+                          key={`preview:${active.path}`}
+                          content={active.content}
+                          filePath={active.path}
+                          root={root}
+                          wrap={settings.wrap}
+                          justify={settings.justify}
+                          showFrontmatter={settings.showFrontmatter}
+                          scrollRef={previewRef}
+                          onScroll={onPreviewScroll}
+                          onOpenFile={openLink}
+                          highlights={minimal ? NO_HIGHLIGHTS : highlights}
+                          onSelectHighlight={showThread}
+                          onHoverHighlight={hoverHighlight}
+                          minimap={settings.minimap && !minimal}
+                          remoteImages={settings.remoteImages}
+                        />
+                      )}
+                    </div>
+                    {peekThread && hover?.x !== undefined && hover.y !== undefined && !minimal && (
+                      <CommentPeek thread={peekThread} x={hover.x} y={hover.y} />
+                    )}
+                    {!isWeb && !minimal && <SelectionMenu containerRef={workspaceRef} onComment={startComment} onAskAi={hasAssistant ? askAi : undefined} />}
+                    {outlineOpen && !minimal && (
+                      <div
+                        className="resizer outline-resizer"
+                        onPointerDown={(e) => {
+                          const startX = e.clientX;
+                          const startWidth = outlineWidth;
+                          // At most half the window, so the document keeps room.
+                          dragResize(e, (ev) =>
+                            setOutlineWidth(clamp(startWidth + startX - ev.clientX, 180, Math.max(180, window.innerWidth / 2))),
+                          );
+                        }}
+                      />
+                    )}
+                    {outlineOpen && !minimal && (
+                      <Outline
+                        width={outlineWidth}
+                        headings={headings}
+                        activeIndex={headingAt(headings, currentLine)}
+                        onSelect={goToHeading}
+                        onClose={() => setOutlineOpen(false)}
+                      />
+                    )}
+                    {commentsOpen && !minimal && (
+                      <Comments
+                        threads={placedThreads}
+                        activeId={activeThread}
+                        draft={draft && draft.path === active.path ? { quote: draft.anchor.exact } : null}
+                        author={author}
+                        readOnly={isWeb}
+                        onSelect={selectThread}
+                        onHover={hoverHighlight}
+                        onNewComment={startComment}
+                        onSubmitDraft={submitDraft}
+                        onCancelDraft={() => setDraft(null)}
+                        onReply={replyToThread}
+                        onResolve={resolveThread}
+                        onReopen={reopenThread}
+                        onDelete={deleteComment}
+                        onClose={() => setCommentsOpen(false)}
+                      />
+                    )}
+                  </div>
+                </>
+              ) : (
+                <NoFile />
+              )}
+            </div>
+          {aiOpen && hasAssistant && !minimal && (
+            <>
+              <div
+                className="resizer ai-resizer"
+                onPointerDown={(e) => {
+                  const startX = e.clientX;
+                  const startWidth = aiWidth;
+                  dragResize(e, (ev) =>
+                    setAiWidth(clamp(startWidth + startX - ev.clientX, 300, Math.max(300, window.innerWidth / 2))),
+                  );
+                }}
+              />
+              <div className="ai-column" style={{ width: aiWidth }}>
+                <AiChat
+                  root={root}
+                  activePath={activePath}
+                  openDocuments={openDocuments}
+                  quote={aiQuote}
+                  onDropQuote={() => setAiQuote(null)}
+                  notesFolder={settings.aiFolder}
+                  onSaveNote={saveAiNote}
+                  onOpenFile={openLink}
+                  onClose={() => setAiOpen(false)}
+                />
               </div>
             </>
-          ) : (
-            <NoFile />
           )}
+          </div>
           {hasTerminal && (
             <TerminalPanel
               ref={terminalRef}
@@ -2330,31 +2392,6 @@ export default function App() {
             />
           )}
         </main>
-        {aiOpen && hasAssistant && !minimal && (
-          <>
-            <div
-              className="resizer ai-resizer"
-              onPointerDown={(e) => {
-                const startX = e.clientX;
-                const startWidth = aiWidth;
-                dragResize(e, (ev) =>
-                  setAiWidth(clamp(startWidth + startX - ev.clientX, 300, Math.max(300, window.innerWidth / 2))),
-                );
-              }}
-            />
-            <div className="ai-column" style={{ width: aiWidth }}>
-              <AiChat
-                root={root}
-                activePath={activePath}
-                openDocuments={openDocuments}
-                quote={aiQuote}
-                onDropQuote={() => setAiQuote(null)}
-                onOpenFile={openLink}
-                onClose={() => setAiOpen(false)}
-              />
-            </div>
-          </>
-        )}
         {overlays}
         {toast && (
           <div className="toast" onClick={() => setToast(null)}>

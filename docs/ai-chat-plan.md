@@ -70,9 +70,9 @@ Un selettore in cima al pannello:
 
 ### 3. Pannello: `AiChat.tsx`
 
-- Pulsante nella toolbar (✨, ⌘⇧L). Il pannello è una colonna a tutta
-  altezza a destra, ridimensionabile, indipendente dai commenti: resta aperto
-  anche senza documento e durante i diff.
+- Pulsante nella toolbar (✨, ⌘⇧L). Il pannello sta a destra sotto la barra
+  dell'app, come i commenti, ridimensionabile: resta aperto anche senza
+  documento e durante i diff.
 - Risposte rese come markdown mentre arrivano; chiamate ai tool compresse in
   righe come "📄 Letto docs/api.md".
 - Stop, Nuova chat, cronologia. La lista delle sessioni per progetto sta nello

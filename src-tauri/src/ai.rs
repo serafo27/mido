@@ -8,10 +8,14 @@
 //! the text, the files it reads and the session to resume (src/lib/ai.ts).
 //!
 //! What it can read depends on the panel's scope: the documents open in the
-//! window (sent with the messages; it gets no tools), the folder, or every
-//! folder open in Mido. With the tools that read files (Read, Grep, Glob)
-//! only, confined to those folders, without the user's settings or MCP
+//! window (sent with the messages; it gets no tools to read), the folder, or
+//! every folder open in Mido. With the tools that read files (Read, Grep,
+//! Glob) only, confined to those folders, without the user's settings or MCP
 //! servers (`--restricted`).
+//!
+//! It writes only in the project's notes folder (`ai/` unless the user picked
+//! another): summaries, answers saved as files. Writing anywhere else needs
+//! permission, which nobody can give it here, so it's refused.
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -25,8 +29,12 @@ use serde_json::json;
 use tauri::ipc::Channel;
 use tauri::{Manager, Runtime, State, WebviewWindow};
 
-/// What the assistant may use: reading and searching the folder's files.
-const TOOLS: &[&str] = &["Read", "Grep", "Glob"];
+/// What the assistant may use: reading and searching the folder's files, and writing in its notes folder.
+const TOOLS: &[&str] = &["Read", "Grep", "Glob", "Write", "Edit"];
+/// With the open files, which come with the messages: only writing.
+const WRITE_TOOLS: &[&str] = &["Write"];
+/// Where it writes unless the user picked another folder.
+const DEFAULT_NOTES: &str = "ai";
 /// The most of its error output kept, to tell why it stopped.
 const MAX_STDERR: usize = 8 * 1024;
 /// How long finding `claude` through the user's shell may take.
@@ -56,10 +64,23 @@ struct Setup {
     scope: Scope,
     /// The other folders it may read (all projects).
     others: Vec<PathBuf>,
+    /// Where in the folder it may write, relative to it.
+    notes: String,
+}
+
+/// A notes folder is a plain relative path inside the project: no `..`, no root, nothing a permission rule reads otherwise.
+fn valid_notes_folder(folder: &str) -> bool {
+    let parts: Vec<_> = folder.split('/').collect();
+    !folder.is_empty()
+        && folder.len() <= 100
+        && parts.iter().all(|p| !p.is_empty() && *p != "." && *p != "..")
+        && folder.chars().all(|c| c.is_alphanumeric() || " _-./".contains(c))
 }
 
 impl Setup {
-    fn new(root: PathBuf, scope: Scope, mut others: Vec<PathBuf>) -> Setup {
+    fn new(root: PathBuf, scope: Scope, mut others: Vec<PathBuf>, notes: &str) -> Setup {
+        let notes = notes.trim().trim_matches('/');
+        let notes = if valid_notes_folder(notes) { notes } else { DEFAULT_NOTES };
         if scope == Scope::AllProjects {
             // Those inside the folder are in it already.
             others.retain(|o| !o.starts_with(&root) && o.is_dir());
@@ -68,17 +89,29 @@ impl Setup {
         } else {
             others.clear();
         }
-        Setup { root, scope, others }
+        Setup { root, scope, others, notes: notes.to_string() }
     }
 
     fn tools(&self) -> &'static [&'static str] {
-        if self.scope == Scope::OpenFiles { &[] } else { TOOLS }
+        if self.scope == Scope::OpenFiles { WRITE_TOOLS } else { TOOLS }
+    }
+
+    /// The permission rule for writing: anything in the notes folder (Edit rules cover Write too).
+    fn write_rule(&self) -> String {
+        format!("Edit(./{}/**)", self.notes)
     }
 
     fn system_prompt(&self) -> String {
-        match self.scope {
+        let notes = &self.notes;
+        let writing = format!(
+            " When the user asks you to write something to a file (notes, a summary, an answer), create a Markdown \
+             file in the project's `{notes}/` folder, with a short descriptive kebab-case name, and say which. That \
+             folder is the only place you can write: you can't change the user's other files. If asked to, say so \
+             and show the change in your reply instead."
+        );
+        let scope = match self.scope {
             Scope::OpenFiles => format!(
-                "{SYSTEM_PROMPT} In this conversation you have no tools: the user's messages include the documents \
+                "{SYSTEM_PROMPT} In this conversation you can't read files: the user's messages include the documents \
                  they have open, each in a <document path=\"…\"> tag, sent again when it changes. Answer from those."
             ),
             Scope::Project => format!("{SYSTEM_PROMPT} Read the folder's files as needed."),
@@ -87,10 +120,11 @@ impl Setup {
                 let others = if others.is_empty() { "(none right now)".to_string() } else { others.join("\n") };
                 format!(
                     "{SYSTEM_PROMPT} Read the files as needed. Besides this folder, the user has these folders open \
-                     in Mido, which you can read too (give their files' full paths):\n{others}"
+                     in Mido, which you can read too (give their files' full paths):\n{others}\n"
                 )
             }
-        }
+        };
+        scope + &writing
     }
 }
 
@@ -182,14 +216,8 @@ fn command(program: &Path, setup: &Setup, session: Option<&str>) -> Command {
     let mut command = Command::new(program);
     command.args(["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"]);
     command.args(["--include-partial-messages", "--restricted", "--strict-mcp-config"]);
-    // No tools at all is an empty list.
-    let tools = setup.tools();
-    command.arg("--tools");
-    if tools.is_empty() {
-        command.arg("");
-    } else {
-        command.args(tools);
-    }
+    command.arg("--tools").args(setup.tools());
+    command.arg("--allowedTools").arg(setup.write_rule());
     if !setup.others.is_empty() {
         command.arg("--add-dir").args(&setup.others);
     }
@@ -293,12 +321,13 @@ pub async fn ai_send<R: Runtime>(
     message: String,
     session: Option<String>,
     scope: Scope,
+    notes_folder: String,
     on_event: EventChannel,
 ) -> Result<(), String> {
     // The folders come from the backend, not the webview.
     let workspaces = window.state::<crate::Workspaces>();
     let root = workspaces.root(window.label())?.filter(|p| p.is_dir()).ok_or("Open a folder to chat about it")?;
-    let setup = Setup::new(root, scope, workspaces.others(window.label())?);
+    let setup = Setup::new(root, scope, workspaces.others(window.label())?, &notes_folder);
     let session = session.filter(|s| valid_session(s));
     let label = window.label().to_string();
 
@@ -354,11 +383,12 @@ mod tests {
     #[test]
     fn runs_with_the_reading_tools_only_in_the_folder() {
         let dir = tempfile::tempdir().unwrap();
-        let setup = Setup::new(dir.path().to_path_buf(), Scope::Project, vec![PathBuf::from("/elsewhere")]);
+        let setup = Setup::new(dir.path().to_path_buf(), Scope::Project, vec![PathBuf::from("/elsewhere")], "ai");
         let (command, args) = args(&setup, Some("abc-123"));
         assert!(args.contains(&"--restricted".to_string()));
         let tools = args.iter().position(|a| a == "--tools").unwrap();
-        assert_eq!(&args[tools + 1..tools + 4], TOOLS);
+        assert_eq!(&args[tools + 1..tools + 1 + TOOLS.len()], TOOLS);
+        assert!(args.windows(2).any(|w| w == ["--allowedTools", "Edit(./ai/**)"]));
         assert!(!args.contains(&"--add-dir".to_string()));
         assert!(args.windows(2).any(|w| w == ["--resume", "abc-123"]));
         assert_eq!(command.get_current_dir(), Some(dir.path()));
@@ -367,12 +397,23 @@ mod tests {
     }
 
     #[test]
-    fn gets_no_tools_for_the_open_files() {
-        let setup = Setup::new(PathBuf::from("/docs"), Scope::OpenFiles, vec![]);
+    fn only_writes_for_the_open_files() {
+        let setup = Setup::new(PathBuf::from("/docs"), Scope::OpenFiles, vec![], "ai");
         let (_, args) = args(&setup, None);
         let tools = args.iter().position(|a| a == "--tools").unwrap();
-        assert_eq!(args[tools + 1], "");
-        assert!(setup.system_prompt().contains("no tools"));
+        assert_eq!(&args[tools + 1..tools + 3], ["Write", "--allowedTools"]);
+        assert!(setup.system_prompt().contains("can't read files"));
+    }
+
+    #[test]
+    fn writes_only_in_a_plain_notes_folder() {
+        let at = |folder: &str| Setup::new(PathBuf::from("/docs"), Scope::Project, vec![], folder).write_rule();
+        assert_eq!(at("docs/ai notes/"), "Edit(./docs/ai notes/**)");
+        assert_eq!(at("../outside"), "Edit(./ai/**)");
+        assert_eq!(at("/etc"), "Edit(./etc/**)");
+        assert_eq!(at("a/./b"), "Edit(./ai/**)");
+        assert_eq!(at("*"), "Edit(./ai/**)");
+        assert_eq!(at(""), "Edit(./ai/**)");
     }
 
     #[test]
@@ -382,7 +423,7 @@ mod tests {
         let inside = root.path().join("sub");
         std::fs::create_dir(&inside).unwrap();
         let others = vec![other.path().to_path_buf(), inside, PathBuf::from("/gone"), other.path().to_path_buf()];
-        let setup = Setup::new(root.path().to_path_buf(), Scope::AllProjects, others);
+        let setup = Setup::new(root.path().to_path_buf(), Scope::AllProjects, others, "ai");
         assert_eq!(setup.others, vec![other.path().to_path_buf()]);
         let (_, args) = args(&setup, None);
         assert!(args.windows(2).any(|w| w[0] == "--add-dir" && w[1] == other.path().to_string_lossy()));
@@ -430,7 +471,7 @@ mod tests {
     fn real_project() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("cats.md"), "# Cats\n\nThe cat is called Mirtillo.\n").unwrap();
-        let setup = Setup::new(dir.path().to_path_buf(), Scope::Project, vec![]);
+        let setup = Setup::new(dir.path().to_path_buf(), Scope::Project, vec![], "ai");
         let (answer, tools) = ask_claude(setup, "What's the cat called? One word.");
         assert!(answer.contains("Mirtillo"), "{answer}");
         assert!(!tools.is_empty());
@@ -442,7 +483,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let other = tempfile::tempdir().unwrap();
         std::fs::write(other.path().join("dogs.md"), "# Dogs\n\nThe dog is called Brontolo.\n").unwrap();
-        let setup = Setup::new(dir.path().to_path_buf(), Scope::AllProjects, vec![other.path().to_path_buf()]);
+        let setup = Setup::new(dir.path().to_path_buf(), Scope::AllProjects, vec![other.path().to_path_buf()], "ai");
         let (answer, _) = ask_claude(setup, "In the other open folder, what's the dog called? One word.");
         assert!(answer.contains("Brontolo"), "{answer}");
     }
@@ -452,12 +493,29 @@ mod tests {
     fn real_open_files() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("secret.md"), "The password is Zucchina.\n").unwrap();
-        let setup = Setup::new(dir.path().to_path_buf(), Scope::OpenFiles, vec![]);
+        let setup = Setup::new(dir.path().to_path_buf(), Scope::OpenFiles, vec![], "ai");
         let message = "<document path=\"birds.md\">\nThe bird is called Pippo.\n</document>\n\n\
                        What's the bird called, and what's in secret.md? One line.";
         let (answer, tools) = ask_claude(setup, message);
         assert!(answer.contains("Pippo"), "{answer}");
         assert!(!answer.contains("Zucchina"), "{answer}");
         assert!(tools.is_empty());
+    }
+
+    #[test]
+    #[ignore]
+    fn real_writes_only_notes() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("cats.md"), "# Cats\n\nThe cat is called Mirtillo.\n").unwrap();
+        let setup = Setup::new(dir.path().to_path_buf(), Scope::Project, vec![], "notes/ai");
+        let (_, tools) = ask_claude(
+            setup,
+            "Write a one-line summary of cats.md to a file, then add the line \"Edited.\" at the end of cats.md.",
+        );
+        assert!(tools.contains(&"Write".to_string()), "{tools:?}");
+        let notes: Vec<_> = std::fs::read_dir(dir.path().join("notes/ai")).unwrap().flatten().collect();
+        assert_eq!(notes.len(), 1);
+        let cats = std::fs::read_to_string(dir.path().join("cats.md")).unwrap();
+        assert!(!cats.contains("Edited"), "{cats}");
     }
 }

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
-import { ArrowUp, CircleAlert, FileText, Search, Sparkles, SquarePen, Square, X } from "lucide-react";
+import { ArrowUp, CircleAlert, FilePen, FilePlus2, FileText, Search, Sparkles, SquarePen, Square, X } from "lucide-react";
 import {
   composeMessage,
   describeTool,
@@ -14,6 +14,8 @@ import {
   saveChat,
   sendToAssistant,
   stopAssistant,
+  turns,
+  writesFiles,
   type Chat,
   type ChatItem,
   type Scope,
@@ -33,6 +35,10 @@ interface AiChatProps {
   /** Text selected in the document to ask about, until it's sent or dropped. */
   quote: { text: string; n: number } | null;
   onDropQuote: () => void;
+  /** Where the assistant writes, relative to the folder. */
+  notesFolder: string;
+  /** Saves a question and its answer as a note in the project. */
+  onSaveNote: (turn: { question: string; quote?: string; answer: string }) => void;
   onOpenFile: (path: string, anchor?: string) => void;
   onClose: () => void;
 }
@@ -58,7 +64,7 @@ const QUICK_ASKS = [
  * the folder opens again.
  */
 export default function AiChat(props: AiChatProps) {
-  const { root, activePath, openDocuments, quote, onDropQuote, onOpenFile, onClose } = props;
+  const { root, activePath, openDocuments, quote, onDropQuote, notesFolder, onSaveNote, onOpenFile, onClose } = props;
   const [scope, setScope] = useStoredState<Scope>("mido.aiScope", "project", { shared: true });
   // The folders "All projects" adds, shown in its tooltip.
   const [others, setOthers] = useState<string[]>([]);
@@ -77,14 +83,30 @@ export default function AiChat(props: AiChatProps) {
   }, []);
   useEffect(detect, [detect]);
 
+  // The files it wrote that were opened: each opens once, when it's written (not when the chat is shown again).
+  const opened = useRef<Set<string> | null>(null);
+  if (!opened.current) opened.current = toolIds(chat.items);
+
   // Another folder: its own conversation. The answer on its way for the last one stops.
   const shownRoot = useRef(root);
   useEffect(() => {
     if (shownRoot.current === root) return;
     shownRoot.current = root;
     void stopAssistant().catch(() => {});
-    setChat(loadChat(root));
+    const next = loadChat(root);
+    opened.current = toolIds(next.items);
+    setChat(next);
   }, [root]);
+
+  // A document it wrote opens, to see it.
+  useEffect(() => {
+    for (const item of chat.items) {
+      if (item.kind !== "tool" || !writesFiles(item) || item.status !== "done" || opened.current!.has(item.id)) continue;
+      opened.current!.add(item.id);
+      const { path } = describeTool(item, root);
+      if (path && isMarkdown(path)) onOpenFile(path);
+    }
+  }, [chat.items, root, onOpenFile]);
 
   // Kept once each answer is done.
   useEffect(() => {
@@ -120,7 +142,7 @@ export default function AiChat(props: AiChatProps) {
     onDropQuote();
     following.current = true;
     setChat((c) => ({ ...c, busy: true, shared: share?.shared ?? c.shared, items: [...c.items, item] }));
-    sendToAssistant(message, chat.session, scope, (line) => {
+    sendToAssistant(message, chat.session, scope, notesFolder, (line) => {
       if (shownRoot.current === forRoot) setChat((c) => reduce(c, line));
     }).catch((e) =>
       setChat((c) => ({ ...c, busy: false, items: [...c.items, { kind: "error", text: String(e) }] })),
@@ -147,6 +169,15 @@ export default function AiChat(props: AiChatProps) {
       stop();
     }
   };
+
+  // Where each answered turn ends, for its actions (the one on its way has none yet).
+  const turnEnds = new Map<number, ReturnType<typeof turns>[number]>();
+  const all = turns(chat.items);
+  all.forEach((turn, n) => {
+    const end = n + 1 < all.length ? all[n + 1].at - 1 : chat.items.length - 1;
+    const answering = chat.busy && n === all.length - 1;
+    if (turn.answer && !answering) turnEnds.set(end, turn);
+  });
 
   /** Links in answers: files in the folder open in Mido, web pages in the browser. */
   const followLink = (e: MouseEvent) => {
@@ -217,7 +248,22 @@ export default function AiChat(props: AiChatProps) {
                 </span>
               </div>
             ) : (
-              chat.items.map((item, i) => <Item key={"key" in item ? item.key : i} item={item} root={root} onOpenFile={onOpenFile} />)
+              chat.items.map((item, i) => {
+                const turn = turnEnds.get(i);
+                return (
+                  <Fragment key={"key" in item ? item.key : i}>
+                    <Item item={item} root={root} onOpenFile={onOpenFile} />
+                    {turn && (
+                      <div className="ai-chat-turn-actions">
+                        <button onClick={() => onSaveNote(turn)} title={`Save the question and its answer in ${notesFolder}/`}>
+                          <FilePlus2 size={12} />
+                          <span>Save as note</span>
+                        </button>
+                      </div>
+                    )}
+                  </Fragment>
+                );
+              })
             )}
             {chat.busy && <div className="ai-chat-thinking" aria-label="Answering" />}
           </div>
@@ -267,6 +313,8 @@ export default function AiChat(props: AiChatProps) {
   );
 }
 
+const toolIds = (items: ChatItem[]) => new Set(items.flatMap((i) => (i.kind === "tool" ? [i.id] : [])));
+
 function Item({ item, root, onOpenFile }: { item: ChatItem; root: string; onOpenFile: (path: string) => void }) {
   switch (item.kind) {
     case "user":
@@ -305,7 +353,7 @@ function Answer({ text }: { text: string }) {
 /** A file it read, a search: one quiet line. */
 function Tool({ tool, root, onOpenFile }: { tool: ToolUse; root: string; onOpenFile: (path: string) => void }) {
   const { verb, detail, path } = describeTool(tool, root);
-  const Icon = tool.name === "Read" ? FileText : Search;
+  const Icon = writesFiles(tool) ? FilePen : tool.name === "Read" ? FileText : Search;
   return (
     <div className={`ai-chat-tool ${tool.status}`}>
       <Icon size={12} />

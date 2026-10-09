@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { composeMessage, describeTool, documentsToShare, EMPTY_CHAT, reduce, type Chat, type ToolUse } from "./ai";
+import { composeMessage, describeTool, documentsToShare, EMPTY_CHAT, noteFor, reduce, turns, type Chat, type ToolUse } from "./ai";
 // What Claude Code printed for "Read a.md and reply in 5 words", trimmed.
 import stream from "./fixtures/claude-stream.jsonl?raw";
 
@@ -127,5 +127,38 @@ describe("composeMessage with the open files", () => {
       documents: [{ path: "a.md", content: "# A" }],
     });
     expect(message).toBe('<document path="a.md">\n# A\n</document>\n\n(Open in Mido: a.md, b.md.)\n\nCompare them');
+  });
+});
+
+describe("notes", () => {
+  it("names a note after its question, and keeps the passage asked about", () => {
+    expect(noteFor("Perché l'architettura è così? Spiegami bene\nper favore", "Perché **sì**.\n", "Tre livelli.")).toEqual({
+      name: "perche-l-architettura-e-cosi-spiegami-bene",
+      content: "# Perché l'architettura è così? Spiegami bene\n\n> Tre livelli.\n\nPerché **sì**.\n",
+    });
+    expect(noteFor("???", "Yes").name).toBe("answer");
+  });
+
+  it("splits the chat into questions and their answers", () => {
+    const tool: ToolUse = { kind: "tool", key: "t", id: "t", name: "Read", input: "{}", status: "done" };
+    const chat = turns([
+      { kind: "user", text: "One" },
+      { kind: "text", key: "a", text: "Let me look." },
+      tool,
+      { kind: "text", key: "b", text: "It's one." },
+      { kind: "user", text: "Two", quote: "2" },
+    ]);
+    expect(chat).toEqual([
+      { at: 0, question: "One", quote: undefined, answer: "Let me look.\n\nIt's one." },
+      { at: 4, question: "Two", quote: "2", answer: "" },
+    ]);
+  });
+
+  it("tells what it wrote, and what it wasn't allowed to", () => {
+    const write = (status: ToolUse["status"]): ToolUse => ({
+      kind: "tool", key: "w", id: "w", name: "Write", input: JSON.stringify({ file_path: "/docs/ai/sum.md" }), status,
+    });
+    expect(describeTool(write("done"), "/docs")).toMatchObject({ verb: "Wrote", detail: "ai/sum.md" });
+    expect(describeTool(write("error"), "/docs").verb).toBe("Wasn't allowed to write");
   });
 });

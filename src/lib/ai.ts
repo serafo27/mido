@@ -171,6 +171,11 @@ export function describeTool(tool: ToolUse, root: string): { verb: string; detai
   switch (tool.name) {
     case "Read":
       return { verb: "Read", detail: show(input.file_path), path: typeof input.file_path === "string" ? input.file_path : undefined };
+    case "Write":
+    case "Edit": {
+      const verb = tool.status === "error" ? "Wasn't allowed to write" : tool.name === "Write" ? "Wrote" : "Edited";
+      return { verb, detail: show(input.file_path), path: typeof input.file_path === "string" ? input.file_path : undefined };
+    }
     case "Grep":
       return { verb: "Searched for", detail: input.pattern ? `“${input.pattern}”` : "" };
     case "Glob":
@@ -232,6 +237,41 @@ export function composeMessage(
   return parts.join("\n\n");
 }
 
+/** The file tools whose results Mido opens: what the assistant wrote. */
+export const writesFiles = (tool: ToolUse) => tool.name === "Write" || tool.name === "Edit";
+
+/** A question and its answer, as a Markdown note: its file name (without extension) and its text. */
+export function noteFor(question: string, answer: string, quote?: string): { name: string; content: string } {
+  const title = question.split("\n")[0].trim().slice(0, 80) || "Answer";
+  const name =
+    title
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .split("-")
+      .slice(0, 8)
+      .join("-") || "answer";
+  const parts = [`# ${title}`];
+  if (quote) parts.push(quote.replace(/^/gm, "> "));
+  parts.push(answer.trim());
+  return { name, content: parts.join("\n\n") + "\n" };
+}
+
+/** The chat in turns: each question with the text of its answer (null while it's on its way). */
+export function turns(items: ChatItem[]): { at: number; question: string; quote?: string; answer: string }[] {
+  const out: { at: number; question: string; quote?: string; answer: string }[] = [];
+  items.forEach((item, i) => {
+    if (item.kind === "user") out.push({ at: i, question: item.text, quote: item.quote, answer: "" });
+    else if (item.kind === "text" && out.length) {
+      const turn = out[out.length - 1];
+      turn.answer = turn.answer ? `${turn.answer}\n\n${item.text}` : item.text;
+    }
+  });
+  return out;
+}
+
 /* ---------- the chats, kept per folder ---------- */
 
 const STORAGE_KEY = "mido.aiChats";
@@ -269,10 +309,16 @@ export function saveChat(root: string, chat: Chat) {
 export const detectAssistant = () => invoke<string | null>("ai_detect");
 
 /** Sends a message; the assistant's events (JSON lines) go to `onEvent`. */
-export function sendToAssistant(message: string, session: string | null, scope: Scope, onEvent: (line: string) => void) {
+export function sendToAssistant(
+  message: string,
+  session: string | null,
+  scope: Scope,
+  notesFolder: string,
+  onEvent: (line: string) => void,
+) {
   const channel = new Channel<string>();
   channel.onmessage = onEvent;
-  return invoke<void>("ai_send", { message, session, scope, onEvent: channel });
+  return invoke<void>("ai_send", { message, session, scope, notesFolder, onEvent: channel });
 }
 
 /** The folders open in the other windows. */

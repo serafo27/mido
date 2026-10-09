@@ -60,6 +60,8 @@ export interface Settings {
   usageStats: boolean;
   /** The assistant (a Pro feature, in progress): not in the settings panel yet. */
   aiChat: boolean;
+  /** Where in the project the assistant writes its notes, and Save as Note saves. */
+  aiFolder: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -95,6 +97,7 @@ export const DEFAULT_SETTINGS: Settings = {
   terminalFont: "",
   usageStats: true,
   aiChat: false,
+  aiFolder: "ai",
 };
 
 /**
