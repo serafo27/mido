@@ -1210,6 +1210,171 @@ code {
 }
 
 /* ============================================================
+   Support — Mido Pro or a coffee on Ko-fi
+   ============================================================ */
+.support {
+  padding: 88px 0 96px;
+  border-top: 1px solid var(--border);
+  background: radial-gradient(60% 60% at 85% 40%, color-mix(in srgb, var(--warm) 9%, transparent), transparent 70%), var(--bg-soft);
+}
+
+.support-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 56px;
+  align-items: center;
+}
+
+.support-copy h2 {
+  font-size: clamp(30px, 3.6vw, 42px);
+}
+
+.support-copy p:not(.eyebrow) {
+  margin-top: 18px;
+  font-size: 17px;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.support-copy .support-thanks {
+  color: var(--text);
+}
+
+.support-ways {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.way {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 26px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.way h3 {
+  font-family: var(--font-serif);
+  font-size: 24px;
+}
+
+.way p:not(.way-kicker) {
+  flex: 1;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.way-kicker {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.way-coffee .way-kicker {
+  color: var(--warm);
+}
+
+.way .button {
+  margin-top: 6px;
+}
+
+.way p a {
+  color: var(--accent);
+}
+
+.button.kofi {
+  background: var(--warm);
+  color: #1f1407;
+  box-shadow: 0 10px 24px -12px var(--warm);
+}
+
+.button.kofi:hover {
+  filter: brightness(1.08);
+}
+
+.support-apps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  margin-top: 48px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+  font-size: 14.5px;
+  color: var(--faint);
+}
+
+.support-apps ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.support-apps a {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 40px;
+  padding: 0 14px 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.support-apps li:last-child a {
+  padding-left: 14px;
+  border-style: dashed;
+  background: none;
+  color: var(--accent);
+}
+
+.support-apps a:hover {
+  border-color: var(--faint);
+}
+
+.support-apps img,
+.app-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex: none;
+}
+
+.app-mark {
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 15%, var(--bg));
+}
+
+@media (max-width: 960px) {
+  .support-inner {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+}
+
+@media (max-width: 620px) {
+  .support-ways {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
    Footer
    ============================================================ */
 .footer {
